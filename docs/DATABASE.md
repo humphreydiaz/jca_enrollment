@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-This is a design contract for future migrations. No JCA domain migrations have been written yet. The existing three Laravel skeleton migrations create users/password resets/sessions, cache, and job tables; they may be replaced or amended deliberately during the Foundation phase.
+This is a design contract for future migrations. Phase 1 includes the Laravel users/password resets/sessions, cache, and job migrations plus `audit_logs` infrastructure. No people, enrollment, academic, document, support, section, billing, communication, or reporting domain migrations have been written yet.
 
 Target: MySQL 8.0+ pending hosting confirmation. Use InnoDB, foreign keys, `utf8mb4`, fixed-precision financial columns, and migration-tested constraints.
 

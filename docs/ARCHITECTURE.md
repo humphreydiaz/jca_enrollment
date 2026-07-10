@@ -9,11 +9,11 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - Laravel Framework 13.19.0; `composer.json` requires `^13.8`.
 - PHP requirement `^8.3`; inspected CLI is PHP 8.3.16.
 - Tailwind CSS 4 and Vite 8 are present.
-- Alpine.js is required but not installed yet.
-- The repository is the standard Laravel skeleton with default User, cache, jobs, and session migrations only.
-- `.env.example` originally targeted SQLite; the project target is MySQL.
-- There is no application authentication UI or JCA domain implementation yet.
-- The folder was not a Git repository at inspection time.
+- Alpine.js 3.14.9 is installed as a direct development dependency and loaded once from the Vite entry point.
+- The foundation includes default Laravel migrations plus an audit-log migration, database-backed cache/jobs/sessions, and MySQL-only configuration.
+- `.env.example` and `.env.testing.example` target MySQL; the application configuration has no SQLite, PostgreSQL, or Redis connection.
+- Shared module routing, a non-business smoke route, reusable Blade layouts/components, private-document disk configuration, and log-context redaction are available.
+- Identity, enrollment, billing, portal, communication, and reporting workflows remain unimplemented.
 
 ## 3. System context
 
@@ -67,7 +67,7 @@ app/Modules/<Module>/
   Support/          module-private utilities
 ```
 
-Views use `resources/views/<module>/`; routes may be split under `routes/modules/` and registered by the application. This structure is introduced only when Phase 1 implementation begins.
+Views use `resources/views/<module>/`; routes may be split under `routes/modules/` and registered by the application. Phase 1 establishes `routes/modules/shared.php` through `SharedServiceProvider`; future modules follow this pattern.
 
 ### 4.3 Transaction boundary
 

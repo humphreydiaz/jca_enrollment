@@ -41,7 +41,7 @@ Do not use gold text on white for essential content. Verify all text/background 
 
 ## 4. Typography
 
-- Use a locally available or responsibly loaded sans-serif stack. The current skeleton uses Instrument Sans through the Vite font helper; retain it only if the external font-loading/privacy behavior is accepted.
+- Use the configured system sans-serif stack. The Foundation phase intentionally removed the skeleton's external Bunny font request to avoid an unnecessary third-party request.
 - Body: 16px minimum, line-height about 1.5.
 - Small metadata: 14px minimum.
 - Page title: 28-32px desktop, 24-28px mobile.

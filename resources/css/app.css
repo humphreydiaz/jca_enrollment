@@ -4,6 +4,103 @@
 @source '../../storage/framework/views/*.php';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+    --color-brand-navy-900: #17164f;
+    --color-brand-navy-700: #29267d;
+    --color-brand-blue-100: #e8ecff;
+    --color-brand-gold-500: #f2c318;
+    --color-brand-orange-500: #e97817;
+    --color-brand-red-600: #c62828;
+    --color-surface: #ffffff;
+    --color-canvas: #f7f8fc;
+    --color-border: #d9dce7;
+    --color-ink: #1c2434;
+    --color-muted: #5e6878;
+}
+
+@layer base {
+    html {
+        background: var(--color-canvas);
+    }
+
+    body {
+        min-width: 20rem;
+        color: var(--color-ink);
+        background: var(--color-canvas);
+    }
+
+    :focus-visible {
+        outline: 3px solid var(--color-brand-gold-500);
+        outline-offset: 3px;
+    }
+
+    [x-cloak] {
+        display: none !important;
+    }
+}
+
+@layer components {
+    .jca-shell {
+        min-height: 100vh;
+        background:
+            radial-gradient(circle at top right, rgb(242 195 24 / 16%), transparent 30rem),
+            var(--color-canvas);
+    }
+
+    .jca-card {
+        border: 1px solid var(--color-border);
+        border-radius: 1rem;
+        background: var(--color-surface);
+        box-shadow: 0 10px 30px rgb(23 22 79 / 8%);
+    }
+
+    .jca-button {
+        display: inline-flex;
+        min-height: 2.75rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.625rem;
+        padding: 0.625rem 1rem;
+        font-weight: 700;
+        transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+    }
+
+    .jca-button:hover {
+        transform: translateY(-1px);
+    }
+
+    .jca-button-primary {
+        color: white;
+        background: var(--color-brand-navy-700);
+    }
+
+    .jca-button-primary:hover {
+        background: var(--color-brand-navy-900);
+    }
+
+    .jca-button-secondary {
+        color: var(--color-brand-navy-900);
+        background: var(--color-brand-blue-100);
+    }
+
+    .jca-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        border-radius: 9999px;
+        padding: 0.25rem 0.625rem;
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+
+    .jca-status-neutral {
+        color: var(--color-muted);
+        background: #eef0f5;
+    }
+
+    .jca-status-ready {
+        color: #175a39;
+        background: #dcfce7;
+    }
 }

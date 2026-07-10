@@ -4,9 +4,9 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Documentation and design only. Application features have not been implemented.**
+**Phase 1 foundation complete. JCA business features have not been implemented.**
 
-The current codebase is the Laravel skeleton. It still contains the default `User` model, welcome page, and framework migrations. Do not infer implemented authentication, enrollment, billing, or portal behavior from their presence.
+The codebase now contains the Laravel skeleton plus Phase 1 MySQL/database infrastructure, an audit-table migration, Alpine.js, reusable Blade shell components, and a non-business `/foundation` smoke route. Do not infer implemented authentication, enrollment, billing, or portal behavior from these foundations.
 
 Inspected baseline on 2026-07-10:
 
@@ -15,9 +15,9 @@ Inspected baseline on 2026-07-10:
 - Tailwind CSS 4
 - Vite 8
 - Laravel Vite plugin 3
-- Alpine.js required by the architecture but not installed yet
-- MySQL is the target database; the original skeleton environment used SQLite defaults
-- no Git repository metadata was present in this folder during inspection
+- Alpine.js 3.14.9, installed as a direct development dependency (MIT licensed)
+- MySQL is configured as the only application database; database cache, sessions, and queues are used
+- private document disk and sensitive log-context redaction are configured
 
 ## Required stack
 
@@ -85,7 +85,7 @@ The following prepares the skeleton only; it does not add JCA features.
    ```
 
 5. Set local database credentials in `.env`. Never commit `.env`.
-6. Once the active implementation phase explicitly permits its migrations, run:
+6. Apply the Phase 1 infrastructure migrations:
 
    ```powershell
    php artisan migrate
@@ -97,7 +97,7 @@ The following prepares the skeleton only; it does not add JCA features.
    composer run dev
    ```
 
-PowerShell may block `npm.ps1`; use `npm.cmd` on affected Windows systems.
+For MySQL-backed tests, copy `.env.testing.example` to `.env.testing`, create the separate `jca_enrollment_testing` database, and never point test configuration at school data. PowerShell may block `npm.ps1`; use `npm.cmd` on affected Windows systems.
 
 ## Common checks
 

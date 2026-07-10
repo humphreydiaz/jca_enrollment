@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-The project is in documentation/design state. The Laravel skeleton exists, but JCA application features are not implemented. Do not mistake default Laravel files for approved domain design.
+Phase 1 engineering foundation is implemented. The project now has MySQL-first infrastructure, Alpine.js, a Shared module provider/smoke route, an accessible Blade shell, private-document storage configuration, and audit-table foundation. Identity, enrollment, academic, billing, portal, SMS, and reporting features remain unimplemented.
 
 ## Source of truth
 

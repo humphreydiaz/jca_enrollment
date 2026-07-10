@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#29267d">
+        <title>{{ isset($title) ? "{$title} | ".config('app.name') : config('app.name') }}</title>
+        @vite(['resources/css/app.css', 'resources/js/app.js'])
+    </head>
+    <body class="font-sans antialiased">
+        <a href="#main-content" class="sr-only fixed left-4 top-4 z-50 rounded-md bg-brand-navy-900 px-4 py-3 font-bold text-white focus:not-sr-only">Skip to main content</a>
+
+        <div class="jca-shell" x-data="{ navigationOpen: false }" @keydown.escape.window="navigationOpen = false">
+            <header class="border-b border-border bg-white/95 backdrop-blur">
+                <div class="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+                    <x-brand-mark />
+                    <button type="button" class="jca-button jca-button-secondary lg:hidden" @click="navigationOpen = true" :aria-expanded="navigationOpen.toString()" aria-controls="primary-navigation">Menu</button>
+                    <x-ui.status-badge tone="ready" class="hidden lg:inline-flex">Foundation ready</x-ui.status-badge>
+                </div>
+            </header>
+
+            <div class="mx-auto flex max-w-screen-2xl">
+                <div x-cloak x-show="navigationOpen" x-transition.opacity class="fixed inset-0 z-30 bg-brand-navy-900/35 lg:hidden" @click="navigationOpen = false" aria-hidden="true"></div>
+
+                <aside id="primary-navigation" x-cloak x-show="navigationOpen" x-transition class="fixed inset-y-0 left-0 z-40 w-72 border-r border-border bg-white p-5 shadow-xl lg:static lg:block lg:min-h-[calc(100vh-77px)] lg:w-64 lg:translate-x-0 lg:shadow-none" :class="{ 'lg:block': navigationOpen }">
+                    <div class="mb-6 flex items-center justify-between lg:hidden">
+                        <span class="font-bold text-brand-navy-900">Navigation</span>
+                        <button type="button" class="jca-button jca-button-secondary" @click="navigationOpen = false">Close</button>
+                    </div>
+
+                    <nav aria-label="Foundation navigation" class="space-y-1">
+                        <a href="{{ route('foundation.smoke') }}" class="block rounded-lg bg-brand-blue-100 px-3 py-2 font-bold text-brand-navy-900">Foundation</a>
+                    </nav>
+                </aside>
+
+                <main id="main-content" class="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-10">
+                    <x-flash />
+                    {{ $slot }}
+                </main>
+            </div>
+        </div>
+    </body>
+</html>
