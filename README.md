@@ -4,9 +4,9 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Phase 1 foundation complete. JCA business features have not been implemented.**
+**Phases 1, 2, and 3 complete. Enrollment, student placement, billing, and other JCA business workflows have not been implemented.**
 
-The codebase now contains the Laravel skeleton plus Phase 1 MySQL/database infrastructure, an audit-table migration, Alpine.js, reusable Blade shell components, and a non-business `/foundation` smoke route. Do not infer implemented authentication, enrollment, billing, or portal behavior from these foundations.
+The codebase now contains the Laravel skeleton plus MySQL/database infrastructure, audit logging, Alpine.js, reusable Blade shell components, closed login, staff-issued invitations, staff-assisted recovery, role history, people profiles, relationship verification, and a data-driven academic catalog. Admin/Registrar users can manage years, grades, subjects, sections, schedule notes, and teaching assignments; teachers see only their active assignments. The official JCA catalog has not been imported. Do not infer implemented enrollment, student placement, billing, SMS, reporting, or portal workflow behavior from these foundations.
 
 Inspected baseline on 2026-07-10:
 
@@ -18,6 +18,9 @@ Inspected baseline on 2026-07-10:
 - Alpine.js 3.14.9, installed as a direct development dependency (MIT licensed)
 - MySQL is configured as the only application database; database cache, sessions, and queues are used
 - private document disk and sensitive log-context redaction are configured
+- staff-issued, expiring, single-use invitation setup and recovery links
+- Admin-only user/role management, guardian/student profile linkage, and relationship verification
+- Admin/Registrar academic catalog management with history-preserving inactivation and assignment-scoped teacher read-only views
 
 ## Required stack
 
@@ -46,6 +49,15 @@ The project must not use React, Vue, Inertia, Livewire, Tabler, Bootstrap, Postg
 | [UI guide](docs/UI_GUIDE.md) | Logo-based visual direction, layouts, components, and accessibility |
 
 The original source material is retained as `JCA-OUTLINE.pdf`; the school identity source is `JCA Logo.jpg`.
+
+## Identity foundation
+
+- Public registration is intentionally unavailable.
+- Login accepts a configured email or mobile identifier and uses rate limiting.
+- Account setup uses a one-time invitation token; no permanent plaintext password is sent.
+- Recovery is staff-assisted: after identity verification, an Admin issues a short-lived recovery invitation to the existing contact channel.
+- Staff roles can be combined; Guardian/Student portal roles cannot be combined with staff roles.
+- Guardian/student links are many-to-many and have explicit visibility/contact permissions plus verification state.
 
 ## Core decisions
 
@@ -85,13 +97,20 @@ The following prepares the skeleton only; it does not add JCA features.
    ```
 
 5. Set local database credentials in `.env`. Never commit `.env`.
-6. Apply the Phase 1 infrastructure migrations:
+6. Apply the Phase 1 through 3 migrations:
 
    ```powershell
    php artisan migrate
    ```
 
-7. Start development processes using the existing Composer script or separate Laravel/Vite processes:
+7. Seed fixed system roles, then create the first administrator through a secure interactive prompt. This command never creates a default password:
+
+   ```powershell
+   php artisan db:seed
+   php artisan identity:bootstrap-admin
+   ```
+
+8. Start development processes using the existing Composer script or separate Laravel/Vite processes:
 
    ```powershell
    composer run dev
@@ -129,8 +148,7 @@ This structure lets future tasks work from current contracts without loading the
 - Fee schedules, permit thresholds, official reports, subjects, sections, and live SMS content are not yet supplied.
 - The assumed grade offering (Nursery through Grade 10) needs confirmation.
 - The future hosting, backup, recovery, and production MySQL environment are not selected.
-- The source logo is a JPEG in the project root and needs non-destructive web optimization during the UI foundation phase.
-- The project folder should be placed under version control before implementation begins.
+- The source logo is a JPEG in the project root and needs non-destructive web optimization during a later UI refinement task.
 
 ## License
 

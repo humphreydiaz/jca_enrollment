@@ -1,4 +1,4 @@
-<x-layouts.app title="Foundation">
+<x-layouts.public title="Foundation">
     <div class="mx-auto max-w-3xl space-y-6">
         <x-ui.status-badge tone="ready">Shared module route loaded</x-ui.status-badge>
 
@@ -8,4 +8,4 @@
             <p class="mt-4 max-w-2xl text-base leading-7 text-muted">The modular shell, MySQL-first configuration, private document storage, and database-backed infrastructure are available. Enrollment and portal features have not been added.</p>
         </section>
     </div>
-</x-layouts.app>
+</x-layouts.public>

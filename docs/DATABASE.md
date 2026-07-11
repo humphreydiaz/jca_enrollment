@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-This is a design contract for future migrations. Phase 1 includes the Laravel users/password resets/sessions, cache, and job migrations plus `audit_logs` infrastructure. No people, enrollment, academic, document, support, section, billing, communication, or reporting domain migrations have been written yet.
+This is a design contract for future migrations. Phases 1 and 2 include Laravel users/password resets/sessions, cache, jobs, `audit_logs`, user identity attributes, `roles`, `user_roles`, `account_invitations`, `guardian_profiles`, `student_profiles`, `guardian_student`, and `staff_profiles`. Phase 3 adds `academic_years`, `grade_levels`, `subjects`, `sections`, `section_subjects`, and `teaching_assignments`. Enrollment, document, support, student-to-section assignment, billing, communication, and reporting domain migrations remain unimplemented.
 
 Target: MySQL 8.0+ pending hosting confirmation. Use InnoDB, foreign keys, `utf8mb4`, fixed-precision financial columns, and migration-tested constraints.
 
@@ -104,17 +104,19 @@ Create a controlled merge workflow rather than deleting duplicate people. Preser
 
 ## 6. Academic catalog tables
 
+**Implementation status:** implemented in Phase 3 with internal numeric keys and opaque public IDs for externally routable records. Catalog records are updated or inactivated rather than deleted through application routes. The MySQL migration enforces academic-year/grade/section-name uniqueness, section-subject uniqueness, foreign-key protection, and assignment lookup indexes. No official JCA catalog records are seeded while P-003 remains pending.
+
 ### `academic_years`
 
-Columns: `id`, unique `code`, `name`, `starts_on`, `ends_on`, enrollment open/close dates, `status` (`planned`, `open`, `closed`, `archived`), timestamps. Only one year may be designated current by application rule.
+Columns: `id`, opaque `public_id`, unique `code`, `name`, `starts_on`, `ends_on`, enrollment open/close dates, `status` (`planned`, `open`, `closed`, `archived`), timestamps. Only one year may be designated current by application rule.
 
 ### `grade_levels`
 
-Columns: `id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. Initial assumed data: Nursery, Junior Kindergarten, Senior Kindergarten, Grades 1-10.
+Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. Initial assumed data: Nursery, Junior Kindergarten, Senior Kindergarten, Grades 1-10.
 
 ### `subjects`
 
-Columns: `id`, unique `code`, `name`, description, `is_active`, timestamps.
+Columns: `id`, opaque `public_id`, unique `code`, `name`, description, `is_active`, timestamps.
 
 ### `sections`
 
@@ -128,7 +130,7 @@ Joins a section and subject for one year. Columns include schedule text/structur
 
 ### `teaching_assignments`
 
-Columns: `id`, `staff_profile_id`, `section_id`, nullable `section_subject_id`, `assignment_type` (`adviser`, `subject_teacher`), effective dates, timestamps. Teacher authorization derives from active assignments.
+Columns: `id`, opaque `public_id`, `staff_profile_id`, `section_id`, nullable `section_subject_id`, `assignment_type` (`adviser`, `subject_teacher`), effective dates, `is_active`, timestamps. Teacher authorization derives from active assignments whose effective dates include the current date.
 
 ## 7. Enrollment tables
 

@@ -102,6 +102,12 @@ This file records decisions that future implementation tasks may treat as settle
 
 **Decision:** Use database-backed unique public reference numbers for applications, students, receipts, and other documents while retaining internal numeric primary keys. Store timestamps consistently and display them in `Asia/Manila`. Public URLs must not expose sequential internal IDs where enumeration would disclose student data.
 
+### D-018 - Account recovery
+
+**Decision:** Account recovery is staff-assisted. There is no public password-reset request or account lookup. After staff verify the requester's identity through JCA's approved offline process, an Admin may issue a short-lived, single-use recovery invitation to the existing verified email or mobile contact.
+
+**Consequences:** Recovery uses the same private password-setup flow as an invitation and records an audit event. JCA may later approve email as an official automated recovery channel only through a replacement decision and a separate security review.
+
 ## Pending decisions
 
 These do not block schema planning, but the named phase cannot be accepted until its relevant inputs are supplied.
@@ -115,7 +121,6 @@ These do not block schema planning, but the named phase cannot be accepted until
 | P-005 | Official SMS sender name, approved templates, consent wording, and escalation contacts | Before enabling live SMS | SMS disabled by default; log driver/test fake |
 | P-006 | Required official reports and signatories | Before Reporting phase acceptance | Build reusable filters and exports from normalized data |
 | P-007 | Hosting, backup, recovery objectives, and production MySQL version | Before deployment readiness | Target MySQL 8.0+ and document assumptions |
-| P-008 | Whether email is an official recovery channel or staff-assisted recovery is required | Before account recovery goes live | Do not reveal account existence; support secure staff reset flow |
 
 ## Out-of-scope decisions
 

@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-Phase 1 engineering foundation is implemented. The project now has MySQL-first infrastructure, Alpine.js, a Shared module provider/smoke route, an accessible Blade shell, private-document storage configuration, and audit-table foundation. Identity, enrollment, academic, billing, portal, SMS, and reporting features remain unimplemented.
+Phases 1, 2, and 3 are implemented. The project has MySQL-first infrastructure, Alpine.js, a Shared module provider/smoke route, accessible Blade shells, private-document storage configuration, audit infrastructure, closed account onboarding, role history, invitation-based account setup/recovery, people profiles, guardian/student relationship verification, and a data-driven academic catalog with teaching assignments. Enrollment, student-to-section assignment, billing, SMS, reporting, and actual guardian/student portals remain unimplemented. The official JCA school-year catalog has not been imported.
 
 ## Source of truth
 

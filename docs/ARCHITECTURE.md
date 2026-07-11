@@ -13,7 +13,9 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - The foundation includes default Laravel migrations plus an audit-log migration, database-backed cache/jobs/sessions, and MySQL-only configuration.
 - `.env.example` and `.env.testing.example` target MySQL; the application configuration has no SQLite, PostgreSQL, or Redis connection.
 - Shared module routing, a non-business smoke route, reusable Blade layouts/components, private-document disk configuration, and log-context redaction are available.
-- Identity, enrollment, billing, portal, communication, and reporting workflows remain unimplemented.
+- Phase 2 adds closed login, rate limiting, one-time invitations, staff-assisted recovery invitations, password-change enforcement, role history, people profiles, and guardian/student relationships.
+- Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. No official JCA catalog data was seeded.
+- Enrollment, student-to-section assignment, billing, communication, reporting, and actual portal workflows remain unimplemented.
 
 ## 3. System context
 

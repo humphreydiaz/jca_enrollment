@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\Identity\Http\Middleware\EnsurePasswordChanged;
+use App\Modules\Identity\Http\Middleware\EnsureRole;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -12,7 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->redirectGuestsTo(fn (): string => route('identity.login'));
+
+        $middleware->alias([
+            'password.changed' => EnsurePasswordChanged::class,
+            'role' => EnsureRole::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

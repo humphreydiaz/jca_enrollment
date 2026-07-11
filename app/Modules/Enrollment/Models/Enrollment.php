@@ -1,0 +1,62 @@
+<?php
+
+namespace App\Modules\Enrollment\Models;
+
+use App\Modules\Academics\Models\AcademicYear;
+use App\Modules\Academics\Models\GradeLevel;
+use App\Modules\People\Models\GuardianProfile;
+use App\Modules\People\Models\StudentProfile;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
+
+class Enrollment extends Model
+{
+    protected $fillable = ['application_number', 'student_id', 'academic_year_id', 'grade_level_id', 'applicant_guardian_id', 'student_category', 'status', 'active_enrollment_key', 'contact_verified_at', 'submitted_at', 'approved_at', 'rejected_at', 'decided_by', 'decision_reason', 'previous_enrollment_id', 'lock_version'];
+
+    protected static function booted(): void
+    {
+        static::creating(fn (self $record) => $record->public_id ??= (string) Str::ulid());
+    }
+
+    protected function casts(): array
+    {
+        return ['contact_verified_at' => 'datetime', 'submitted_at' => 'datetime', 'approved_at' => 'datetime', 'rejected_at' => 'datetime'];
+    }
+
+    public function student(): BelongsTo
+    {
+        return $this->belongsTo(StudentProfile::class);
+    }
+
+    public function guardian(): BelongsTo
+    {
+        return $this->belongsTo(GuardianProfile::class, 'applicant_guardian_id');
+    }
+
+    public function academicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function gradeLevel(): BelongsTo
+    {
+        return $this->belongsTo(GradeLevel::class);
+    }
+
+    public function requirements(): HasMany
+    {
+        return $this->hasMany(EnrollmentRequirement::class);
+    }
+
+    public function history(): HasMany
+    {
+        return $this->hasMany(EnrollmentStatusHistory::class);
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'public_id';
+    }
+}

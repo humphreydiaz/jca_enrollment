@@ -153,6 +153,7 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 - Use “Application reference,” “Mobile/email,” or school-issued identifier according to the flow; do not expose whether an arbitrary account exists.
 - Invitation setup explains expiry and password requirements.
 - Do not emulate the PSU page's tiny centered form or send permanent temporary passwords.
+- Account recovery is a neutral staff-contact page; it must not ask for an identifier or reveal whether an account exists.
 
 ### Guardian portal
 

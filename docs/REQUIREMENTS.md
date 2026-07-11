@@ -131,6 +131,7 @@ The following resolve ambiguities in the outline:
 | DR-008 | Early-enrollee rank is assigned on first approval, not initial submission. | D-009 |
 | DR-009 | Section placement is system-recommended and staff-confirmed. | D-010 |
 | DR-010 | Sensitive retention is configurable and requires school approval before production automation. | D-014 |
+| DR-011 | Account recovery is staff-assisted through an audited, expiring recovery invitation after offline identity verification. | D-018 |
 
 ## 5. Workflow definitions
 
@@ -221,7 +222,6 @@ Allowed states are `missing`, `submitted`, `under_review`, `verified`, `rejected
 - Official fee schedules, installment dates, discount values/campaign dates, and exam-permit thresholds.
 - Approved support-assessment form, decision vocabulary, and reviewer assignments.
 - Official Semaphore sender name, SMS templates, consent language, and live credentials.
-- Password recovery channel and staff-assisted recovery procedure.
 - Final report list, layouts, signatories, and whether any report needs a control/reference number.
 - Hosting, backup retention, recovery objectives, and production MySQL version.
 

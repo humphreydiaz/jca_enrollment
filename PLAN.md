@@ -89,6 +89,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 2 - Identity, roles, people, and invitations
 
+**Status:** Complete on 2026-07-10.
+
 **Goal:** deliver secure account onboarding and relationship-scoped access primitives.
 
 **Inputs**
@@ -135,6 +137,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 ---
 
 ## Phase 3 - Academic catalog, sections, and teaching assignments
+
+**Status:** Complete on 2026-07-11. The catalog is intentionally empty until JCA supplies its official school-year data; no production fixtures were seeded.
 
 **Goal:** create school-year academic structure and teacher scopes before enrollment uses them.
 
