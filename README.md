@@ -4,9 +4,9 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Phases 1 through 4 are complete as of 2026-07-11. Section placement, final enrollment, billing, communications, reporting, and the full role portals remain future phases.**
+**Phases 1 through 5 are complete as of 2026-07-11. Billing, communications, reporting, grades, and attendance remain future phases.**
 
-The codebase now contains MySQL infrastructure, audit logging, Alpine.js, reusable Blade shells, closed login, invitations/recovery, role history, people profiles, relationship verification, and a data-driven academic catalog. Phase 4 adds rate-limited public enrollment, hashed resume/contact-verification secrets, resumable regular/transferee/support-review drafts, duplicate review, guardian invitation connection, controlled academic decisions, requirement snapshots, private versioned uploads, restricted support review, Registrar queues, and guardian-safe progress. Section assignment, final `enrolled` transition, billing, live SMS, and reporting are intentionally not implemented.
+The codebase now contains MySQL infrastructure, identity/people, a data-driven academic catalog, enrollment intake and decisions, private requirements, and restricted support review. Phase 5 adds deterministic capacity-aware recommendations, locked staff confirmation, Admin-only capacity overrides, transfer history, academic `enrolled` finalization independent of payment, promotion recommendations and predecessor-linked drafts, guardian/student section schedules, printable portal-safe placement copies, and current-assignment-scoped Teacher access to approved instructional summaries.
 
 Verified baseline on 2026-07-11:
 
@@ -24,6 +24,7 @@ Verified baseline on 2026-07-11:
 - public email-code verification with staff-assisted verification for mobile-only applicants while live SMS remains disabled
 - MySQL-serialized duplicate intake, private document history, restricted reviewer assignment, append-only support events, and non-enumerating sensitive record denials
 - Phase 4 verification: 38 tests and 267 assertions, dedicated-MySQL fresh/rollback/reapply, production asset build, Pint, Composer validation, route listing, and diff checks
+- Phase 5 verification: 47 tests and 376 assertions, including second-connection MySQL row-lock tests for confirmation/transfer and full migration rollback/reapplication
 
 ## Required stack
 
@@ -100,7 +101,7 @@ The following prepares the skeleton only; it does not add JCA features.
    ```
 
 5. Set local database credentials in `.env`. Never commit `.env`.
-6. Apply the Phase 1 through 4 migrations:
+6. Apply the Phase 1 through 5 migrations:
 
    ```powershell
    php artisan migrate

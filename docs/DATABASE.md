@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-This is the schema contract and implementation record. Phases 1 and 2 include Laravel users/password resets/sessions, cache, jobs, `audit_logs`, identity/role/invitation tables, people profiles, and guardian relationships. Phase 3 adds the academic catalog and teaching assignments. Phase 4 adds enrollment/history/decision records, requirement rules and snapshots, private versioned document metadata/access logs, support cases/assessments/observations/summaries/access logs, reviewer assignment, and append-only support events. Student-to-section assignment, billing, communication, and reporting tables remain unimplemented.
+This is the schema contract and implementation record. Phases 1-4 provide infrastructure, identity/people, academics, enrollment, private requirements, and restricted support review. Phase 5 adds section assignments/events, enrollment finalization timestamps, unique predecessor links, and promotion recommendations. Billing, communication, and reporting tables remain unimplemented.
 
 Target: MySQL 8.0+ pending hosting confirmation. Use InnoDB, foreign keys, `utf8mb4`, fixed-precision financial columns, and migration-tested constraints.
 
@@ -160,6 +160,8 @@ Captures approval/rejection/waitlist/override evidence when more than a status-h
 
 ### `promotion_recommendations`
 
+**Implementation status:** implemented in Phase 5. One recommendation belongs to one enrolled source record. It records the configured future year/next grade or a safe ineligible reason. Eligible confirmation creates one new draft linked by unique `previous_enrollment_id`; it never mutates the source year, grade, status, assignment, or history.
+
 Columns: source enrollment, target academic year/grade, eligibility result, reason, generated/confirmed actors and timestamps, and nullable created enrollment. Confirmation creates a new draft enrollment; it never updates the source.
 
 ## 8. Requirements and document tables
@@ -221,6 +223,8 @@ Teacher-safe summary version: case, summary text/structured accommodations, appr
 Append access to cases, assessments, observations, and raw support documents, including actor, reason/purpose, and timestamp.
 
 ## 10. Section assignment tables
+
+**Implementation status:** implemented in Phase 5. Current confirmation uses a nullable unique `active_assignment_key`; ended rows retain section, dates, actor, and reason. Capacity lookup and current-assignment indexes support row-locked confirmation/transfer. Override and suitability actors/reasons are explicit columns, and `section_assignment_events` is append-only.
 
 ### `section_assignments`
 

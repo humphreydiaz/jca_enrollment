@@ -2,6 +2,7 @@
 
 namespace App\Modules\Academics\Models;
 
+use App\Modules\SectionAssignment\Models\SectionAssignment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -34,6 +35,11 @@ class Section extends Model
     public function teachingAssignments(): HasMany
     {
         return $this->hasMany(TeachingAssignment::class);
+    }
+
+    public function sectionAssignments(): HasMany
+    {
+        return $this->hasMany(SectionAssignment::class);
     }
 
     public function getRouteKeyName(): string

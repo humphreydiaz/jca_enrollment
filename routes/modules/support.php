@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\StudentSupport\Http\Controllers\SupportReviewController;
+use App\Modules\StudentSupport\Http\Controllers\TeacherSafeSummaryController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'password.changed'])->prefix('support-review')->group(function (): void {
@@ -12,3 +13,7 @@ Route::middleware(['auth', 'password.changed'])->prefix('support-review')->group
     Route::post('/{supportCase}/observations', [SupportReviewController::class, 'observation'])->name('support.observation');
     Route::post('/{supportCase}/summaries', [SupportReviewController::class, 'summary'])->name('support.summary');
 });
+
+Route::get('/teacher/students/{student}/support-summary', TeacherSafeSummaryController::class)
+    ->middleware(['auth', 'password.changed', 'role:teacher'])
+    ->name('teacher.students.support-summary');

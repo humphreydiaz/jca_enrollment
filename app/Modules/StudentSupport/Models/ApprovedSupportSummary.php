@@ -3,6 +3,7 @@
 namespace App\Modules\StudentSupport\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ApprovedSupportSummary extends Model
 {
@@ -11,5 +12,10 @@ class ApprovedSupportSummary extends Model
     protected function casts(): array
     {
         return ['approved_at' => 'datetime', 'effective_from' => 'date', 'effective_until' => 'date'];
+    }
+
+    public function supportCase(): BelongsTo
+    {
+        return $this->belongsTo(SupportCase::class);
     }
 }

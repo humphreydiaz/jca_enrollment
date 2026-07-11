@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-Phases 1 through 4 are implemented. In addition to the MySQL-first foundation, identity/people, and data-driven academic catalog, the project now has rate-limited resumable enrollment intake, email/staff contact verification, duplicate review, invitation connection, controlled enrollment decisions/history, requirement snapshots, versioned private documents, generic restricted support review, Registrar queues, and guardian-safe progress/upload interfaces. Student-to-section assignment, final `enrolled` transition, billing, live SMS, reporting, and full guardian/student portals remain unimplemented. The official JCA school-year catalog has not been imported; P-001 and P-004 remain production-policy inputs.
+Phases 1 through 5 are implemented. The system now includes the MySQL-first foundation, identity/people, academic catalog, enrollment intake/review, private requirements, generic restricted support review, capacity-safe section recommendation/confirmation/transfer, academic `enrolled` finalization, promotion recommendations/drafts, portal-safe section schedules, and assignment-scoped Teacher summaries. Billing, discounts, payments, permits, live SMS, reporting, grades, and attendance remain unimplemented. The official JCA school-year catalog has not been imported; P-001, P-003, and P-004 remain production-policy inputs.
 
 ## Source of truth
 

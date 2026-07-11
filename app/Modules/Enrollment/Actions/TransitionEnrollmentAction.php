@@ -64,6 +64,9 @@ class TransitionEnrollmentAction
                 if ($to === 'rejected') {
                     $record->rejected_at = now();
                 }
+                if ($to === 'withdrawn') {
+                    $record->withdrawn_at = now();
+                }
                 $record->active_enrollment_key = null;
             }
             $record->decided_by = $actor?->id;

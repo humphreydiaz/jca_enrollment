@@ -40,11 +40,15 @@
                         <a href="{{ route('identity.dashboard') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My account</a>
                         @if (auth()->user()->hasAnyRole(['admin', 'registrar']))
                             <a href="{{ route('enrollment.registrar.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Enrollment review</a>
+                            <a href="{{ route('section-assignment.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Section assignment</a>
                             <a href="{{ route('support.queue') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Restricted support review</a>
                             <a href="{{ route('academics.admin.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Academics</a>
                         @endif
                         @if (auth()->user()->hasRole('guardian'))
                             <a href="{{ route('guardian.enrollment.progress') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Enrollment progress</a>
+                        @endif
+                        @if (auth()->user()->hasRole('student'))
+                            <a href="{{ route('student.enrollment.progress') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My enrollment</a>
                         @endif
                         @if (auth()->user()->hasRole('teacher'))
                             <a href="{{ route('academics.teacher.assignments') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My teaching</a>

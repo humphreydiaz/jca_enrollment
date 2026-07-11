@@ -3,6 +3,7 @@
 namespace App\Modules\People\Models;
 
 use App\Models\User;
+use App\Modules\Enrollment\Models\Enrollment;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -79,6 +80,11 @@ class StudentProfile extends Model
     public function guardianLinks(): HasMany
     {
         return $this->hasMany(GuardianStudent::class, 'student_id');
+    }
+
+    public function enrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class, 'student_id');
     }
 
     public function getFullNameAttribute(): string

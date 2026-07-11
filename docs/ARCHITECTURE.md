@@ -16,7 +16,8 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - Phase 2 adds closed login, rate limiting, one-time invitations, staff-assisted recovery invitations, password-change enforcement, role history, people profiles, and guardian/student relationships.
 - Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. No official JCA catalog data was seeded.
 - Phase 4 adds Enrollment, Requirements & Documents, and Student Support delivery: rate-limited public drafts, hashed resume/contact-verification secrets, email code delivery with staff verification fallback, MySQL identity locks, duplicate review, guardian invitation connection, explicit enrollment transitions/history/decisions, checklist snapshots, versioned private uploads, restricted reviewer queues/events, and guardian-safe progress.
-- Student-to-section assignment, final `enrolled` transition, billing, communication beyond enrollment verification email, reporting, and full role portals remain unimplemented.
+- Phase 5 adds the Section Assignment module: deterministic available-capacity recommendation, transactionally locked confirmation/transfer, Admin-only overrides, append-only history, final academic `enrolled` transition, promotion recommendations/drafts, portal-safe section/schedule views, and assignment-scoped Teacher summaries.
+- Billing, communication beyond enrollment verification email, reporting, grades, and attendance remain unimplemented.
 
 ## 3. System context
 
@@ -70,7 +71,7 @@ app/Modules/<Module>/
   Support/          module-private utilities
 ```
 
-Views use `resources/views/<module>/`; routes are split under `routes/modules/` and registered by module providers. Shared, Identity, Academics, Enrollment, and Student Support providers currently register their bounded web routes.
+Views use `resources/views/<module>/`; routes are split under `routes/modules/` and registered by module providers. Shared, Identity, Academics, Enrollment, Student Support, and Section Assignment providers currently register their bounded web routes.
 
 ### 4.3 Transaction boundary
 
@@ -132,6 +133,8 @@ The system never sends a permanent plaintext password by SMS.
 5. Phase 5 will consume approved enrollment state for section recommendation/finalization; later phases add assessment preparation and notification events.
 
 ### 6.3 Section assignment
+
+**Implementation status:** complete in Phase 5. Recommendation is read-only; confirmation and transfer lock the enrollment/current assignment and destination section before capacity is re-counted. A nullable unique active key prevents two current assignments. Support-review placement records explicit suitability, while Teacher summary access follows only active teaching assignments in the current confirmed section.
 
 1. Query eligible sections for the enrollment's school year and grade.
 2. Exclude inactive/full sections from automatic recommendation.

@@ -14,7 +14,7 @@ This remains the requirements baseline; the short phase-status note below preven
 - **Pending:** information JCA still needs to provide.
 - **Out of scope:** intentionally excluded from this product.
 
-**Implementation status (2026-07-11):** Phases 1-4 are complete. Enrollment intake through approval/rejection, requirement snapshots/private documents, generic restricted support review, Registrar queues, and guardian-safe progress are implemented. Section assignment/final `enrolled` state begins in Phase 5. Billing, live SMS, reporting, and full portals remain later phases. The retention schedule and official support form, vocabulary, and reviewer roster remain pending production inputs.
+**Implementation status (2026-07-11):** Phases 1-5 are complete. Enrollment intake/decisions, private requirements, restricted support review, capacity-safe section assignment/transfer, final academic enrollment, promotion drafts, portal schedules, and assignment-scoped Teacher summaries are implemented. Billing, live SMS, reporting, grades, and attendance remain later phases. P-003 remains open for official catalog import; retention and official support-policy inputs also remain pending.
 
 ## 3. Confirmed requirements
 
