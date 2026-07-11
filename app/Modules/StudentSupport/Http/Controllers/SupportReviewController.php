@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Shared\Audit\AuditRecorder;
 use App\Modules\StudentSupport\Actions\CreateSupportCaseAction;
+use App\Modules\StudentSupport\Actions\ManageSupportCaseAction;
 use App\Modules\StudentSupport\Models\ApprovedSupportSummary;
 use App\Modules\StudentSupport\Models\SupportAssessment;
 use App\Modules\StudentSupport\Models\SupportCase;
@@ -22,7 +23,12 @@ class SupportReviewController
     {
         Gate::authorize('viewAny', SupportCase::class);
 
-        return view('support.queue', ['cases' => SupportCase::query()->with('enrollment.student')->latest()->get()]);
+        $cases = SupportCase::query()->with('enrollment.student');
+        if (! request()->user()->hasRole('admin')) {
+            $cases->where('assigned_reviewer_id', request()->user()->id);
+        }
+
+        return view('support.queue', ['cases' => $cases->latest()->get()]);
     }
 
     public function show(SupportCase $supportCase, Request $request, AuditRecorder $audit): View
@@ -42,23 +48,23 @@ class SupportReviewController
         return back()->with('status', 'Restricted support case opened.');
     }
 
-    public function assign(SupportCase $supportCase, Request $request): RedirectResponse
+    public function assign(SupportCase $supportCase, Request $request, ManageSupportCaseAction $manage): RedirectResponse
     {
         Gate::authorize('assign', $supportCase);
         $data = $request->validate(['reviewer_user_id' => ['required', 'exists:users,id']]);
         $reviewer = User::query()->findOrFail($data['reviewer_user_id']);
         abort_unless($reviewer->hasAnyRole(['admin', 'registrar']), 422, 'Reviewer must be an authorized staff account.');
-        $supportCase->update(['assigned_reviewer_id' => $reviewer->id, 'status' => 'assigned']);
+        $manage->assign($supportCase, $reviewer, $request->user());
 
         return back()->with('status', 'Reviewer assigned.');
     }
 
-    public function assessment(SupportCase $supportCase, Request $request): RedirectResponse
+    public function assessment(SupportCase $supportCase, Request $request, ManageSupportCaseAction $manage): RedirectResponse
     {
         Gate::authorize('record', $supportCase);
         $data = $request->validate(['outcome' => ['required', 'in:pending,approved,not_approved,more_information_required'], 'confidential_rationale' => ['nullable', 'string', 'max:5000'], 'next_action' => ['nullable', 'string', 'max:100']]);
         SupportAssessment::query()->create(array_merge($data, ['support_case_id' => $supportCase->id, 'assessment_type' => 'school_review', 'completed_on' => now(), 'reviewer_id' => $request->user()->id]));
-        $supportCase->update(['status' => $data['outcome'] === 'pending' ? 'assigned' : 'reviewed', 'final_outcome' => $data['outcome'] === 'approved' ? 'approved' : null]);
+        $manage->transition($supportCase, $data['outcome'], $request->user());
 
         return back()->with('status', 'Generic review outcome recorded.');
     }
@@ -78,6 +84,6 @@ class SupportReviewController
         $data = $request->validate(['summary' => ['required', 'string', 'max:3000'], 'effective_from' => ['nullable', 'date'], 'effective_until' => ['nullable', 'date', 'after_or_equal:effective_from']]);
         ApprovedSupportSummary::query()->create(array_merge($data, ['support_case_id' => $supportCase->id, 'approved_by' => $request->user()->id, 'approved_at' => now()]));
 
-        return back()->with('status','Teacher-safe summary approved.');
+        return back()->with('status', 'Teacher-safe summary approved.');
     }
 }

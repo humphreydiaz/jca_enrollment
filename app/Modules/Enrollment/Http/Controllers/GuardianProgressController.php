@@ -13,6 +13,6 @@ class GuardianProgressController
         $guardian = $request->user()->guardianProfile;
         abort_unless($guardian !== null, 403);
 
-        return view('enrollment.guardian.progress', ['enrollments' => Enrollment::query()->where('applicant_guardian_id', $guardian->id)->with(['student', 'academicYear', 'gradeLevel', 'requirements.documentType'])->latest()->get()]);
+        return view('enrollment.guardian.progress', ['enrollments' => Enrollment::query()->where(fn ($query) => $query->where('applicant_guardian_id', $guardian->id)->orWhereHas('student.guardians', fn ($guardians) => $guardians->whereKey($guardian->id)))->with(['student', 'academicYear', 'gradeLevel', 'requirements.documentType'])->latest()->get()]);
     }
 }

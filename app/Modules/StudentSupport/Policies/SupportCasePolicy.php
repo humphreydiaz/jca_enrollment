@@ -14,7 +14,7 @@ class SupportCasePolicy
 
     public function view(User $user, SupportCase $case): bool
     {
-        return $this->viewAny($user);
+        return $user->hasRole('admin') || ($user->hasRole('registrar') && $case->assigned_reviewer_id === $user->id);
     }
 
     public function create(User $user): bool
@@ -29,7 +29,7 @@ class SupportCasePolicy
 
     public function assign(User $user, SupportCase $case): bool
     {
-        return $user->hasRole('admin') || $user->hasRole('registrar');
+        return $user->hasRole('admin');
     }
 
     public function record(User $user, SupportCase $case): bool
