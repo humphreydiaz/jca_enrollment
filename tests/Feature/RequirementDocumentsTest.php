@@ -61,17 +61,23 @@ class RequirementDocumentsTest extends TestCase
         $other = $this->user(['guardian']);
         $teacher = $this->user(['teacher']);
         $accounting = $this->user(['accounting']);
+        $studentUser = $this->user(['student']);
         GuardianProfile::query()->create(['user_id' => $other->id, 'first_name' => 'Other', 'last_name' => 'Family']);
         $type = DocumentType::query()->create(['code' => 'CARD', 'name' => 'Fictional report card']);
         $requirement = EnrollmentRequirement::query()->create(['enrollment_id' => $enrollment->id, 'document_type_id' => $type->id, 'rule_snapshot' => ['is_blocking' => true]]);
         $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), ['document' => UploadedFile::fake()->create('unsafe.exe', 10, 'application/octet-stream')])->assertSessionHasErrors('document');
         $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), ['document' => UploadedFile::fake()->create('safe.pdf', 10, 'application/pdf')]);
         $document = DocumentUpload::query()->firstOrFail();
-        $this->actingAs($other)->get(route('requirements.documents.download', $document))->assertForbidden();
-        $this->actingAs($teacher)->get(route('requirements.documents.download', $document))->assertForbidden();
-        $this->actingAs($accounting)->get(route('requirements.documents.download', $document))->assertForbidden();
+        $this->actingAs($other)->get(route('requirements.documents.download', $document))->assertNotFound();
+        $this->actingAs($teacher)->get(route('requirements.documents.download', $document))->assertNotFound();
+        $this->actingAs($accounting)->get(route('requirements.documents.download', $document))->assertNotFound();
+        $this->actingAs($studentUser)->get(route('requirements.documents.download', $document))->assertNotFound();
+        $this->assertDatabaseCount('document_access_logs', 0);
+        auth()->logout();
+        $this->get(route('requirements.documents.download', $document))->assertRedirect(route('identity.login'));
         $this->actingAs($guardian)->get(route('requirements.documents.download', $document))->assertOk();
         $this->assertDatabaseHas('document_access_logs', ['document_upload_id' => $document->id, 'actor_user_id' => $guardian->id, 'action' => 'download']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'requirements.document.downloaded', 'actor_user_id' => $guardian->id]);
     }
 
     public function test_registrar_can_verify_or_reject_but_only_admin_can_waive(): void
@@ -81,6 +87,7 @@ class RequirementDocumentsTest extends TestCase
         [$enrollment] = $this->enrollment();
         $type = DocumentType::query()->create(['code' => 'FORM', 'name' => 'Fictional form']);
         $requirement = EnrollmentRequirement::query()->create(['enrollment_id' => $enrollment->id, 'document_type_id' => $type->id, 'rule_snapshot' => ['is_blocking' => true], 'status' => 'submitted']);
+        $this->actingAs($registrar)->post(route('requirements.documents.store', $requirement), ['document' => UploadedFile::fake()->create('review.pdf', 10, 'application/pdf')])->assertRedirect();
         $this->actingAs($registrar)->post(route('requirements.review', $requirement), ['status' => 'verified'])->assertRedirect();
         $this->assertSame('verified', $requirement->fresh()->status);
         $this->actingAs($registrar)->post(route('requirements.review', $requirement), ['status' => 'waived', 'reason' => 'No'])->assertForbidden();

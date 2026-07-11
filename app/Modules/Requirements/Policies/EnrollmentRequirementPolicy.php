@@ -4,17 +4,23 @@ namespace App\Modules\Requirements\Policies;
 
 use App\Models\User;
 use App\Modules\Enrollment\Models\EnrollmentRequirement;
+use Illuminate\Auth\Access\Response;
 
 class EnrollmentRequirementPolicy
 {
-    public function upload(User $user, EnrollmentRequirement $requirement): bool
+    public function upload(User $user, EnrollmentRequirement $requirement): Response
     {
-        return $this->owns($user, $requirement) || $user->hasAnyRole(['admin', 'registrar']);
+        return in_array($requirement->enrollment->status, ['draft', 'submitted', 'incomplete'], true)
+            && ($this->owns($user, $requirement) || $user->hasAnyRole(['admin', 'registrar']))
+            ? Response::allow()
+            : Response::denyAsNotFound();
     }
 
-    public function view(User $user, EnrollmentRequirement $requirement): bool
+    public function view(User $user, EnrollmentRequirement $requirement): Response
     {
-        return $this->upload($user, $requirement);
+        return $this->owns($user, $requirement) || $user->hasAnyRole(['admin', 'registrar'])
+            ? Response::allow()
+            : Response::denyAsNotFound();
     }
 
     public function review(User $user): bool
@@ -29,6 +35,16 @@ class EnrollmentRequirementPolicy
 
     private function owns(User $user, EnrollmentRequirement $requirement): bool
     {
-        return $user->guardianProfile !== null && $requirement->enrollment->applicant_guardian_id === $user->guardianProfile->id;
+        $guardian = $user->guardianProfile;
+        if ($guardian === null) {
+            return false;
+        }
+
+        return $requirement->enrollment->applicant_guardian_id === $guardian->id
+            || $requirement->enrollment->student->guardians()
+                ->whereKey($guardian->id)
+                ->wherePivotNotNull('verified_at')
+                ->wherePivot('may_manage_enrollment', true)
+                ->exists();
     }
 }

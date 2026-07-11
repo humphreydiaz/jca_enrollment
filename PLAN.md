@@ -183,6 +183,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 4 - Enrollment intake, requirements, and restricted support review
 
+**Status:** Complete on 2026-07-11. Verified with 38 tests / 267 assertions, a dedicated-MySQL fresh migration, complete rollback and reapplication, production asset build, Pint, Composer validation, route listing, and diff checks. P-001 and P-004 remain production-policy inputs; generic private retention and restricted neutral support review are complete without automated deletion or invented school assessment content.
+
 **Goal:** deliver enrollment from public draft through academic approval/rejection, excluding final section and billing workflows.
 
 **Inputs**
@@ -271,6 +273,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 - Policy tests for Registrar/Admin/Teacher/Guardian views.
 - Transfer and promotion history tests.
 - Portal/print section rendering tests.
+- Assignment-scoped positive Teacher access to the current approved teacher-safe support summary. Phase 4 verifies default Teacher denial because no student-to-section assignment exists before this phase.
 
 ---
 

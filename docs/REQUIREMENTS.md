@@ -4,7 +4,7 @@
 
 The system centralizes enrollment, student records, requirement verification, support assessment, sections, payment tracking, announcements, SMS notifications, parent/student portals, and operational reports for J.C.S.G.O. Christian Academy R1 Inc. (JCA), Lingayen, Pangasinan.
 
-This is a requirements baseline, not an implementation record. Read [DECISIONS.md](DECISIONS.md) for selected defaults and [PLAN.md](../PLAN.md) for delivery order.
+This remains the requirements baseline; the short phase-status note below prevents completed behavior from being mistaken for future scope. Read [DECISIONS.md](DECISIONS.md) for selected defaults and [PLAN.md](../PLAN.md) for detailed delivery evidence.
 
 ## 2. Requirement status
 
@@ -13,6 +13,8 @@ This is a requirements baseline, not an implementation record. Read [DECISIONS.m
 - **Assumed:** working interpretation that must be validated before production.
 - **Pending:** information JCA still needs to provide.
 - **Out of scope:** intentionally excluded from this product.
+
+**Implementation status (2026-07-11):** Phases 1-4 are complete. Enrollment intake through approval/rejection, requirement snapshots/private documents, generic restricted support review, Registrar queues, and guardian-safe progress are implemented. Section assignment/final `enrolled` state begins in Phase 5. Billing, live SMS, reporting, and full portals remain later phases. The retention schedule and official support form, vocabulary, and reviewer roster remain pending production inputs.
 
 ## 3. Confirmed requirements
 
@@ -220,7 +222,7 @@ Allowed states are `missing`, `submitted`, `under_review`, `verified`, `rejected
 - Final school-approved retention schedule and deletion approvers.
 - Current school-year catalog: grade offerings, sections, subjects, schedules, advisers, and capacities.
 - Official fee schedules, installment dates, discount values/campaign dates, and exam-permit thresholds.
-- Approved support-assessment form, decision vocabulary, and reviewer assignments.
+- Official support-assessment form, decision vocabulary, and authorized reviewer roster. The generic restricted Phase 4 workflow is complete and does not treat these pending inputs as school policy.
 - Official Semaphore sender name, SMS templates, consent language, and live credentials.
 - Final report list, layouts, signatories, and whether any report needs a control/reference number.
 - Hosting, backup retention, recovery objectives, and production MySQL version.

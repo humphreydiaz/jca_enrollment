@@ -45,16 +45,24 @@ class StudentSupportAccessTest extends TestCase
         $this->actingAs($admin)->get(route('support.queue'))->assertOk()->assertSee($enrollment->student->full_name);
         $this->actingAs($registrar)->get(route('support.show', $case))->assertOk();
         $this->assertDatabaseHas('support_access_logs', ['support_case_id' => $case->id, 'actor_user_id' => $registrar->id, 'action' => 'view_raw']);
-        $this->actingAs($otherRegistrar)->get(route('support.show', $case))->assertForbidden();
-        $this->actingAs($teacher)->get(route('support.show', $case))->assertForbidden();
-        $this->actingAs($guardian)->get(route('support.show', $case))->assertForbidden();
-        $this->actingAs($studentUser)->get(route('support.show', $case))->assertForbidden();
+        $this->actingAs($otherRegistrar)->get(route('support.show', $case))->assertNotFound();
+        $this->actingAs($teacher)->get(route('support.show', $case))->assertNotFound();
+        $this->actingAs($guardian)->get(route('support.show', $case))->assertNotFound();
+        $this->actingAs($studentUser)->get(route('support.show', $case))->assertNotFound();
+        $this->assertDatabaseCount('support_access_logs', 1);
         $this->actingAs($admin)->post(route('support.assign', $case), ['reviewer_user_id' => $otherRegistrar->id])->assertRedirect();
         $this->assertDatabaseHas('support_case_events', ['support_case_id' => $case->id, 'event_type' => 'reviewer_assigned', 'reviewer_user_id' => $otherRegistrar->id]);
-        $this->actingAs($registrar)->post(route('support.assessment', $case), ['outcome' => 'approved'])->assertForbidden();
-        $this->actingAs($otherRegistrar)->post(route('support.assessment', $case), ['outcome' => 'approved'])->assertRedirect();
+        $this->actingAs($registrar)->post(route('support.assessment', $case), ['outcome' => 'approved'])->assertNotFound();
+        $this->actingAs($otherRegistrar)->post(route('support.summary', $case), ['summary' => 'Premature summary'])->assertSessionHasErrors('summary');
+        $this->actingAs($otherRegistrar)->post(route('support.assessment', $case), ['outcome' => 'approved', 'confidential_rationale' => 'Restricted fictional rationale'])->assertRedirect();
         $this->assertSame('approved', $case->fresh()->final_outcome);
-        $this->actingAs($guardian)->get(route('guardian.enrollment.progress'))->assertOk()->assertSee($enrollment->student->full_name)->assertDontSee('approved');
+        $this->actingAs($otherRegistrar)->post(route('support.observation', $case), ['body' => 'Fictional restricted observation', 'category' => 'school_observation'])->assertRedirect();
+        $this->actingAs($otherRegistrar)->post(route('support.summary', $case), ['summary' => 'Provide short, clear classroom instructions.', 'effective_from' => now()->toDateString()])->assertRedirect();
+        $this->assertDatabaseHas('support_case_events', ['support_case_id' => $case->id, 'event_type' => 'observation_added']);
+        $this->assertDatabaseHas('support_case_events', ['support_case_id' => $case->id, 'event_type' => 'summary_approved']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'support.summary.approved']);
+        $this->actingAs($guardian)->get(route('guardian.enrollment.progress'))->assertOk()->assertSee($enrollment->student->full_name);
+        $this->actingAs($guardian)->get(route('guardian.enrollment.progress'))->assertDontSee('Provide short, clear classroom instructions.')->assertDontSee('Fictional restricted observation')->assertDontSee('Restricted fictional rationale');
         $this->actingAs($otherGuardian)->get(route('guardian.enrollment.progress'))->assertOk()->assertDontSee($enrollment->student->full_name);
     }
 

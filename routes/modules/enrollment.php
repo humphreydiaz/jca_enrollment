@@ -6,14 +6,23 @@ use App\Modules\Enrollment\Http\Controllers\RegistrarEnrollmentController;
 use App\Modules\Requirements\Http\Controllers\RequirementDocumentController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('throttle:10,1')->group(function () {
+Route::middleware('throttle:30,1')->group(function () {
     Route::get('/apply', [PublicEnrollmentController::class, 'create'])->name('enrollment.public.start');
+});
+Route::middleware('throttle:5,1')->group(function () {
     Route::post('/apply', [PublicEnrollmentController::class, 'store'])->name('enrollment.public.store');
+});
+Route::middleware('throttle:20,1')->group(function () {
     Route::get('/applications/{enrollment}', [PublicEnrollmentController::class, 'status'])->name('enrollment.public.status');
+    Route::post('/applications/{enrollment}/verify', [PublicEnrollmentController::class, 'verify'])->name('enrollment.public.verify');
+    Route::put('/applications/{enrollment}', [PublicEnrollmentController::class, 'update'])->name('enrollment.public.update');
+    Route::post('/applications/{enrollment}/submit', [PublicEnrollmentController::class, 'submit'])->name('enrollment.public.submit');
 });
 Route::middleware(['auth', 'password.changed', 'role:admin,registrar'])->prefix('registrar/enrollments')->group(function () {
     Route::get('/', [RegistrarEnrollmentController::class, 'index'])->name('enrollment.registrar.index');
     Route::post('/{enrollment}/verify-contact', [RegistrarEnrollmentController::class, 'verify'])->name('enrollment.registrar.verify');
+    Route::post('/{enrollment}/duplicate-review', [RegistrarEnrollmentController::class, 'reviewDuplicate'])->name('enrollment.registrar.duplicate-review');
+    Route::post('/{enrollment}/connect-account', [RegistrarEnrollmentController::class, 'connect'])->name('enrollment.registrar.connect');
     Route::post('/{enrollment}/transition', [RegistrarEnrollmentController::class, 'transition'])->name('enrollment.registrar.transition');
 });
 Route::middleware(['auth', 'password.changed'])->group(function () {

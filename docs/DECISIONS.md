@@ -110,14 +110,14 @@ This file records decisions that future implementation tasks may treat as settle
 
 ## Pending decisions
 
-These do not block schema planning, but the named phase cannot be accepted until its relevant inputs are supplied.
+These do not block restrictive generic foundations. The named production capability cannot be enabled or represented as official JCA policy until its relevant inputs are supplied.
 
 | ID | Decision needed | Deadline | Safe implementation posture |
 |---|---|---|---|
 | P-001 | School-approved retention periods per document category | Before production launch | Configurable policy; no automated production deletion |
 | P-002 | Final fee schedules, installment due dates, discount values, and exam-permit thresholds | Before Billing phase acceptance | Data-driven rules; no hard-coded amounts |
 | P-003 | Official section names, subjects, teaching assignments, and confirmed grade offerings | Before Academics phase production import | Seed only clearly labeled development fixtures |
-| P-004 | Exact support-assessment form, decision labels, and authorized reviewers | Before Support workflow acceptance | Restrictive access and generic structured outcome plus private notes |
+| P-004 | Exact support-assessment form, decision labels, and authorized reviewer roster | Before official production support-form activation | Phase 4 uses restrictive access, reviewer assignment, neutral generic outcomes, private observations, history, and approved teacher-safe summaries only |
 | P-005 | Official SMS sender name, approved templates, consent wording, and escalation contacts | Before enabling live SMS | SMS disabled by default; log driver/test fake |
 | P-006 | Required official reports and signatories | Before Reporting phase acceptance | Build reusable filters and exports from normalized data |
 | P-007 | Hosting, backup, recovery objectives, and production MySQL version | Before deployment readiness | Target MySQL 8.0+ and document assumptions |

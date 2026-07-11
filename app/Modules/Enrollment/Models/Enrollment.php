@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 class Enrollment extends Model
 {
-    protected $fillable = ['application_number', 'student_id', 'academic_year_id', 'grade_level_id', 'applicant_guardian_id', 'student_category', 'status', 'active_enrollment_key', 'contact_verified_at', 'submitted_at', 'approved_at', 'rejected_at', 'decided_by', 'decision_reason', 'previous_enrollment_id', 'lock_version'];
+    protected $fillable = ['application_number', 'student_id', 'academic_year_id', 'grade_level_id', 'applicant_guardian_id', 'student_category', 'guardian_relationship', 'previous_school_name', 'status', 'active_enrollment_key', 'resume_token_hash', 'verification_code_hash', 'verification_expires_at', 'verification_attempts', 'duplicate_review_status', 'potential_duplicate_student_id', 'potential_duplicate_guardian_id', 'duplicate_reviewed_by', 'duplicate_reviewed_at', 'duplicate_review_reason', 'contact_verified_at', 'submitted_at', 'approved_at', 'rejected_at', 'decided_by', 'decision_reason', 'previous_enrollment_id', 'lock_version'];
 
     protected static function booted(): void
     {
@@ -22,7 +22,7 @@ class Enrollment extends Model
 
     protected function casts(): array
     {
-        return ['contact_verified_at' => 'datetime', 'submitted_at' => 'datetime', 'approved_at' => 'datetime', 'rejected_at' => 'datetime'];
+        return ['verification_expires_at' => 'datetime', 'duplicate_reviewed_at' => 'datetime', 'contact_verified_at' => 'datetime', 'submitted_at' => 'datetime', 'approved_at' => 'datetime', 'rejected_at' => 'datetime'];
     }
 
     public function student(): BelongsTo
@@ -33,6 +33,16 @@ class Enrollment extends Model
     public function guardian(): BelongsTo
     {
         return $this->belongsTo(GuardianProfile::class, 'applicant_guardian_id');
+    }
+
+    public function potentialDuplicateStudent(): BelongsTo
+    {
+        return $this->belongsTo(StudentProfile::class, 'potential_duplicate_student_id');
+    }
+
+    public function potentialDuplicateGuardian(): BelongsTo
+    {
+        return $this->belongsTo(GuardianProfile::class, 'potential_duplicate_guardian_id');
     }
 
     public function academicYear(): BelongsTo

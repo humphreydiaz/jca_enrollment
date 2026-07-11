@@ -7,6 +7,7 @@ use App\Modules\Enrollment\Models\EnrollmentRequirement;
 use App\Modules\Requirements\Actions\ReviewRequirementAction;
 use App\Modules\Requirements\Actions\StoreRequirementDocumentAction;
 use App\Modules\Requirements\Http\Requests\UploadRequirementDocumentRequest;
+use App\Modules\Shared\Audit\AuditRecorder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,20 +27,22 @@ class RequirementDocumentController
     public function review(EnrollmentRequirement $requirement, Request $request, ReviewRequirementAction $review): RedirectResponse
     {
         Gate::authorize('review', EnrollmentRequirement::class);
-        $data = $request->validate(['status' => ['required', 'in:verified,rejected,waived'], 'reason' => ['nullable', 'string', 'max:2000']]);
+        $data = $request->validate(['status' => ['required', 'in:verified,rejected,waived'], 'reason' => ['nullable', 'required_if:status,rejected,waived', 'string', 'max:2000']]);
         if ($data['status'] === 'waived') {
             Gate::authorize('waive', EnrollmentRequirement::class);
-        }$review->execute($requirement, $data['status'], $request->user(), $data['reason'] ?? null);
+        }
+        $review->execute($requirement, $data['status'], $request->user(), $data['reason'] ?? null);
 
         return back()->with('status', 'Requirement reviewed.');
     }
 
-    public function download(DocumentUpload $document, Request $request): StreamedResponse
+    public function download(DocumentUpload $document, Request $request, AuditRecorder $audit): StreamedResponse
     {
         $requirement = $document->requirement()->with('enrollment')->firstOrFail();
         Gate::forUser($request->user())->authorize('view', $requirement);
         abort_if($document->archived_at !== null || $document->deleted_at !== null, 404);
         DB::table('document_access_logs')->insert(['document_upload_id' => $document->id, 'actor_user_id' => $request->user()->id, 'action' => 'download', 'occurred_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+        $audit->record($request->user(), 'requirements.document.downloaded', $document);
 
         return Storage::disk($document->disk)->download($document->path, $document->original_filename, ['Content-Type' => $document->mime_type, 'X-Content-Type-Options' => 'nosniff']);
     }

@@ -15,7 +15,8 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - Shared module routing, a non-business smoke route, reusable Blade layouts/components, private-document disk configuration, and log-context redaction are available.
 - Phase 2 adds closed login, rate limiting, one-time invitations, staff-assisted recovery invitations, password-change enforcement, role history, people profiles, and guardian/student relationships.
 - Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. No official JCA catalog data was seeded.
-- Enrollment, student-to-section assignment, billing, communication, reporting, and actual portal workflows remain unimplemented.
+- Phase 4 adds Enrollment, Requirements & Documents, and Student Support delivery: rate-limited public drafts, hashed resume/contact-verification secrets, email code delivery with staff verification fallback, MySQL identity locks, duplicate review, guardian invitation connection, explicit enrollment transitions/history/decisions, checklist snapshots, versioned private uploads, restricted reviewer queues/events, and guardian-safe progress.
+- Student-to-section assignment, final `enrolled` transition, billing, communication beyond enrollment verification email, reporting, and full role portals remain unimplemented.
 
 ## 3. System context
 
@@ -69,7 +70,7 @@ app/Modules/<Module>/
   Support/          module-private utilities
 ```
 
-Views use `resources/views/<module>/`; routes may be split under `routes/modules/` and registered by the application. Phase 1 establishes `routes/modules/shared.php` through `SharedServiceProvider`; future modules follow this pattern.
+Views use `resources/views/<module>/`; routes are split under `routes/modules/` and registered by module providers. Shared, Identity, Academics, Enrollment, and Student Support providers currently register their bounded web routes.
 
 ### 4.3 Transaction boundary
 
@@ -127,9 +128,8 @@ The system never sends a permanent plaintext password by SMS.
 1. Enrollment Action validates the requested transition.
 2. Requirements module confirms all blocking requirements are verified or validly waived.
 3. Student Support confirms an approved outcome when required.
-4. In one transaction, Enrollment changes state, appends state history, and claims a discount rank if eligible.
-5. After commit, events request section recommendation, assessment preparation, and notification.
-6. Failed downstream jobs are retried without reverting the valid enrollment decision.
+4. In one transaction, Enrollment changes state and appends status and decision history. Phase 6 will add discount allocation.
+5. Phase 5 will consume approved enrollment state for section recommendation/finalization; later phases add assessment preparation and notification events.
 
 ### 6.3 Section assignment
 

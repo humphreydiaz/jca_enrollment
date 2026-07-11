@@ -4,11 +4,11 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Phases 1, 2, and 3 complete. Enrollment, student placement, billing, and other JCA business workflows have not been implemented.**
+**Phases 1 through 4 are complete as of 2026-07-11. Section placement, final enrollment, billing, communications, reporting, and the full role portals remain future phases.**
 
-The codebase now contains the Laravel skeleton plus MySQL/database infrastructure, audit logging, Alpine.js, reusable Blade shell components, closed login, staff-issued invitations, staff-assisted recovery, role history, people profiles, relationship verification, and a data-driven academic catalog. Admin/Registrar users can manage years, grades, subjects, sections, schedule notes, and teaching assignments; teachers see only their active assignments. The official JCA catalog has not been imported. Do not infer implemented enrollment, student placement, billing, SMS, reporting, or portal workflow behavior from these foundations.
+The codebase now contains MySQL infrastructure, audit logging, Alpine.js, reusable Blade shells, closed login, invitations/recovery, role history, people profiles, relationship verification, and a data-driven academic catalog. Phase 4 adds rate-limited public enrollment, hashed resume/contact-verification secrets, resumable regular/transferee/support-review drafts, duplicate review, guardian invitation connection, controlled academic decisions, requirement snapshots, private versioned uploads, restricted support review, Registrar queues, and guardian-safe progress. Section assignment, final `enrolled` transition, billing, live SMS, and reporting are intentionally not implemented.
 
-Inspected baseline on 2026-07-10:
+Verified baseline on 2026-07-11:
 
 - Laravel Framework 13.19.0 (`composer.json` allows `^13.8`)
 - PHP `^8.3`; inspected CLI PHP 8.3.16
@@ -21,6 +21,9 @@ Inspected baseline on 2026-07-10:
 - staff-issued, expiring, single-use invitation setup and recovery links
 - Admin-only user/role management, guardian/student profile linkage, and relationship verification
 - Admin/Registrar academic catalog management with history-preserving inactivation and assignment-scoped teacher read-only views
+- public email-code verification with staff-assisted verification for mobile-only applicants while live SMS remains disabled
+- MySQL-serialized duplicate intake, private document history, restricted reviewer assignment, append-only support events, and non-enumerating sensitive record denials
+- Phase 4 verification: 38 tests and 267 assertions, dedicated-MySQL fresh/rollback/reapply, production asset build, Pint, Composer validation, route listing, and diff checks
 
 ## Required stack
 
@@ -97,7 +100,7 @@ The following prepares the skeleton only; it does not add JCA features.
    ```
 
 5. Set local database credentials in `.env`. Never commit `.env`.
-6. Apply the Phase 1 through 3 migrations:
+6. Apply the Phase 1 through 4 migrations:
 
    ```powershell
    php artisan migrate
@@ -145,6 +148,7 @@ This structure lets future tasks work from current contracts without loading the
 ## Current risks
 
 - JCA has not approved document retention and deletion periods.
+- JCA has not supplied the official support-assessment form, decision vocabulary, or reviewer roster; Phase 4 deliberately uses neutral generic outcomes and restricted notes only.
 - Fee schedules, permit thresholds, official reports, subjects, sections, and live SMS content are not yet supplied.
 - The assumed grade offering (Nursery through Grade 10) needs confirmation.
 - The future hosting, backup, recovery, and production MySQL environment are not selected.

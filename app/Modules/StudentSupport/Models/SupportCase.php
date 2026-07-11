@@ -42,6 +42,11 @@ class SupportCase extends Model
         return $this->hasMany(ApprovedSupportSummary::class);
     }
 
+    public function events(): HasMany
+    {
+        return $this->hasMany(SupportCaseEvent::class);
+    }
+
     public function getRouteKeyName(): string
     {
         return 'public_id';

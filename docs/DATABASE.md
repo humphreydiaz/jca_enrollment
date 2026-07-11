@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-This is a design contract for future migrations. Phases 1 and 2 include Laravel users/password resets/sessions, cache, jobs, `audit_logs`, user identity attributes, `roles`, `user_roles`, `account_invitations`, `guardian_profiles`, `student_profiles`, `guardian_student`, and `staff_profiles`. Phase 3 adds `academic_years`, `grade_levels`, `subjects`, `sections`, `section_subjects`, and `teaching_assignments`. Enrollment, document, support, student-to-section assignment, billing, communication, and reporting domain migrations remain unimplemented.
+This is the schema contract and implementation record. Phases 1 and 2 include Laravel users/password resets/sessions, cache, jobs, `audit_logs`, identity/role/invitation tables, people profiles, and guardian relationships. Phase 3 adds the academic catalog and teaching assignments. Phase 4 adds enrollment/history/decision records, requirement rules and snapshots, private versioned document metadata/access logs, support cases/assessments/observations/summaries/access logs, reviewer assignment, and append-only support events. Student-to-section assignment, billing, communication, and reporting tables remain unimplemented.
 
 Target: MySQL 8.0+ pending hosting confirmation. Use InnoDB, foreign keys, `utf8mb4`, fixed-precision financial columns, and migration-tested constraints.
 
@@ -134,6 +134,8 @@ Columns: `id`, opaque `public_id`, `staff_profile_id`, `section_id`, nullable `s
 
 ## 7. Enrollment tables
 
+**Implementation status:** implemented in Phase 4. Public drafts use opaque public IDs plus hashed resume tokens and hashed expiring verification codes. Exact public identity starts are serialized with a MySQL named lock; potential existing student matches require staff review. `active_enrollment_key` provides a MySQL unique guard for one active enrollment per linked student/year and is released only by terminal rejection, withdrawal, or cancellation.
+
 ### `enrollments`
 
 One student application/enrollment per academic year and intended grade.
@@ -161,6 +163,8 @@ Captures approval/rejection/waitlist/override evidence when more than a status-h
 Columns: source enrollment, target academic year/grade, eligibility result, reason, generated/confirmed actors and timestamps, and nullable created enrollment. Confirmation creates a new draft enrollment; it never updates the source.
 
 ## 8. Requirements and document tables
+
+**Implementation status:** implemented in Phase 4 through `document_types`, effective-dated `requirement_rules`, enrollment checklist snapshots, versioned `document_uploads`, and append-only `document_access_logs`. Files remain outside the public root. Replacement archives metadata/history; no permanent or automated retention deletion exists while P-001 is open.
 
 ### `document_types`
 
@@ -191,6 +195,8 @@ Append download/preview/export events for sensitive documents: document, actor, 
 Configurable category, retention trigger/duration, approval requirements, version/effective dates. Actions record archive, hold, release, deletion approval, completion, actor, reason, and evidence. Automated production deletion remains disabled until policy approval.
 
 ## 9. Student Support tables
+
+**Implementation status:** implemented in Phase 4 as a generic restricted workflow. Cases have Admin-controlled reviewer assignment, append-only case events, observations, assessment versions, neutral outcomes, and versioned approved teacher-safe summaries. Raw successful reads create both support-access and general audit evidence. P-004 remains open for the official JCA form, vocabulary, and roster; no diagnoses, medical scoring, or printable official form is encoded.
 
 These tables require stricter policies and must be excluded from general search/reporting.
 

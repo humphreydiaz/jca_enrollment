@@ -7,10 +7,7 @@ use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Shared\Audit\AuditRecorder;
 use App\Modules\StudentSupport\Actions\CreateSupportCaseAction;
 use App\Modules\StudentSupport\Actions\ManageSupportCaseAction;
-use App\Modules\StudentSupport\Models\ApprovedSupportSummary;
-use App\Modules\StudentSupport\Models\SupportAssessment;
 use App\Modules\StudentSupport\Models\SupportCase;
-use App\Modules\StudentSupport\Models\SupportObservation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +25,10 @@ class SupportReviewController
             $cases->where('assigned_reviewer_id', request()->user()->id);
         }
 
-        return view('support.queue', ['cases' => $cases->latest()->get()]);
+        return view('support.queue', [
+            'cases' => $cases->latest()->get(),
+            'reviewers' => request()->user()->hasRole('admin') ? User::query()->whereHas('roles', fn ($roles) => $roles->whereIn('code', ['admin', 'registrar']))->orderBy('name')->get() : collect(),
+        ]);
     }
 
     public function show(SupportCase $supportCase, Request $request, AuditRecorder $audit): View
@@ -37,13 +37,14 @@ class SupportReviewController
         DB::table('support_access_logs')->insert(['support_case_id' => $supportCase->id, 'actor_user_id' => $request->user()->id, 'action' => 'view_raw', 'occurred_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
         $audit->record($request->user(), 'support.raw.viewed', $supportCase);
 
-        return view('support.show', ['case' => $supportCase->load(['enrollment.student', 'assessments', 'observations', 'summaries'])]);
+        return view('support.show', ['case' => $supportCase->load(['enrollment.student', 'assessments', 'observations', 'summaries', 'events'])]);
     }
 
-    public function create(Enrollment $enrollment, Request $request, CreateSupportCaseAction $create): RedirectResponse
+    public function create(string $enrollment, Request $request, CreateSupportCaseAction $create): RedirectResponse
     {
         Gate::authorize('create', SupportCase::class);
-        $create->execute($enrollment, $request->user());
+        $record = Enrollment::query()->where('public_id', $enrollment)->firstOrFail();
+        $create->execute($record, $request->user());
 
         return back()->with('status', 'Restricted support case opened.');
     }
@@ -53,7 +54,7 @@ class SupportReviewController
         Gate::authorize('assign', $supportCase);
         $data = $request->validate(['reviewer_user_id' => ['required', 'exists:users,id']]);
         $reviewer = User::query()->findOrFail($data['reviewer_user_id']);
-        abort_unless($reviewer->hasAnyRole(['admin', 'registrar']), 422, 'Reviewer must be an authorized staff account.');
+        abort_unless($reviewer->isActive() && $reviewer->hasAnyRole(['admin', 'registrar']), 422, 'Reviewer must be an active authorized staff account.');
         $manage->assign($supportCase, $reviewer, $request->user());
 
         return back()->with('status', 'Reviewer assigned.');
@@ -63,26 +64,25 @@ class SupportReviewController
     {
         Gate::authorize('record', $supportCase);
         $data = $request->validate(['outcome' => ['required', 'in:pending,approved,not_approved,more_information_required'], 'confidential_rationale' => ['nullable', 'string', 'max:5000'], 'next_action' => ['nullable', 'string', 'max:100']]);
-        SupportAssessment::query()->create(array_merge($data, ['support_case_id' => $supportCase->id, 'assessment_type' => 'school_review', 'completed_on' => now(), 'reviewer_id' => $request->user()->id]));
-        $manage->transition($supportCase, $data['outcome'], $request->user());
+        $manage->recordAssessment($supportCase, $data, $request->user());
 
         return back()->with('status', 'Generic review outcome recorded.');
     }
 
-    public function observation(SupportCase $supportCase, Request $request): RedirectResponse
+    public function observation(SupportCase $supportCase, Request $request, ManageSupportCaseAction $manage): RedirectResponse
     {
         Gate::authorize('record', $supportCase);
         $data = $request->validate(['body' => ['required', 'string', 'max:5000'], 'category' => ['nullable', 'string', 'max:60']]);
-        SupportObservation::query()->create(array_merge($data, ['support_case_id' => $supportCase->id, 'author_id' => $request->user()->id, 'observed_at' => now()]));
+        $manage->addObservation($supportCase, $data, $request->user());
 
         return back()->with('status', 'Restricted internal note saved.');
     }
 
-    public function summary(SupportCase $supportCase, Request $request): RedirectResponse
+    public function summary(SupportCase $supportCase, Request $request, ManageSupportCaseAction $manage): RedirectResponse
     {
         Gate::authorize('summary', $supportCase);
         $data = $request->validate(['summary' => ['required', 'string', 'max:3000'], 'effective_from' => ['nullable', 'date'], 'effective_until' => ['nullable', 'date', 'after_or_equal:effective_from']]);
-        ApprovedSupportSummary::query()->create(array_merge($data, ['support_case_id' => $supportCase->id, 'approved_by' => $request->user()->id, 'approved_at' => now()]));
+        $manage->approveSummary($supportCase, $data, $request->user());
 
         return back()->with('status', 'Teacher-safe summary approved.');
     }
