@@ -122,6 +122,34 @@ These do not block restrictive generic foundations. The named production capabil
 | P-006 | Required official reports and signatories | Before Reporting phase acceptance | Build reusable filters and exports from normalized data |
 | P-007 | Hosting, backup, recovery objectives, and production MySQL version | Before deployment readiness | Target MySQL 8.0+ and document assumptions |
 
+## Pending Phase 6 questions
+
+The following questions are **pending**. They expand P-002 for implementation planning only; none is confirmed. Detailed client wording, recommendations, alternatives, and blocked work are in [PHASE6_DECISION_QUESTIONNAIRE.md](PHASE6_DECISION_QUESTIONNAIRE.md).
+
+| ID | Pending decision | Blocks |
+|---|---|---|
+| P6-01 | Official fee types, codes, categories, mandatory/optional behavior, and quantities | Fee catalog and assessment items |
+| P6-02 | Approved fee amounts and schedules by school year, grade, and category | Assessment generation and totals |
+| P6-03 | Assessment creation, finalization, revision, and replacement rules | Immutable assessment lifecycle |
+| P6-04 | Offered payment plans by grade/schedule | Payment-plan catalog and selection |
+| P6-05 | Exact due dates, installment amounts, calendar handling, and allocation order | Due schedule, overdue state, allocations |
+| P6-06 | Payment-to-follow authority, approval, deadline, and downstream effects | Payment-to-follow workflow |
+| P6-07 | Partial, advance, late, overpayment, credit, and penalty treatment | Ledger edge cases and balances |
+| P6-08 | Discount campaigns, eligibility, value, applicable fees, dates, and limits | Campaign and award calculation |
+| P6-09 | Early-enrollee limit, annual reset, tie-break, cancellation, and slot-recycling rules | Concurrency-safe rank allocation |
+| P6-10 | Discount stacking, calculation order, exclusions, and caps | Combined discount calculation |
+| P6-11 | Discount cancellation/correction authority and replacement rules | Award history and adjustments |
+| P6-12 | Official receipt types, number format, uniqueness scope, issuance, and reprint rules | Payment posting and receipt printing |
+| P6-13 | Allowed offline payment methods and safe evidence/reference fields | Payment-entry validation |
+| P6-14 | Draft, collection, posting, ledger-view, and reopening permissions | Financial authorization matrix |
+| P6-15 | Reversal, void, refund, and adjustment types, approval, evidence, and balance effect | Immutable correction workflow |
+| P6-16 | Exam periods, issue windows, labels, dates, and permit references | Exam-period and permit records |
+| P6-17 | Exact permit eligibility threshold, cutoff, dues, credits, and grace policy | Reproducible eligibility calculation |
+| P6-18 | Permit override authority, evidence, duration, approval, and visibility | Override workflow and audit |
+| P6-19 | Guardian/Student financial visibility and relationship permissions | Portal policies and field allowlists |
+| P6-20 | Required financial printouts, approved fields, layouts, numbering, paper, and signatories | Print routes/templates/tests |
+| P6-21 | Enrollment status and section prerequisite for assessment creation | Enrollment-to-Billing boundary |
+
 ## Out-of-scope decisions
 
 - Online payments and payment gateways.
