@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 class SupportCase extends Model
 {
-    protected $fillable = ['enrollment_id', 'status', 'opened_by', 'opened_at', 'closed_by', 'closed_at', 'final_outcome'];
+    protected $fillable = ['enrollment_id', 'status', 'opened_by', 'opened_at', 'assigned_reviewer_id', 'closed_by', 'closed_at', 'final_outcome'];
 
     protected static function booted(): void
     {
@@ -26,9 +26,21 @@ class SupportCase extends Model
     {
         return $this->belongsTo(Enrollment::class);
     }
-    public function assessments(): HasMany { return $this->hasMany(SupportAssessment::class); }
-    public function observations(): HasMany { return $this->hasMany(SupportObservation::class); }
-    public function summaries(): HasMany { return $this->hasMany(ApprovedSupportSummary::class); }
+
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(SupportAssessment::class);
+    }
+
+    public function observations(): HasMany
+    {
+        return $this->hasMany(SupportObservation::class);
+    }
+
+    public function summaries(): HasMany
+    {
+        return $this->hasMany(ApprovedSupportSummary::class);
+    }
 
     public function getRouteKeyName(): string
     {

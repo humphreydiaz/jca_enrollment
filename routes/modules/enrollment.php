@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Enrollment\Http\Controllers\GuardianProgressController;
 use App\Modules\Enrollment\Http\Controllers\PublicEnrollmentController;
 use App\Modules\Enrollment\Http\Controllers\RegistrarEnrollmentController;
 use App\Modules\Requirements\Http\Controllers\RequirementDocumentController;
@@ -20,3 +21,4 @@ Route::middleware(['auth', 'password.changed'])->group(function () {
     Route::get('/documents/{document}/download', [RequirementDocumentController::class, 'download'])->name('requirements.documents.download');
 });
 Route::post('/registrar/requirements/{requirement}/review', [RequirementDocumentController::class, 'review'])->middleware(['auth', 'password.changed', 'role:admin,registrar'])->name('requirements.review');
+Route::get('/guardian/enrollment-progress', GuardianProgressController::class)->middleware(['auth', 'password.changed', 'role:guardian'])->name('guardian.enrollment.progress');
