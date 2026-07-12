@@ -38,6 +38,7 @@
 
                     <nav aria-label="Primary navigation" class="space-y-1">
                         <a href="{{ route('identity.dashboard') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My account</a>
+                        <a href="{{ route('communications.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Announcements</a>
                         @if (auth()->user()->hasAnyRole(['admin', 'accounting', 'registrar', 'guardian', 'student']))
                             <a href="{{ route('billing.portal.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Financial records</a>
                         @endif
@@ -55,6 +56,7 @@
                         @endif
                         @if (auth()->user()->hasRole('guardian'))
                             <a href="{{ route('guardian.enrollment.progress') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Enrollment progress</a>
+                            <a href="{{ route('communications.preferences.edit') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">SMS preferences</a>
                         @endif
                         @if (auth()->user()->hasRole('student'))
                             <a href="{{ route('student.enrollment.progress') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My enrollment</a>
@@ -63,6 +65,7 @@
                             <a href="{{ route('academics.teacher.assignments') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My teaching</a>
                         @endif
                         @if (auth()->user()->hasRole('admin'))
+                            <a href="{{ route('communications.admin') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Communications</a>
                             <a href="{{ route('identity.admin.users.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Users</a>
                             <a href="{{ route('people.admin.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">People</a>
                         @endif
