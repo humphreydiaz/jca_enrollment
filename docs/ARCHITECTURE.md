@@ -17,7 +17,8 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. No official JCA catalog data was seeded.
 - Phase 4 adds Enrollment, Requirements & Documents, and Student Support delivery: rate-limited public drafts, hashed resume/contact-verification secrets, email code delivery with staff verification fallback, MySQL identity locks, duplicate review, guardian invitation connection, explicit enrollment transitions/history/decisions, checklist snapshots, versioned private uploads, restricted reviewer queues/events, and guardian-safe progress.
 - Phase 5 adds the Section Assignment module: deterministic available-capacity recommendation, transactionally locked confirmation/transfer, Admin-only overrides, append-only history, final academic `enrolled` transition, promotion recommendations/drafts, portal-safe section/schedule views, and assignment-scoped Teacher summaries.
-- Billing, communication beyond enrollment verification email, reporting, grades, and attendance remain unimplemented.
+- Phase 6 adds Billing: versioned configuration, immutable assessment snapshots/revisions, exact-centavo plan generation, after-commit approval discount awards, append-only offline collections/corrections, private evidence, permit calculations/overrides, scoped portals, and audited print history. MySQL row locks protect award and reference allocation.
+- Communication beyond enrollment verification email, general reporting, grades, and attendance remain unimplemented.
 
 ## 3. System context
 
@@ -71,7 +72,7 @@ app/Modules/<Module>/
   Support/          module-private utilities
 ```
 
-Views use `resources/views/<module>/`; routes are split under `routes/modules/` and registered by module providers. Shared, Identity, Academics, Enrollment, Student Support, and Section Assignment providers currently register their bounded web routes.
+Views use `resources/views/<module>/`; routes are split under `routes/modules/` and registered by module providers. Shared, Identity, Academics, Enrollment, Student Support, Section Assignment, and Billing providers register their bounded web routes.
 
 ### 4.3 Transaction boundary
 
@@ -145,12 +146,12 @@ The system never sends a permanent plaintext password by SMS.
 
 ### 6.4 Payment posting
 
-1. Accounting selects an assessed enrollment and enters receipt/payment details.
-2. Server validates receipt uniqueness, amount, allocation limits, and posting permission.
-3. Transaction creates the payment and allocations as posted ledger entries.
-4. Balance and due status are calculated from the ledger, not manually typed.
-5. A correction creates a reversal/adjustment referencing the original; Admin approval is recorded.
-6. Permit eligibility is recalculated from configured rules; overrides remain separate and audited.
+1. Accounting creates or edits one idempotent draft against the current finalized assessment; method-specific validation prohibits financial credentials.
+2. Allocations may be adjusted before posting. The transaction locks the draft and yearly sequence rows, validates totals, and assigns payment/receipt references.
+3. Posted payments and allocations become immutable. Balance/credit derives from exact assessment snapshots, posted amounts, approved reversal allocations, adjustments, and refunds.
+4. Accounting requests a correction; an independent Admin approves/rejects the append-only reversal, adjustment, refund, or override.
+5. Permit calculation stores required/satisfied amounts at a timestamp from due schedules and critical allocations. Only Accounting issues an eligible permit inside its issue window; restricted approved overrides remain separate, and revocation/replacement preserves history.
+6. Guardian/Student, Registrar, Teacher, and staff print/read routes apply distinct allowlists and audit sensitive access.
 
 ### 6.5 SMS
 

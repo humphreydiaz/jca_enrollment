@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-This is the schema contract and implementation record. Phases 1-4 provide infrastructure, identity/people, academics, enrollment, private requirements, and restricted support review. Phase 5 adds section assignments/events, enrollment finalization timestamps, unique predecessor links, and promotion recommendations. Billing, communication, and reporting tables remain unimplemented.
+This is the schema contract and implementation record. Phases 1-5 provide infrastructure through section assignment/promotion. Phase 6 adds the implemented Billing schema described in section 11. Communication and general reporting tables remain unimplemented.
 
 Target: MySQL 8.0+ pending hosting confirmation. Use InnoDB, foreign keys, `utf8mb4`, fixed-precision financial columns, and migration-tested constraints.
 
@@ -26,7 +26,7 @@ users --< user_roles >-- roles
   |              
   +--0..1 guardian_profiles --< guardian_student >-- student_profiles
   +--0..1 staff_profiles
-  +--0..1 student_profiles (Grades 7-10 portal account)
+  +--0..1 student_profiles (Grades 7-12 portal account by default)
 
 student_profiles --< enrollments >-- academic_years
                          |  |  |
@@ -112,7 +112,7 @@ Columns: `id`, opaque `public_id`, unique `code`, `name`, `starts_on`, `ends_on`
 
 ### `grade_levels`
 
-Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. Initial assumed data: Nursery, Junior Kindergarten, Senior Kindergarten, Grades 1-10.
+Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. Owner-authorized development baseline: Grades 1-12; production offerings remain configurable and preschool is not seeded.
 
 ### `subjects`
 
@@ -238,51 +238,40 @@ Optional append history if assignment rows alone do not fully express recommenda
 
 ## 11. Billing tables
 
-### `fee_types`
+**Implementation status:** implemented in Phase 6 by `2026_07_11_000013_create_billing_and_exam_permit_tables.php`. All money columns use `DECIMAL(12,2)`; application calculations convert decimal strings to integer centavos. Financial history uses restrictive foreign keys, opaque public identifiers for sensitive routes, unique current/revision/reference keys, and append-only application guards.
 
-Catalog: tuition, miscellaneous, books, PE uniform, logo/tela, Bible, graduation/recognition, and future types. Columns: code, name, category, active flag.
+### Catalog and immutable assessment
 
-### `fee_schedules` and `fee_schedule_items`
+`fee_types`, `fee_schedules`, and `fee_schedule_items` hold configurable versioned catalogs. `fee_assessments` records enrollment, schedule, predecessor revision, revision number/reason, immutable totals, finalization actors/times, and a unique current-finalized key. `assessment_items` snapshot code, name, category, quantity, unit/gross/discount/net amounts, and permit-critical status, so catalog edits cannot rewrite history.
 
-Fee schedule belongs to academic year and optionally grade/category. Items contain fee type, description, amount, required flag, and configured due behavior. Published schedules are versioned/inactivated, not rewritten when already used.
+### Plans and calendar
 
-### `fee_assessments`
+`payment_plan_options` configures offered plan codes by year/grade. `payment_plans` records the selected plan per assessment, and `payment_schedule_items` stores exact installment, due date, total, and permit-critical amount. `school_non_business_days` moves generated due dates forward. `payment_to_follow_approvals` retains ordinary and extended approvals, dates, reasons, actors, and the resulting first-due-date extension.
 
-Columns: `id`, `public_id`, `enrollment_id`, source fee schedule, currency (`PHP`), status, gross total, discount total, net total, assessed_by/at, finalized_at, timestamps.
+### Discounts
 
-Only one active finalized assessment per enrollment unless a formal revision mechanism creates a replacement.
+`discount_campaigns` owns school-year limits, dates, value, active/development flags. `discount_awards` uniquely protects campaign rank and enrollment; cancelled ranks remain. `discount_award_events` retains cancellation requests/decisions and explicit slot reopening. Campaign rows are locked before rank allocation.
 
-### `assessment_items`
+### Offline ledger and private evidence
 
-Snapshot each fee line: fee type, description, quantity, unit amount, gross amount, discount amount, net amount, due rule snapshot. Historical rows do not depend on mutable catalog values.
+`payments` separates editable drafts and posted records and assigns unique `PAY-YYYY-######` and `JCA-REC-YYYY-######` values only on posting. `financial_sequences` is locked per type/year. `payment_allocations` records item/installment application; `credit_allocations` records append-only same-student/same-year application of available credit. `payment_reversals` retains independent approval and `payment_reversal_allocations` reproduces the affected allocations. `financial_adjustments` stores debit, credit, or waiver requests/decisions, optionally targeted to an assessment item. `refunds` records approved accounting entries and an offline release reference/date. Original posted rows are not deleted or edited.
 
-### `payment_plans` and `payment_schedule_items`
+`payment_evidence` stores only private-disk opaque paths, protected original-name metadata, MIME, size, checksum, and uploader. It has no public URL or deletion route. `receipt_prints` increments a print number without changing the receipt reference.
 
-Plan type (`full`, `semi_annual`, `quarterly`, `monthly`, `payment_to_follow`), selected_by/at, due item labels/dates/amounts, and status. Exact due rules are pending JCA data.
+### Exam permits and print settings
 
-### `discount_campaigns`
+`exam_periods` stores school-year exam dates, eligibility cutoff, and issue window. `exam_permit_calculations` is an append-oriented reproducibility record containing required/satisfied amounts, ordinary/override result, timestamp, and actor. `exam_permit_overrides` retains restricted category/explanation, offline evidence reference, verifier, scope, effective dates, request/approval/revocation history. `exam_permits` retains the active opaque key, issued reference, replacement predecessor, calculation facts, and revocation history; `exam_permit_prints` records each access. `financial_print_settings` keeps configurable role labels/footer text without inventing employee signatories.
 
-Columns: `id`, academic year, name/code, eligibility trigger fixed to approved enrollment unless superseded, slot limit, value type/amount, starts/ends, active status, timestamps.
+### Key integrity and lookup rules
 
-### `discount_awards`
-
-Columns: campaign, enrollment, unique rank within campaign, awarded_at, assessment application status, cancelled_at/by/reason. Allocation uses a transaction and lock to prevent duplicate ranks or exceeding the limit.
-
-### `payments`
-
-Columns: `id`, `public_id`, unique school receipt/reference where applicable, assessment, payment date, amount, method (`cash` initially), external/manual reference, status (`draft`, `posted`, `reversed`), collected/posted actors and timestamps, notes with no card/bank secrets, timestamps.
-
-### `payment_allocations`
-
-Columns: payment, assessment item or due item, allocated amount, timestamps. Posted allocations cannot exceed the posted payment or outstanding item under the transaction rules.
-
-### `payment_reversals`
-
-Columns: original payment, reversal amount, reason, requested_by/at, approved_by/at, posted_at, optional replacement payment. Reversals are records; the original remains visible.
-
-### `exam_periods` and `exam_permits`
-
-Exam period belongs to school year and contains permit eligibility rule references. Permit record belongs to enrollment/period and records computed eligibility, issued reference/date, or Admin override with reason and actor. Do not use permit state as the source of the financial balance.
+- unique schedule version per academic year/grade;
+- unique assessment revision and one non-null current-finalized key per enrollment;
+- unique campaign rank and campaign/enrollment award;
+- unique payment, receipt, and permit references;
+- unique non-null method reference within method;
+- one non-null active permit key per enrollment/exam period while revoked/replaced history remains;
+- indexes for enrollment/status/date, due cutoff, campaign rank, portal lookup, and permit calculations;
+- restrictive deletes for finalized/posted/history relationships.
 
 ## 12. Communications tables
 

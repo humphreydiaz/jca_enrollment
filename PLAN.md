@@ -281,6 +281,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 6 - Billing, discounts, payment ledger, and exam permits
 
+**Status:** Complete for development on 2026-07-11 under the owner-authorized assumptions in `docs/PHASE6_IMPLEMENTED_POLICY.md`. Production financial configuration remains blocked pending official JCSGO approval.
+
 **Goal:** deliver auditable offline payment tracking without a payment gateway.
 
 **Inputs**

@@ -1,0 +1,56 @@
+<?php
+
+namespace App\Modules\Billing\Http\Controllers;
+
+use App\Modules\Billing\Calculations\BalanceCalculator;
+use App\Modules\Billing\Models\DiscountAward;
+use App\Modules\Billing\Models\ExamPeriod;
+use App\Modules\Billing\Models\ExamPermit;
+use App\Modules\Billing\Models\FeeAssessment;
+use App\Modules\Billing\Models\FeeSchedule;
+use App\Modules\Shared\Audit\AuditRecorder;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\View\View;
+
+class FinancialPortalController
+{
+    public function index(Request $request): View
+    {
+        $user = $request->user();
+        abort_unless($user->hasAnyRole(['admin', 'accounting', 'registrar', 'guardian', 'student']), 403);
+        $query = FeeAssessment::query()->where('status', 'finalized')->with(['enrollment.student', 'enrollment.gradeLevel', 'enrollment.academicYear']);
+        if (! $user->hasAnyRole(['admin', 'accounting', 'registrar'])) {
+            if ($user->hasRole('student')) {
+                $query->whereHas('enrollment', fn ($enrollment) => $enrollment->where('student_id', $user->studentProfile?->id ?? 0));
+            } elseif ($user->hasRole('guardian')) {
+                $guardianId = $user->guardianProfile?->id ?? 0;
+                $query->whereHas('enrollment.student.guardianLinks', fn ($link) => $link->where('guardian_id', $guardianId)->where('may_view_financials', true)->whereNotNull('verified_at')->whereNull('ended_at'));
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        return view('billing.portal.index', ['assessments' => $query->latest('finalized_at')->get()]);
+    }
+
+    public function show(FeeAssessment $assessment, Request $request, BalanceCalculator $balance, AuditRecorder $audit): View
+    {
+        if ($request->user()->hasAnyRole(['guardian', 'student']) && ! Gate::allows('view', $assessment)) {
+            abort(404);
+        }
+        Gate::authorize('view', $assessment);
+
+        $assessment->load(['enrollment.student', 'enrollment.gradeLevel', 'enrollment.academicYear', 'items', 'plan.scheduleItems', 'payments' => fn ($query) => $query->where('status', 'posted')]);
+        $issuedPermit = ExamPermit::query()->where('enrollment_id', $assessment->enrollment_id)->where('status', 'issued')->latest('issued_at')->first();
+        $permitStatus = $issuedPermit?->status;
+        $discountAwards = DiscountAward::query()->where('enrollment_id', $assessment->enrollment_id)->with('events')->get();
+        $audit->record($request->user(), 'billing.financial_summary.viewed', $assessment);
+
+        if ($request->user()->hasRole('registrar') && ! $request->user()->hasAnyRole(['admin', 'accounting'])) {
+            return view('billing.registrar.summary', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment), 'permitStatus' => $permitStatus, 'issuedPermit' => $issuedPermit]);
+        }
+
+        return view('billing.portal.show', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment), 'permitStatus' => $permitStatus, 'issuedPermit' => $issuedPermit, 'discountAwards' => $discountAwards, 'examPeriods' => $request->user()->hasRole('accounting') ? ExamPeriod::query()->where('academic_year_id', $assessment->enrollment->academic_year_id)->orderBy('starts_on')->get() : collect(), 'availableSchedules' => $request->user()->hasRole('accounting') ? FeeSchedule::query()->where('status', 'published')->where('academic_year_id', $assessment->enrollment->academic_year_id)->where(fn ($query) => $query->whereNull('grade_level_id')->orWhere('grade_level_id', $assessment->enrollment->grade_level_id))->with('items.feeType')->get() : collect()]);
+    }
+}

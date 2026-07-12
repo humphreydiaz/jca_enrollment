@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-Phases 1 through 5 are implemented. The system now includes the MySQL-first foundation, identity/people, academic catalog, enrollment intake/review, private requirements, generic restricted support review, capacity-safe section recommendation/confirmation/transfer, academic `enrolled` finalization, promotion recommendations/drafts, portal-safe section schedules, and assignment-scoped Teacher summaries. Billing, discounts, payments, permits, live SMS, reporting, grades, and attendance remain unimplemented. The official JCA school-year catalog has not been imported; P-001, P-003, and P-004 remain production-policy inputs.
+Phases 1 through 6 are implemented for development. In addition to the verified enrollment and academic workflows, Billing now provides configurable fee/schedule data, immutable assessment revisions, exact-centavo due plans, development-authorized discount ranking, append-only offline collections and corrections, reproducible exam permits, private evidence, role-scoped portals, and audited print views. Live SMS, general reporting, grades, and attendance remain unimplemented. Phase 6 values are development fixtures only; P-001 through P-007 and the Phase 6 production confirmations remain launch inputs.
 
 ## Source of truth
 

@@ -4,6 +4,8 @@ namespace App\Modules\Enrollment\Models;
 
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
+use App\Modules\Billing\Models\DiscountAward;
+use App\Modules\Billing\Models\FeeAssessment;
 use App\Modules\People\Models\GuardianProfile;
 use App\Modules\People\Models\StudentProfile;
 use App\Modules\SectionAssignment\Models\PromotionRecommendation;
@@ -86,6 +88,16 @@ class Enrollment extends Model
     public function promotionRecommendation(): HasOne
     {
         return $this->hasOne(PromotionRecommendation::class, 'source_enrollment_id');
+    }
+
+    public function discountAwards(): HasMany
+    {
+        return $this->hasMany(DiscountAward::class);
+    }
+
+    public function feeAssessments(): HasMany
+    {
+        return $this->hasMany(FeeAssessment::class);
     }
 
     public function getRouteKeyName(): string

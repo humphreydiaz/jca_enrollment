@@ -4,9 +4,9 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Phases 1 through 5 are complete as of 2026-07-11. Billing, communications, reporting, grades, and attendance remain future phases.**
+**Phases 1 through 6 are complete for development as of 2026-07-11. Communications, general reporting, grades, and attendance remain future phases.**
 
-The codebase now contains MySQL infrastructure, identity/people, a data-driven academic catalog, enrollment intake and decisions, private requirements, and restricted support review. Phase 5 adds deterministic capacity-aware recommendations, locked staff confirmation, Admin-only capacity overrides, transfer history, academic `enrolled` finalization independent of payment, promotion recommendations and predecessor-linked drafts, guardian/student section schedules, printable portal-safe placement copies, and current-assignment-scoped Teacher access to approved instructional summaries.
+The codebase now also contains a configurable offline Billing module. Phase 6 adds versioned fee schedules, immutable assessment revisions, exact-centavo installment schedules, transactionally ranked development discount campaigns, append-only payment/reversal/adjustment/refund history, private payment evidence, reproducible permit calculations and overrides, scoped financial portals, and audited statement/receipt/permit/ledger print views. No online collection integration exists.
 
 Verified baseline on 2026-07-11:
 
@@ -25,6 +25,7 @@ Verified baseline on 2026-07-11:
 - MySQL-serialized duplicate intake, private document history, restricted reviewer assignment, append-only support events, and non-enumerating sensitive record denials
 - Phase 4 verification: 38 tests and 267 assertions, dedicated-MySQL fresh/rollback/reapply, production asset build, Pint, Composer validation, route listing, and diff checks
 - Phase 5 verification: 47 tests and 376 assertions, including second-connection MySQL row-lock tests for confirmation/transfer and full migration rollback/reapplication
+- Phase 6 verification: 65 tests and 548 assertions, MySQL fresh migration plus complete rollback/reapplication, true second-connection campaign/reference lock tests, production asset build, Pint, Composer validation, 112-route inspection, and Git whitespace checks. Development fee values and calendars remain explicitly non-production.
 
 ## Required stack
 
@@ -67,7 +68,7 @@ The original source material is retained as `JCA-OUTLINE.pdf`; the school identi
 
 - Closed public account registration; verified applicants receive school invitations.
 - Individual guardian accounts with many-to-many guardian/student relationships.
-- Student accounts default to Grades 7-10 after enrollment approval.
+- Student accounts default to Grades 7-12 after enrollment approval; Grades 1-6 normally use Guardian access, with audited Admin exceptions.
 - Staff may hold multiple staff roles; policies still enforce record-level scope.
 - Teachers see assigned students and approved support summaries only.
 - Academic enrollment and financial standing are separate.
@@ -101,7 +102,7 @@ The following prepares the skeleton only; it does not add JCA features.
    ```
 
 5. Set local database credentials in `.env`. Never commit `.env`.
-6. Apply the Phase 1 through 5 migrations:
+6. Apply the Phase 1 through 6 migrations:
 
    ```powershell
    php artisan migrate
@@ -113,6 +114,8 @@ The following prepares the skeleton only; it does not add JCA features.
    php artisan db:seed
    php artisan identity:bootstrap-admin
    ```
+
+   Optional Phase 6 development fixtures are never run by `DatabaseSeeder`. To load the clearly labeled fictional Grades 1-12 fee/calendar baseline into a disposable development database, run `php artisan db:seed --class="Database\\Seeders\\Billing\\BillingDevelopmentSeeder"` explicitly. Replace it with approved school configuration before production.
 
 8. Start development processes using the existing Composer script or separate Laravel/Vite processes:
 
@@ -150,8 +153,8 @@ This structure lets future tasks work from current contracts without loading the
 
 - JCA has not approved document retention and deletion periods.
 - JCA has not supplied the official support-assessment form, decision vocabulary, or reviewer roster; Phase 4 deliberately uses neutral generic outcomes and restricted notes only.
-- Fee schedules, permit thresholds, official reports, subjects, sections, and live SMS content are not yet supplied.
-- The assumed grade offering (Nursery through Grade 10) needs confirmation.
+- Phase 6 fee amounts, class/exam dates, discount dates/value, receipt/invoice series, enabled methods, financial signatories, promissory-note process, statutory verification, permit wording, and holiday calendar still require production approval.
+- The development academic baseline is Grades 1-12 (Elementary 1-6, Junior High 7-10, Senior High 11-12); official catalog import remains pending and preschool is not seeded.
 - The future hosting, backup, recovery, and production MySQL environment are not selected.
 - The source logo is a JPEG in the project root and needs non-destructive web optimization during a later UI refinement task.
 

@@ -4,6 +4,8 @@
 
 This questionnaire collects the school policies required before JCA's offline billing, discount, payment-ledger, and exam-permit functions can be designed safely. It does **not** authorize online payments. Please answer for the first school year that will use the system and attach approved fee sheets, calendars, receipt samples, and permit samples where requested.
 
+**Current status (2026-07-11):** P6-01 through P6-21 are **Assumed – Owner-authorized for development** and the configurable Phase 6 workflows are implemented/tested against fictional fixtures. In this questionnaire, “blocked until confirmed” now means blocked for production configuration or official output—not blocked for development. No listed value is represented as accepted JCSGO production policy.
+
 Already settled: academic enrollment and financial standing remain separate; the system records school-collected payments only; posted payments are never silently edited or deleted; and exceptional overrides require reasons and audit history.
 
 ## A. Fees and assessments

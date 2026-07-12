@@ -1,6 +1,7 @@
 <?php
 
 use App\Modules\Academics\AcademicsServiceProvider;
+use App\Modules\Billing\BillingServiceProvider;
 use App\Modules\Enrollment\EnrollmentServiceProvider;
 use App\Modules\Identity\IdentityServiceProvider;
 use App\Modules\SectionAssignment\SectionAssignmentServiceProvider;
@@ -13,6 +14,7 @@ return [
     SharedServiceProvider::class,
     IdentityServiceProvider::class,
     AcademicsServiceProvider::class,
+    BillingServiceProvider::class,
     EnrollmentServiceProvider::class,
     SectionAssignmentServiceProvider::class,
     StudentSupportServiceProvider::class,

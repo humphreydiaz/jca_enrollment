@@ -14,7 +14,7 @@ This remains the requirements baseline; the short phase-status note below preven
 - **Pending:** information JCA still needs to provide.
 - **Out of scope:** intentionally excluded from this product.
 
-**Implementation status (2026-07-11):** Phases 1-5 are complete. Enrollment intake/decisions, private requirements, restricted support review, capacity-safe section assignment/transfer, final academic enrollment, promotion drafts, portal schedules, and assignment-scoped Teacher summaries are implemented. Billing, live SMS, reporting, grades, and attendance remain later phases. P-003 remains open for official catalog import; retention and official support-policy inputs also remain pending.
+**Implementation status (2026-07-11):** Phases 1-6 are complete for development. Billing provides configurable offline assessment, discount, ledger, correction, permit, portal, evidence, and print workflows under owner-authorized development assumptions. Live SMS, general reporting, grades, and attendance remain later phases. Official Phase 6 production policies, catalog import, retention, and support-policy inputs remain pending.
 
 ## 3. Confirmed requirements
 
@@ -125,7 +125,7 @@ The following resolve ambiguities in the outline:
 |---|---|---|
 | DR-001 | Guardian accounts are individual and use many-to-many guardian/student links. | D-003 |
 | DR-002 | Public account registration is closed; a verified applicant receives a school invitation. | D-002 |
-| DR-003 | Student accounts are defaulted to Grades 7-10 after approval. | D-004 |
+| DR-003 | Student accounts are defaulted to Grades 7-12 after approval; Grades 1-6 normally use Guardian access, with an audited Admin exception. | D-004 |
 | DR-004 | Staff may have multiple staff roles, but staff and portal identities are not combined. | D-005 |
 | DR-005 | Teacher access excludes raw support, document, and payment records. | D-006 |
 | DR-006 | Academic and financial states are independent. | D-007 |
@@ -210,7 +210,7 @@ Allowed states are `missing`, `submitted`, `under_review`, `verified`, `rejected
 
 ## 7. Assumptions requiring validation
 
-- JCA offers Nursery, Junior Kindergarten, Senior Kindergarten, and Grades 1-10.
+- The owner-authorized development baseline covers Grades 1-12; the official production catalog is still pending, and preschool is excluded unless confirmed later.
 - MySQL 8.0 or newer is available in the eventual hosting environment.
 - One Registrar, one Accounting staff member, and at least one Admin operate enrollment, while staff-role multiplicity supports absences and future staffing.
 - Mobile number is the primary invitation/SMS contact; email may be optional until JCA confirms recovery policy.
@@ -221,7 +221,7 @@ Allowed states are `missing`, `submitted`, `under_review`, `verified`, `rejected
 
 - Final school-approved retention schedule and deletion approvers.
 - Current school-year catalog: grade offerings, sections, subjects, schedules, advisers, and capacities.
-- Official fee schedules, installment dates, discount values/campaign dates, and exam-permit thresholds.
+- Production-approved fee amounts, class/exam/holiday dates, discount campaign, receipt/invoice series, methods, financial signatories, exception procedures, permit wording, and thresholds. Phase 6 development assumptions remain configurable and are not official fees.
 - Official support-assessment form, decision vocabulary, and authorized reviewer roster. The generic restricted Phase 4 workflow is complete and does not treat these pending inputs as school policy.
 - Official Semaphore sender name, SMS templates, consent language, and live credentials.
 - Final report list, layouts, signatories, and whether any report needs a control/reference number.

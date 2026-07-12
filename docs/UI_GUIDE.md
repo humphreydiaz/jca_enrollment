@@ -174,6 +174,17 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 - Assessment, due schedule, posted ledger, and balance are visually distinct.
 - Posted entries look immutable. Correction action says “Request/approve reversal,” never “Edit payment.”
 - Receipt print view shows transaction facts without unrelated enrollment/support data.
+- Phase 6 separates the financial queue, role-scoped summary, full internal ledger, and Admin configuration. Payment evidence has no public preview URL.
+- The authenticated navigation exposes the Billing queue/configuration only to permitted staff and a relationship/self-scoped Financial records index to Guardian and Student users.
+- Statement/receipt/permit views use standalone A4/A5 print markup with navigation omitted. Receipt reprints retain their reference and show the incremented reprint label; permit output never prints debt or exception details.
+
+### Financial visibility by role
+
+- **Admin:** configuration, complete ledger/audit context, and independent exception decisions; posting still requires an Accounting role.
+- **Accounting:** assessment/plan/collection workflows, private evidence, eligible permit issuance, and internal ledger.
+- **Registrar:** assessed/paid/balance/plan/authorization summary and already-issued permit only.
+- **Teacher:** `Authorized for exam`, `Not yet authorized`, and an issued permit number only for a current teaching assignment.
+- **Guardian/Student:** linked/self assessment lines, schedules, posted collections, receipts, balance/credit, and issued permits; never internal notes, evidence, audit actors, or override reasons.
 
 ### Teacher workspace
 

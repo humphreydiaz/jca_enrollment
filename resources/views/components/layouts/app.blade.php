@@ -38,6 +38,15 @@
 
                     <nav aria-label="Primary navigation" class="space-y-1">
                         <a href="{{ route('identity.dashboard') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My account</a>
+                        @if (auth()->user()->hasAnyRole(['admin', 'accounting', 'registrar', 'guardian', 'student']))
+                            <a href="{{ route('billing.portal.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Financial records</a>
+                        @endif
+                        @if (auth()->user()->hasAnyRole(['admin', 'accounting', 'registrar']))
+                            <a href="{{ route('billing.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Billing queue</a>
+                        @endif
+                        @if (auth()->user()->hasRole('admin'))
+                            <a href="{{ route('billing.configuration.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Financial configuration</a>
+                        @endif
                         @if (auth()->user()->hasAnyRole(['admin', 'registrar']))
                             <a href="{{ route('enrollment.registrar.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Enrollment review</a>
                             <a href="{{ route('section-assignment.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Section assignment</a>
