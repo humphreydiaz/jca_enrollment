@@ -89,6 +89,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 2 - Identity, roles, people, and invitations
 
+**Status:** Complete on 2026-07-10.
+
 **Goal:** deliver secure account onboarding and relationship-scoped access primitives.
 
 **Inputs**
@@ -136,6 +138,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 3 - Academic catalog, sections, and teaching assignments
 
+**Status:** Complete on 2026-07-11. The catalog is intentionally empty until JCA supplies its official school-year data; no production fixtures were seeded.
+
 **Goal:** create school-year academic structure and teacher scopes before enrollment uses them.
 
 **Inputs**
@@ -178,6 +182,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 ---
 
 ## Phase 4 - Enrollment intake, requirements, and restricted support review
+
+**Status:** Complete on 2026-07-11. Verified with 38 tests / 267 assertions, a dedicated-MySQL fresh migration, complete rollback and reapplication, production asset build, Pint, Composer validation, route listing, and diff checks. P-001 and P-004 remain production-policy inputs; generic private retention and restricted neutral support review are complete without automated deletion or invented school assessment content.
 
 **Goal:** deliver enrollment from public draft through academic approval/rejection, excluding final section and billing workflows.
 
@@ -230,6 +236,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 5 - Section assignment, enrollment finalization, and promotion
 
+**Status:** Complete on 2026-07-11. Verified with 47 tests / 376 assertions, dedicated-MySQL fresh migration, complete rollback and reapplication, second-connection row-lock tests for confirmation and transfer, production asset build, Pint, Composer validation, route listing, and diff checks. P-003 remains open for the official catalog import; only fictional test fixtures were used.
+
 **Goal:** place approved students safely and preserve school-year progression.
 
 **Inputs**
@@ -267,10 +275,13 @@ A phase is complete only when its acceptance criteria and test requirements pass
 - Policy tests for Registrar/Admin/Teacher/Guardian views.
 - Transfer and promotion history tests.
 - Portal/print section rendering tests.
+- Assignment-scoped positive Teacher access to the current approved teacher-safe support summary. Phase 4 verifies default Teacher denial because no student-to-section assignment exists before this phase.
 
 ---
 
 ## Phase 6 - Billing, discounts, payment ledger, and exam permits
+
+**Status:** Complete for development on 2026-07-11 under the owner-authorized assumptions in `docs/PHASE6_IMPLEMENTED_POLICY.md`. Production financial configuration remains blocked pending official JCSGO approval.
 
 **Goal:** deliver auditable offline payment tracking without a payment gateway.
 

@@ -32,7 +32,7 @@ This file records decisions that future implementation tasks may treat as settle
 
 ### D-004 - Student portal eligibility
 
-**Decision:** Provision student accounts for Grades 7-10 after enrollment approval. Nursery through Grade 6 use guardian access by default. Admin may provision an exception with a recorded reason.
+**Decision:** Provision student accounts for Grades 7-12 after enrollment approval. Grades 1-6 use guardian access by default. Admin may provision an exception with a recorded and audited reason.
 
 **Rationale:** This matches the outline's statement that high school students may participate directly while keeping younger-child access with guardians.
 
@@ -76,9 +76,9 @@ This file records decisions that future implementation tasks may treat as settle
 
 ### D-012 - Grade coverage
 
-**Decision:** Plan the catalog for Nursery, Junior Kindergarten, Senior Kindergarten, and Grades 1-10. Store grade levels as configurable records and do not encode this list in authorization or workflow code.
+**Decision:** Use Grades 1-12 as the development catalog baseline: Elementary 1-6, Junior High 7-10, and Senior High 11-12. Preschool is not included unless JCSGO later confirms it. Store grade levels as configurable records and do not encode this list in authorization or workflow code.
 
-**Status:** Assumed school offering based on the outline's enrollment banner and Elementary-to-Junior-High wording; must be confirmed before production data import.
+**Status:** Owner-authorized for development; the official offered catalog must still be confirmed before production import.
 
 ### D-013 - Confidential document storage
 
@@ -102,20 +102,55 @@ This file records decisions that future implementation tasks may treat as settle
 
 **Decision:** Use database-backed unique public reference numbers for applications, students, receipts, and other documents while retaining internal numeric primary keys. Store timestamps consistently and display them in `Asia/Manila`. Public URLs must not expose sequential internal IDs where enumeration would disclose student data.
 
+### D-018 - Account recovery
+
+**Decision:** Account recovery is staff-assisted. There is no public password-reset request or account lookup. After staff verify the requester's identity through JCA's approved offline process, an Admin may issue a short-lived, single-use recovery invitation to the existing verified email or mobile contact.
+
+**Consequences:** Recovery uses the same private password-setup flow as an invitation and records an audit event. JCA may later approve email as an official automated recovery channel only through a replacement decision and a separate security review.
+
 ## Pending decisions
 
-These do not block schema planning, but the named phase cannot be accepted until its relevant inputs are supplied.
+These do not block restrictive generic foundations. The named production capability cannot be enabled or represented as official JCA policy until its relevant inputs are supplied.
 
 | ID | Decision needed | Deadline | Safe implementation posture |
 |---|---|---|---|
 | P-001 | School-approved retention periods per document category | Before production launch | Configurable policy; no automated production deletion |
-| P-002 | Final fee schedules, installment due dates, discount values, and exam-permit thresholds | Before Billing phase acceptance | Data-driven rules; no hard-coded amounts |
+| P-002 | Final fee schedules, installment due dates, discount values, and exam-permit thresholds | Before production launch | Phase 6 uses owner-authorized, explicitly development-only data; production configuration remains blocked pending approval |
 | P-003 | Official section names, subjects, teaching assignments, and confirmed grade offerings | Before Academics phase production import | Seed only clearly labeled development fixtures |
-| P-004 | Exact support-assessment form, decision labels, and authorized reviewers | Before Support workflow acceptance | Restrictive access and generic structured outcome plus private notes |
+| P-004 | Exact support-assessment form, decision labels, and authorized reviewer roster | Before official production support-form activation | Phase 4 uses restrictive access, reviewer assignment, neutral generic outcomes, private observations, history, and approved teacher-safe summaries only |
 | P-005 | Official SMS sender name, approved templates, consent wording, and escalation contacts | Before enabling live SMS | SMS disabled by default; log driver/test fake |
 | P-006 | Required official reports and signatories | Before Reporting phase acceptance | Build reusable filters and exports from normalized data |
 | P-007 | Hosting, backup, recovery objectives, and production MySQL version | Before deployment readiness | Target MySQL 8.0+ and document assumptions |
-| P-008 | Whether email is an official recovery channel or staff-assisted recovery is required | Before account recovery goes live | Do not reveal account existence; support secure staff reset flow |
+
+## Phase 6 development-policy status
+
+P6-01 through P6-21 are **Assumed – Owner-authorized for development**. They satisfy the Phase 6 development/testing prerequisite, but they are not accepted production policies. The configurable implementation and fictional fixtures may be replaced without rewriting historical financial snapshots. The questionnaire remains the production-confirmation checklist.
+
+| ID | Owner-authorized development policy area | Production status |
+|---|---|---|
+| P6-01 | Fee catalog and charge behavior | Assumed – Owner-authorized for development; official catalog pending |
+| P6-02 | Grade-band fee schedules and amounts | Assumed – Owner-authorized for development; actual amounts pending |
+| P6-03 | Immutable assessment revision lifecycle | Assumed – Owner-authorized for development; production procedure pending |
+| P6-04 | Full, semiannual, quarterly, and monthly plans | Assumed – Owner-authorized for development; enabled offerings pending |
+| P6-05 | Exact due generation and business-day movement | Assumed – Owner-authorized for development; actual calendar pending |
+| P6-06 | Payment-to-follow and Admin extension | Assumed – Owner-authorized for development; official procedure pending |
+| P6-07 | Partial/advance/late payment and student credit | Assumed – Owner-authorized for development; production procedure pending |
+| P6-08 | First-100 tuition discount development campaign | Assumed – Owner-authorized for development; official campaign pending |
+| P6-09 | Approval-time atomic rank and non-recycled slots | Assumed – Owner-authorized for development; official campaign pending |
+| P6-10 | One campaign discount and capped reductions | Assumed – Owner-authorized for development; official combination rules pending |
+| P6-11 | Append-only discount correction/cancellation | Assumed – Owner-authorized for development; official approval procedure pending |
+| P6-12 | Payment/receipt references and reprint numbering | Assumed – Owner-authorized for development; official series pending |
+| P6-13 | Offline methods and private evidence | Assumed – Owner-authorized for development; enabled methods pending |
+| P6-14 | Financial authorization matrix | Assumed – Owner-authorized for development; staff assignments pending |
+| P6-15 | Independent reversal, adjustment, and refund approval | Assumed – Owner-authorized for development; legal procedure pending |
+| P6-16 | Four configurable exam periods and permit references | Assumed – Owner-authorized for development; actual dates pending |
+| P6-17 | Permit-critical due coverage at cutoff | Assumed – Owner-authorized for development; official threshold pending |
+| P6-18 | Restricted permit exceptions and Admin overrides | Assumed – Owner-authorized for development; verification procedure pending |
+| P6-19 | Linked Guardian/self Student financial visibility | Assumed – Owner-authorized for development; production wording pending |
+| P6-20 | Statement, receipt, permit, and internal ledger printouts | Assumed – Owner-authorized for development; layouts/signatories pending |
+| P6-21 | Approved/enrolled assessment boundary without section/payment prerequisite | Assumed – Owner-authorized for development; production confirmation pending |
+
+Production release remains blocked on actual fee amounts, class/examination dates, official receipt or invoice series, enabled methods, authorized signatories, official discount amount/dates, promissory-note procedure, statutory-certification verification, final permit wording, and the school holiday/business calendar.
 
 ## Out-of-scope decisions
 

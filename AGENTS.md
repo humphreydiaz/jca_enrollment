@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-Phase 1 engineering foundation is implemented. The project now has MySQL-first infrastructure, Alpine.js, a Shared module provider/smoke route, an accessible Blade shell, private-document storage configuration, and audit-table foundation. Identity, enrollment, academic, billing, portal, SMS, and reporting features remain unimplemented.
+Phases 1 through 6 are implemented for development. In addition to the verified enrollment and academic workflows, Billing now provides configurable fee/schedule data, immutable assessment revisions, exact-centavo due plans, development-authorized discount ranking, append-only offline collections and corrections, reproducible exam permits, private evidence, role-scoped portals, and audited print views. Live SMS, general reporting, grades, and attendance remain unimplemented. Phase 6 values are development fixtures only; P-001 through P-007 and the Phase 6 production confirmations remain launch inputs.
 
 ## Source of truth
 

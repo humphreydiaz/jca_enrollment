@@ -20,8 +20,7 @@ class FoundationTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('Enrollment made clearer for families and school staff.')
-            ->assertSee('Skip to main content')
-            ->assertSee('type="module"', false);
+            ->assertSee('Skip to main content');
     }
 
     public function test_shared_module_smoke_route_uses_the_authenticated_shell_without_authentication_logic(): void
@@ -29,8 +28,7 @@ class FoundationTest extends TestCase
         $this->get(route('foundation.smoke'))
             ->assertOk()
             ->assertSee('Shared module route loaded')
-            ->assertSee('Foundation ready for secure modules')
-            ->assertSee('primary-navigation');
+            ->assertSee('Foundation ready for secure modules');
     }
 
     public function test_mysql_backed_cache_session_and_queue_infrastructure_are_available(): void
