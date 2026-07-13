@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-Phases 1 through 6 are implemented for development. In addition to the verified enrollment and academic workflows, Billing now provides configurable fee/schedule data, immutable assessment revisions, exact-centavo due plans, development-authorized discount ranking, append-only offline collections and corrections, reproducible exam permits, private evidence, role-scoped portals, and audited print views. Live SMS, general reporting, grades, and attendance remain unimplemented. Phase 6 values are development fixtures only; P-001 through P-007 and the Phase 6 production confirmations remain launch inputs.
+Phases 1 through 8 are implemented for development. In addition to the verified enrollment, academic, Billing, portal, announcement, and queued-SMS workflows, Reporting now provides role-scoped operational reports, fixed privacy-safe field allowlists, private expiring CSV exports, development print layouts, and Admin-only audit review. Live SMS, approved official report formats/signatories, grades, and attendance remain unimplemented. Phase 6 values are development fixtures only; P-001 through P-007 and the Phase 6 production confirmations remain launch inputs.
 
 ## Source of truth
 

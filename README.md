@@ -4,7 +4,7 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Phases 1 through 7 are complete for development as of 2026-07-12. General reporting, grades, and attendance remain future phases.**
+**Phases 1 through 8 are complete for development as of 2026-07-13. Grades, attendance, production hardening, and school approval of official report formats remain future work.**
 
 The codebase now also contains a configurable offline Billing module. Phase 6 adds versioned fee schedules, immutable assessment revisions, exact-centavo installment schedules, transactionally ranked development discount campaigns, append-only payment/reversal/adjustment/refund history, private payment evidence, reproducible permit calculations and overrides, scoped financial portals, and audited statement/receipt/permit/ledger print views. No online collection integration exists.
 
@@ -27,6 +27,8 @@ Verified baseline on 2026-07-11:
 - Phase 5 verification: 47 tests and 376 assertions, including second-connection MySQL row-lock tests for confirmation/transfer and full migration rollback/reapplication
 - Phase 6 verification: 65 tests and 548 assertions, MySQL fresh migration plus complete rollback/reapplication, true second-connection campaign/reference lock tests, production asset build, Pint, Composer validation, 112-route inspection, and Git whitespace checks. Development fee values and calendars remain explicitly non-production.
 - Phase 7 adds scoped Admin, Registrar, Accounting, Teacher, Guardian, and Student dashboards; audience-authorized announcements; guardian SMS preferences; versioned safe templates; database-queued SMS delivery, retries, idempotency, and audited logs. Semaphore remains disabled by default pending P-005; tests use a fake provider or HTTP fakes and never make live network calls.
+- Phase 8 adds nine fixed operational report families, role and record scoping, validated school-year/grade/section/status/date filters, private database-queued CSV exports with expiry and download re-authorization, spreadsheet formula-injection protection, navigation-free print layouts, and Admin-only privacy-safe audit search. P-006 remains open, so these are development operational layouts rather than approved official school forms.
+- Phase 8 verification: 75 tests and 692 assertions in bounded MySQL groups after the single full-suite command reached its execution ceiling; dedicated-MySQL fresh/rollback/reapply, production asset build, Pint, Composer validation, 128-route inspection, browser/print privacy QA, and Git whitespace checks all pass.
 
 ## Required stack
 
@@ -103,7 +105,7 @@ The following prepares the skeleton only; it does not add JCA features.
    ```
 
 5. Set local database credentials in `.env`. Never commit `.env`.
-6. Apply the Phase 1 through 7 migrations:
+6. Apply the Phase 1 through 8 migrations:
 
    ```powershell
    php artisan migrate
@@ -158,6 +160,7 @@ This structure lets future tasks work from current contracts without loading the
 - The development academic baseline is Grades 1-12 (Elementary 1-6, Junior High 7-10, Senior High 11-12); official catalog import remains pending and preschool is not seeded.
 - The future hosting, backup, recovery, and production MySQL environment are not selected.
 - JCA has not supplied the approved Semaphore sender name, consent wording, live message templates, escalation contacts, or live credentials. SMS is intentionally disabled until these P-005 inputs are approved.
+- JCA has not approved the official report list, final column sets, signatories, control/reference formats, or branded print layouts. Phase 8 outputs are explicitly development operational reports until P-006 is resolved.
 - The source logo is a JPEG in the project root and needs non-destructive web optimization during a later UI refinement task.
 
 ## License
