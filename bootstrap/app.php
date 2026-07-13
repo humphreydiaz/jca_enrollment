@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\SecurityHeaders;
 use App\Modules\Identity\Http\Middleware\EnsurePasswordChanged;
 use App\Modules\Identity\Http\Middleware\EnsureRole;
 use Illuminate\Foundation\Application;
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->redirectGuestsTo(fn (): string => route('identity.login'));
+        $middleware->append(SecurityHeaders::class);
 
         $middleware->alias([
             'password.changed' => EnsurePasswordChanged::class,
@@ -22,6 +24,22 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash([
+            'api_key',
+            'current_password',
+            'document',
+            'documents',
+            'evidence',
+            'file',
+            'files',
+            'invitation_token',
+            'password',
+            'password_confirmation',
+            'resume_token',
+            'secret',
+            'token',
+            'verification_code',
+        ]);
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
         );

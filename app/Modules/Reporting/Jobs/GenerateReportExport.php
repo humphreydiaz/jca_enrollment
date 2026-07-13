@@ -28,6 +28,12 @@ class GenerateReportExport implements ShouldQueue
         if ($export->status === 'completed' || $export->deleted_at !== null) {
             return;
         }
+        if ($export->expires_at->isPast()) {
+            $export->update(['status' => 'expired', 'deleted_at' => now()]);
+            $audit->record(null, 'reporting.export.expired', $export, ['report_code' => $export->report_code]);
+
+            return;
+        }
         if (! $reports->allows($export->requester, $export->report_code)) {
             $export->update(['status' => 'failed', 'failure_code' => 'authorization_revoked']);
 

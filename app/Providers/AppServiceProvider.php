@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Console\Commands\ProductionReadinessCheck;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -11,7 +13,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->commands([ProductionReadinessCheck::class]);
     }
 
     /**
@@ -19,6 +21,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        if ($this->app->environment('production') && config('security.force_https')) {
+            URL::forceScheme('https');
+        }
     }
 }

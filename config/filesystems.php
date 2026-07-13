@@ -42,7 +42,8 @@ return [
             'driver' => 'local',
             'root' => storage_path('app/private/documents'),
             'visibility' => 'private',
-            'throw' => false,
+            'serve' => false,
+            'throw' => (bool) env('DOCUMENTS_THROW', false),
             'report' => false,
         ],
 
@@ -51,7 +52,7 @@ return [
             'root' => storage_path('app/private/reports'),
             'visibility' => 'private',
             'serve' => false,
-            'throw' => false,
+            'throw' => (bool) env('REPORTS_THROW', false),
             'report' => false,
         ],
 

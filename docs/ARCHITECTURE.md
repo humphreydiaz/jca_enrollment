@@ -235,6 +235,8 @@ Expected production processes:
 
 Docker is not part of the project. Deployment documentation must use the actual host environment chosen by JCA.
 
+**Phase 9 implementation:** `.env.production.example` supplies restrictive placeholders only. `jca:production-check` verifies environment, HTTPS/session/log/queue/cache configuration, least-privilege database posture, private disk access, queue health, absence of development fixtures, backup controls, and signed-approval attestations without printing values. Deployment must cache configuration/routes/views, supervise the database worker and scheduler, and retain the application key across releases. See `docs/operations/DEPLOYMENT.md`.
+
 ## 13. Testing strategy
 
 - **Unit tests:** state transitions, fee/discount calculations, capacity policy, authorization helpers, reference generation.
@@ -254,6 +256,9 @@ Tests should use MySQL for behaviors that depend on locking, indexes, generated 
 - Audit search by actor, subject, action, and time.
 - Backup schedule, restore test, recovery objective, and document-storage recovery must be approved before launch.
 - Health endpoint reports availability only and never configuration or personal data.
+- Every dynamic response receives a validated/generated request ID plus no-store, anti-framing, MIME-sniffing, referrer, permissions, and opener headers. HSTS is emitted only for secure production requests.
+- The scheduler prunes failed jobs/batches and expired report files; it never deletes retained documents while P-001 is open.
+- The production readiness command provides a secret-free deep probe for database, cache, queue backlog, failed jobs, private storage, and development-fixture absence. External monitoring must alert on nonzero exit and `/up` failure.
 
 ## 15. Architecture fitness checks
 

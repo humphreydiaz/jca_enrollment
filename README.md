@@ -4,7 +4,7 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Phases 1 through 8 are complete for development as of 2026-07-13. Grades, attendance, production hardening, and school approval of official report formats remain future work.**
+**Phases 1 through 9 are complete for development and engineering launch readiness as of 2026-07-13. Production launch is intentionally blocked until the school approvals and production inputs in P-001 through P-008 are signed.**
 
 The codebase now also contains a configurable offline Billing module. Phase 6 adds versioned fee schedules, immutable assessment revisions, exact-centavo installment schedules, transactionally ranked development discount campaigns, append-only payment/reversal/adjustment/refund history, private payment evidence, reproducible permit calculations and overrides, scoped financial portals, and audited statement/receipt/permit/ledger print views. No online collection integration exists.
 
@@ -29,6 +29,8 @@ Verified baseline on 2026-07-11:
 - Phase 7 adds scoped Admin, Registrar, Accounting, Teacher, Guardian, and Student dashboards; audience-authorized announcements; guardian SMS preferences; versioned safe templates; database-queued SMS delivery, retries, idempotency, and audited logs. Semaphore remains disabled by default pending P-005; tests use a fake provider or HTTP fakes and never make live network calls.
 - Phase 8 adds nine fixed operational report families, role and record scoping, validated school-year/grade/section/status/date filters, private database-queued CSV exports with expiry and download re-authorization, spreadsheet formula-injection protection, navigation-free print layouts, and Admin-only privacy-safe audit search. P-006 remains open, so these are development operational layouts rather than approved official school forms.
 - Phase 8 verification: 75 tests and 692 assertions in bounded MySQL groups after the single full-suite command reached its execution ceiling; dedicated-MySQL fresh/rollback/reapply, production asset build, Pint, Composer validation, 128-route inspection, browser/print privacy QA, and Git whitespace checks all pass.
+- Phase 9 adds fail-closed production validation, secure response/cookie/queue defaults, correlation headers, sensitive-input flashing protection, private-disk runtime probes, scheduled queue/export cleanup, PowerShell backup/restore tooling, and deployment, rollback, incident, UAT, and launch checklists. Live SMS remains disabled.
+- Phase 9 verification: 81 tests and 737 assertions in bounded MySQL groups after the one-shot suite reached its execution ceiling; fresh/rollback/reapply, a fictional database/private-file restore rehearsal, configuration/route/view caching, responsive browser checks, production build, Pint, Composer/npm advisory audits (zero vulnerabilities), routes, and Git checks pass.
 
 ## Required stack
 
@@ -55,6 +57,11 @@ The project must not use React, Vue, Inertia, Livewire, Tabler, Bootstrap, Postg
 | [Architecture](docs/ARCHITECTURE.md) | Module boundaries, workflows, security, and deployment shape |
 | [Database](docs/DATABASE.md) | Conceptual tables, relationships, constraints, and migration order |
 | [UI guide](docs/UI_GUIDE.md) | Logo-based visual direction, layouts, components, and accessibility |
+| [Production checklist](docs/operations/PRODUCTION_CHECKLIST.md) | Fail-closed approvals, technical launch gates, and go/no-go record |
+| [Deployment runbook](docs/operations/DEPLOYMENT.md) | Release, queue/scheduler, verification, and rollback procedure |
+| [Backup and restore](docs/operations/BACKUP_RESTORE.md) | Encrypted-target backup, isolated restore, and reconciliation drill |
+| [Incident response](docs/operations/INCIDENT_RESPONSE.md) | Containment, recovery, monitoring, and evidence handling |
+| [UAT and role sign-off](docs/operations/UAT.md) | Role-scoped acceptance journeys and owner signatures |
 
 The original source material is retained as `JCA-OUTLINE.pdf`; the school identity source is `JCA Logo.jpg`.
 
@@ -139,6 +146,15 @@ php artisan about
 
 Run the phase-specific test matrix in [PLAN.md](PLAN.md) in addition to these checks. MySQL-specific constraints, transactions, and locking must be tested on MySQL rather than SQLite.
 
+Before any production deployment, prepare `.env` from `.env.production.example`, retain all secrets outside source control, obtain the signed approvals referenced by its `JCA_*_APPROVED` flags, and run:
+
+```powershell
+php artisan jca:production-check
+php artisan schedule:list
+```
+
+The readiness command fails closed and prints check names only; it never prints credentials or configuration values.
+
 ## Documentation-first workflow
 
 Implementation should proceed one PLAN phase per task:
@@ -158,9 +174,10 @@ This structure lets future tasks work from current contracts without loading the
 - JCA has not supplied the official support-assessment form, decision vocabulary, or reviewer roster; Phase 4 deliberately uses neutral generic outcomes and restricted notes only.
 - Phase 6 fee amounts, class/exam dates, discount dates/value, receipt/invoice series, enabled methods, financial signatories, promissory-note process, statutory verification, permit wording, and holiday calendar still require production approval.
 - The development academic baseline is Grades 1-12 (Elementary 1-6, Junior High 7-10, Senior High 11-12); official catalog import remains pending and preschool is not seeded.
-- The future hosting, backup, recovery, and production MySQL environment are not selected.
+- Hosting, backup retention, agreed RPO/RTO, offsite encryption, monitoring ownership, and the production MySQL environment remain pending P-007. The verified local restore rehearsal is not a substitute for the production-host restore drill.
 - JCA has not supplied the approved Semaphore sender name, consent wording, live message templates, escalation contacts, or live credentials. SMS is intentionally disabled until these P-005 inputs are approved.
 - JCA has not approved the official report list, final column sets, signatories, control/reference formats, or branded print layouts. Phase 8 outputs are explicitly development operational reports until P-006 is resolved.
+- Role owners, UAT signatories, training completion, incident contacts, and launch authority remain pending P-008.
 - The source logo is a JPEG in the project root and needs non-destructive web optimization during a later UI refinement task.
 
 ## License
