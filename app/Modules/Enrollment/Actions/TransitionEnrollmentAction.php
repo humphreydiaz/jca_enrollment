@@ -4,6 +4,7 @@ namespace App\Modules\Enrollment\Actions;
 
 use App\Models\User;
 use App\Modules\Enrollment\Events\EnrollmentApproved;
+use App\Modules\Enrollment\Events\EnrollmentStatusChanged;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Enrollment\Models\EnrollmentStatusHistory;
 use App\Modules\Requirements\Actions\GenerateEnrollmentChecklistAction;
@@ -88,6 +89,7 @@ class TransitionEnrollmentAction
                 ]);
             }
             $this->audit->record($actor, 'enrollment.status.changed', $record, ['from' => $from, 'to' => $to]);
+            event(new EnrollmentStatusChanged($record, $from, $to, $actor));
             if ($to === 'approved') {
                 event(new EnrollmentApproved($record, $actor));
             }

@@ -14,7 +14,7 @@ This remains the requirements baseline; the short phase-status note below preven
 - **Pending:** information JCA still needs to provide.
 - **Out of scope:** intentionally excluded from this product.
 
-**Implementation status (2026-07-11):** Phases 1-6 are complete for development. Billing provides configurable offline assessment, discount, ledger, correction, permit, portal, evidence, and print workflows under owner-authorized development assumptions. Live SMS, general reporting, grades, and attendance remain later phases. Official Phase 6 production policies, catalog import, retention, and support-policy inputs remain pending.
+**Implementation status (2026-07-12):** Phases 1-7 are complete for development. Billing provides configurable offline assessment, discount, ledger, correction, permit, portal, evidence, and print workflows under owner-authorized development assumptions. Phase 7 adds scoped portals, announcements, guardian SMS preferences, and database-queued SMS delivery records with disabled/log/fake/Semaphore adapters. Live Semaphore delivery remains disabled pending P-005; general reporting, grades, and attendance remain later phases.
 
 ## 3. Confirmed requirements
 

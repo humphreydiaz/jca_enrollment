@@ -161,6 +161,8 @@ The system never sends a permanent plaintext password by SMS.
 4. Provider reference and delivery result are recorded.
 5. Retry policy must not duplicate an already accepted provider request.
 
+**Phase 7 implementation:** Communications owns the announcement, template, consent, notification, and SMS-message tables. The enrollment status listener requests transactional delivery only when an active approved template and active consent exist. The stored rendered body and recipient mobile are encrypted at rest; audit and delivery records retain only minimal provider/failure metadata. Admin may retry failed messages, while the queue job locks each notification and will not re-send an accepted/logged/disabled record.
+
 ## 7. Authorization model
 
 Use a single session guard and user provider. Roles narrow the set of possible actions; policies then check relationships and record scope.

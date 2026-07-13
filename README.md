@@ -4,7 +4,7 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 ## Project status
 
-**Phases 1 through 6 are complete for development as of 2026-07-11. Communications, general reporting, grades, and attendance remain future phases.**
+**Phases 1 through 7 are complete for development as of 2026-07-12. General reporting, grades, and attendance remain future phases.**
 
 The codebase now also contains a configurable offline Billing module. Phase 6 adds versioned fee schedules, immutable assessment revisions, exact-centavo installment schedules, transactionally ranked development discount campaigns, append-only payment/reversal/adjustment/refund history, private payment evidence, reproducible permit calculations and overrides, scoped financial portals, and audited statement/receipt/permit/ledger print views. No online collection integration exists.
 
@@ -26,6 +26,7 @@ Verified baseline on 2026-07-11:
 - Phase 4 verification: 38 tests and 267 assertions, dedicated-MySQL fresh/rollback/reapply, production asset build, Pint, Composer validation, route listing, and diff checks
 - Phase 5 verification: 47 tests and 376 assertions, including second-connection MySQL row-lock tests for confirmation/transfer and full migration rollback/reapplication
 - Phase 6 verification: 65 tests and 548 assertions, MySQL fresh migration plus complete rollback/reapplication, true second-connection campaign/reference lock tests, production asset build, Pint, Composer validation, 112-route inspection, and Git whitespace checks. Development fee values and calendars remain explicitly non-production.
+- Phase 7 adds scoped Admin, Registrar, Accounting, Teacher, Guardian, and Student dashboards; audience-authorized announcements; guardian SMS preferences; versioned safe templates; database-queued SMS delivery, retries, idempotency, and audited logs. Semaphore remains disabled by default pending P-005; tests use a fake provider or HTTP fakes and never make live network calls.
 
 ## Required stack
 
@@ -102,7 +103,7 @@ The following prepares the skeleton only; it does not add JCA features.
    ```
 
 5. Set local database credentials in `.env`. Never commit `.env`.
-6. Apply the Phase 1 through 6 migrations:
+6. Apply the Phase 1 through 7 migrations:
 
    ```powershell
    php artisan migrate
@@ -156,6 +157,7 @@ This structure lets future tasks work from current contracts without loading the
 - Phase 6 fee amounts, class/exam dates, discount dates/value, receipt/invoice series, enabled methods, financial signatories, promissory-note process, statutory verification, permit wording, and holiday calendar still require production approval.
 - The development academic baseline is Grades 1-12 (Elementary 1-6, Junior High 7-10, Senior High 11-12); official catalog import remains pending and preschool is not seeded.
 - The future hosting, backup, recovery, and production MySQL environment are not selected.
+- JCA has not supplied the approved Semaphore sender name, consent wording, live message templates, escalation contacts, or live credentials. SMS is intentionally disabled until these P-005 inputs are approved.
 - The source logo is a JPEG in the project root and needs non-destructive web optimization during a later UI refinement task.
 
 ## License

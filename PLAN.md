@@ -332,6 +332,8 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 7 - Portals, announcements, and Semaphore SMS
 
+**Status:** Complete for development on 2026-07-12. Live Semaphore delivery remains disabled until P-005 production inputs are approved.
+
 **Goal:** complete role-appropriate dashboards and reliable school communications.
 
 **Inputs**

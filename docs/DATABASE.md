@@ -275,21 +275,23 @@ Optional append history if assignment rows alone do not fully express recommenda
 
 ## 12. Communications tables
 
+**Implementation status:** implemented in Phase 7. The module uses opaque public IDs for public routes, explicit audience rows instead of a free-form contact export, encrypted recipient/body fields, a unique notification idempotency key, and indexed delivery state. Templates are versioned and deactivated rather than overwritten. P-005 keeps live Semaphore delivery disabled by default.
+
 ### `announcements`
 
-Title, body, audience definition, publish window, status, author, timestamps. Sensitive support/financial details are prohibited in school-wide content.
+Title, body, publish window, status, author, timestamps. The related `announcement_audiences` rows hold `all`, role, section, student, or guardian targeting. Sensitive support/financial details are prohibited in school-wide content.
 
 ### `notification_templates`
 
-Code, channel, purpose, locale, content, version, active flag. Templates use a restricted set of placeholders.
+Code, channel, purpose, content, version, active flag. Templates use a restricted set of placeholders and are versioned rather than overwritten.
 
 ### `notifications`
 
-Application-level intent: template/purpose, related subject type/id, recipient user/profile, status, idempotency key, scheduled/sent timestamps.
+Application-level intent: template/purpose, related subject type/id, recipient user/profile, encrypted rendered body, status, idempotency key, scheduled/sent timestamps.
 
 ### `sms_messages`
 
-Notification, normalized recipient, provider, provider reference, rendered body or safely retained representation according to policy, status, attempt count, accepted/delivered/failed timestamps, redacted error code/response.
+Notification, encrypted normalized recipient, provider, provider reference, recipient hash/last four, status, attempt count, accepted/delivered/failed timestamps, and redacted error code. Do not log the message body or raw provider response.
 
 Unique idempotency key prevents duplicate sends for the same business event and recipient.
 
