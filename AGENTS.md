@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-Phases 1 through 8 are implemented for development. In addition to the verified enrollment, academic, Billing, portal, announcement, and queued-SMS workflows, Reporting now provides role-scoped operational reports, fixed privacy-safe field allowlists, private expiring CSV exports, development print layouts, and Admin-only audit review. Live SMS, approved official report formats/signatories, grades, and attendance remain unimplemented. Phase 6 values are development fixtures only; P-001 through P-007 and the Phase 6 production confirmations remain launch inputs.
+Phases 1 through 9 are implemented for development and engineering launch readiness. Phase 9 adds fail-closed production checks, hardened response/session/queue defaults, supervised scheduler contracts, private export cleanup, backup/restore tooling, and deployment, incident, UAT, and launch runbooks. Production launch is still blocked until JCA signs P-001 through P-008 and replaces all development policy/configuration with approved production inputs. Live SMS remains disabled; grades and attendance remain out of scope.
 
 ## Source of truth
 

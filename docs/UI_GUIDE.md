@@ -200,6 +200,12 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 - Avoid splitting a student/receipt summary across pages.
 - Phase 8 operational reports use a responsive catalog, visible validated filters, horizontally scrollable wide result tables, explicit empty states, and private export status/actions. Role and record scopes remain server-enforced.
 - Phase 8 report print views omit application navigation, filters, and export controls. Until P-006 is approved, they are labeled as development operational layouts and omit invented signatories and control/reference numbers.
+
+## 9. Phase 9 accessibility verification
+
+- Motion and hover transforms respect `prefers-reduced-motion`.
+- The public landing, login, and enrollment-start journeys were checked at 1280×720 and 360×800: no horizontal overflow, one page heading, visible labels, 16px mobile fields, keyboard-visible focus, skip navigation, and usable touch targets.
+- Authenticated role journeys still require the signed P-008 UAT matrix; automated authorization coverage does not replace school-user acceptance.
 - Include “Confidential” and intended audience where appropriate.
 - Export only fields authorized for the report and actor.
 

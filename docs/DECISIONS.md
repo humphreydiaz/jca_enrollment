@@ -121,6 +121,15 @@ These do not block restrictive generic foundations. The named production capabil
 | P-005 | Official SMS sender name, approved templates, consent wording, and escalation contacts | Before enabling live SMS | SMS disabled by default; log driver/test fake |
 | P-006 | Required official reports and signatories | Before Reporting phase acceptance | Build reusable filters and exports from normalized data |
 | P-007 | Hosting, backup, recovery objectives, and production MySQL version | Before deployment readiness | Target MySQL 8.0+ and document assumptions |
+| P-008 | Named role owners, UAT signatories, training completion, incident contacts, and launch authority | Before production launch | Use fictional test data and unsigned UAT templates; readiness fails closed |
+
+### D-019 - Fail-closed production readiness gate
+
+**Status:** Confirmed technical control; it does not confirm any school policy.
+
+**Decision:** Production deployment must pass `php artisan jca:production-check`. The command validates secure environment, database-backed infrastructure, private storage, queue health, absence of development fixtures, backup controls, and explicit approval attestations. Every attestation defaults to false and may become true only after the signed source approval is stored in the launch record.
+
+**Consequences:** Engineering verification can finish while policy remains pending, but the system cannot be represented as production-ready by assumption. The command reports only check names and pass/fail state, never secret values.
 
 ## Phase 6 development-policy status
 

@@ -14,7 +14,7 @@ This remains the requirements baseline; the short phase-status note below preven
 - **Pending:** information JCA still needs to provide.
 - **Out of scope:** intentionally excluded from this product.
 
-**Implementation status (2026-07-13):** Phases 1-8 are complete for development. Billing provides configurable offline assessment, discount, ledger, correction, permit, portal, evidence, and print workflows under owner-authorized development assumptions. Phase 7 adds scoped portals, announcements, guardian SMS preferences, and database-queued SMS delivery records with disabled/log/fake/Semaphore adapters. Phase 8 adds a fixed role-authorized operational report catalog, privacy-safe filters and fields, private expiring CSV exports, development print layouts, and Admin-only audit review. Live Semaphore delivery remains disabled pending P-005; approved official report formats remain pending P-006; grades and attendance remain later work.
+**Implementation status (2026-07-13):** Phases 1-9 are complete for development and engineering launch readiness. Phase 9 adds secure response headers, fail-closed production configuration/runtime probes, database-queue and scheduler operations, private export pruning, verified backup/restore tooling, and deployment, rollback, incident, UAT, and launch runbooks. This does not close school-owned policy: live Semaphore remains disabled pending P-005, official reports remain pending P-006, hosting/recovery remains pending P-007, and role-owner/UAT launch sign-off remains pending P-008.
 
 ## 3. Confirmed requirements
 
@@ -226,6 +226,7 @@ Allowed states are `missing`, `submitted`, `under_review`, `verified`, `rejected
 - Official Semaphore sender name, SMS templates, consent language, and live credentials.
 - Final report list, layouts, signatories, and whether any report needs a control/reference number.
 - Hosting, backup retention, recovery objectives, and production MySQL version.
+- Named role owners, UAT signatories, completed role training, incident/escalation contacts, and final launch authority.
 
 ## 9. Out of scope
 
