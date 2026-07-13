@@ -5,6 +5,7 @@ use App\Modules\Billing\BillingServiceProvider;
 use App\Modules\Communications\CommunicationsServiceProvider;
 use App\Modules\Enrollment\EnrollmentServiceProvider;
 use App\Modules\Identity\IdentityServiceProvider;
+use App\Modules\Reporting\ReportingServiceProvider;
 use App\Modules\SectionAssignment\SectionAssignmentServiceProvider;
 use App\Modules\Shared\SharedServiceProvider;
 use App\Modules\StudentSupport\StudentSupportServiceProvider;
@@ -14,6 +15,7 @@ return [
     AppServiceProvider::class,
     SharedServiceProvider::class,
     IdentityServiceProvider::class,
+    ReportingServiceProvider::class,
     AcademicsServiceProvider::class,
     BillingServiceProvider::class,
     CommunicationsServiceProvider::class,

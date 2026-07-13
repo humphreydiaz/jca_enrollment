@@ -18,7 +18,7 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - Phase 4 adds Enrollment, Requirements & Documents, and Student Support delivery: rate-limited public drafts, hashed resume/contact-verification secrets, email code delivery with staff verification fallback, MySQL identity locks, duplicate review, guardian invitation connection, explicit enrollment transitions/history/decisions, checklist snapshots, versioned private uploads, restricted reviewer queues/events, and guardian-safe progress.
 - Phase 5 adds the Section Assignment module: deterministic available-capacity recommendation, transactionally locked confirmation/transfer, Admin-only overrides, append-only history, final academic `enrolled` transition, promotion recommendations/drafts, portal-safe section/schedule views, and assignment-scoped Teacher summaries.
 - Phase 6 adds Billing: versioned configuration, immutable assessment snapshots/revisions, exact-centavo plan generation, after-commit approval discount awards, append-only offline collections/corrections, private evidence, permit calculations/overrides, scoped portals, and audited print history. MySQL row locks protect award and reference allocation.
-- Communication beyond enrollment verification email, general reporting, grades, and attendance remain unimplemented.
+- Live Semaphore communication, approved official report formats, grades, and attendance remain unimplemented.
 
 ## 3. System context
 
@@ -103,6 +103,8 @@ An application Action owns each transaction. Controllers must not coordinate par
 | Communications | announcements, templates, notifications, Semaphore delivery logs | Identity, People, Enrollment events, Shared/Audit |
 | Reporting | authorized read models, CSV/print exports | read-only access to module data |
 | Shared/Audit | reference generation, audit records, common value objects | none |
+
+**Phase 8 implementation:** Reporting is a read-only cross-module boundary with a fixed catalog, per-report role matrix, explicit field allowlists, and scoped query construction. It owns only export-job lifecycle data. Generated CSV files use a private non-serving disk, expire, and require authorization again at download. Audit review is Admin-only and exposes a deliberately reduced view rather than raw request context or metadata.
 
 ### Boundary rules
 

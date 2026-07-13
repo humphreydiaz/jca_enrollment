@@ -198,6 +198,8 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 - Hide navigation, buttons, filters, and decorative backgrounds.
 - Repeat table headers on new pages where browser support permits.
 - Avoid splitting a student/receipt summary across pages.
+- Phase 8 operational reports use a responsive catalog, visible validated filters, horizontally scrollable wide result tables, explicit empty states, and private export status/actions. Role and record scopes remain server-enforced.
+- Phase 8 report print views omit application navigation, filters, and export controls. Until P-006 is approved, they are labeled as development operational layouts and omit invented signatories and control/reference numbers.
 - Include “Confidential” and intended audience where appropriate.
 - Export only fields authorized for the report and actor.
 

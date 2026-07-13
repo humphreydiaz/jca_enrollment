@@ -64,10 +64,14 @@
                         @if (auth()->user()->hasRole('teacher'))
                             <a href="{{ route('academics.teacher.assignments') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">My teaching</a>
                         @endif
+                        @if (auth()->user()->hasAnyRole(['admin', 'registrar', 'accounting', 'teacher']))
+                            <a href="{{ route('reporting.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Reports</a>
+                        @endif
                         @if (auth()->user()->hasRole('admin'))
                             <a href="{{ route('communications.admin') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Communications</a>
                             <a href="{{ route('identity.admin.users.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Users</a>
                             <a href="{{ route('people.admin.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">People</a>
+                            <a href="{{ route('reporting.audit.index') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Audit</a>
                         @endif
                         <a href="{{ route('foundation.smoke') }}" class="block rounded-lg px-3 py-2 font-bold text-brand-navy-900 hover:bg-brand-blue-100">Foundation</a>
                     </nav>

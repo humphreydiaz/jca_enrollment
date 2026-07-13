@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-This is the schema contract and implementation record. Phases 1-5 provide infrastructure through section assignment/promotion. Phase 6 adds the implemented Billing schema described in section 11. Communication and general reporting tables remain unimplemented.
+This is the schema contract and implementation record. Phases 1-5 provide infrastructure through section assignment/promotion, Phase 6 adds Billing, Phase 7 adds Communications, and Phase 8 adds the private export lifecycle described in section 13.
 
 Target: MySQL 8.0+ pending hosting confirmation. Use InnoDB, foreign keys, `utf8mb4`, fixed-precision financial columns, and migration-tested constraints.
 
@@ -301,13 +301,15 @@ Guardian/contact, purpose, consent state/source, effective and withdrawn timesta
 
 ## 13. Reporting and audit tables
 
+**Implementation status:** implemented in Phase 8. Operational reports query normalized source tables through fixed role scopes and field allowlists; they do not persist report-row caches. P-006 remains pending, so print views are marked as development operational layouts and do not invent official signatories or control references.
+
 ### `audit_logs`
 
 Append-oriented: `id`, actor user, action code, subject type/public identifier, outcome, reason, request ID, IP/user agent subject to policy, safe before/after metadata, occurred_at. Never store passwords, invitation/reset tokens, raw documents, or unnecessary support notes.
 
 ### `export_jobs`
 
-Requester, report code, safe filter snapshot, status, private file key, generated/expires/deleted timestamps, row count, failure code. Download is authorized again at access time.
+Opaque public ID, requester, report code, safe filter and field snapshots, status, private file key/disk/MIME/checksum, generated/expires/downloaded/deleted timestamps, row count, and safe failure code. Download is authorized again at access time, and generated files use random names on a non-serving private disk.
 
 No generic report cache may copy confidential data into a less-protected table.
 
