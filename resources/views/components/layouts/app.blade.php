@@ -30,7 +30,7 @@
             <div class="mx-auto flex max-w-screen-2xl">
                 <div x-cloak x-show="navigationOpen" x-transition.opacity class="fixed inset-0 z-30 bg-brand-navy-900/35 lg:hidden" @click="navigationOpen = false" aria-hidden="true"></div>
 
-                <aside id="primary-navigation" x-cloak x-show="navigationOpen" x-transition class="fixed inset-y-0 left-0 z-40 w-72 border-r border-border bg-white p-5 shadow-xl lg:static lg:block lg:min-h-[calc(100vh-77px)] lg:w-64 lg:translate-x-0 lg:shadow-none" :class="{ 'lg:block': navigationOpen }">
+                <aside id="primary-navigation" x-cloak x-show="navigationOpen" x-transition class="fixed inset-y-0 left-0 z-40 w-72 overflow-y-auto border-r border-border bg-white p-5 shadow-xl lg:sticky lg:top-0 lg:!block lg:h-[calc(100vh-77px)] lg:w-64 lg:shrink-0 lg:translate-x-0 lg:self-start lg:shadow-none">
                     <div class="mb-6 flex items-center justify-between lg:hidden">
                         <span class="font-bold text-brand-navy-900">Navigation</span>
                         <button type="button" class="jca-button jca-button-secondary" @click="navigationOpen = false">Close</button>
