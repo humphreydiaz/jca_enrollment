@@ -55,6 +55,7 @@ Rules:
 - Store normalized contact values and verification timestamps separately if multiple contact points are introduced.
 - `status`: `invited`, `active`, `locked`, `disabled`.
 - Guardian/student and staff roles may not coexist on one account; enforce in the role-assignment service and tests.
+- Disabling records `disabled_at`, requires an audited reason, revokes sessions and every open invitation, and preserves the user row. Admin reactivation clears `disabled_at`, returns the account to `invited`, and creates a new hashed single-use setup invitation; locked accounts are not silently reactivated.
 
 ### `roles`
 
@@ -80,13 +81,17 @@ Use Laravel-compatible `password_reset_tokens` and `sessions`. Sessions must ref
 
 ### `student_profiles`
 
-Permanent student identity. Key columns: `id`, `public_id`, nullable `user_id`, school-issued unique nullable `student_number`, legal name components, preferred name, sex as recorded by the school, birth date/place, address fields, nationality/religion only if confirmed necessary, status, timestamps.
+Permanent student identity. Key columns: `id`, `public_id`, nullable `user_id`, school-issued unique nullable `student_number`, nullable 12-digit `lrn`, legal name components including extension, preferred name, sex as recorded by the school, birth date/place, mother tongue, optional religion and Indigenous Peoples group, 4Ps and learner-with-disability indicators with conditional detail, current/permanent address, parent names, status, timestamps. Age is derived from `birth_date` and is not stored.
+
+Online enrollment creates the applicant profile. Manual creation is restricted to verified legacy/offline records. D-024 permits audited deletion only for an unused mistaken profile with no login or historical relationship; pending duplicate-candidate pointers may be cleared with their own audit event, but any enrollment or other history blocks deletion.
 
 Do not duplicate grade, section, or enrollment status here; those belong to school-year records.
 
+`user_id` remains null until the audited post-approval account-connection action succeeds. The action requires one approved/enrolled school-year record, permits Grades 7-12 by default, and stores an exception reason in audit metadata for younger students.
+
 ### `guardian_profiles`
 
-Key columns: `id`, `public_id`, nullable `user_id`, legal name components, normalized mobile/email, address, occupation only if required, preferred contact method, status, timestamps.
+Key columns: `id`, `public_id`, nullable `user_id`, legal name components, normalized mobile/email, address, occupation only if required, preferred contact method, status, timestamps. Public enrollment captures the legal guardian's structured name and contact here rather than duplicating a free-form guardian name on the learner.
 
 ### `guardian_student`
 
@@ -104,7 +109,7 @@ Create a controlled merge workflow rather than deleting duplicate people. Preser
 
 ## 6. Academic catalog tables
 
-**Implementation status:** implemented in Phase 3 with internal numeric keys and opaque public IDs for externally routable records. Catalog records are updated or inactivated rather than deleted through application routes. The MySQL migration enforces academic-year/grade/section-name uniqueness, section-subject uniqueness, foreign-key protection, and assignment lookup indexes. No official JCA catalog records are seeded while P-003 remains pending.
+**Implementation status:** implemented in Phase 3 with internal numeric keys and opaque public IDs for externally routable records. Catalog records are updated or inactivated rather than deleted through application routes. The MySQL migration enforces academic-year/grade/section-name uniqueness, section-subject uniqueness, foreign-key protection, and assignment lookup indexes. The confirmed grade progression is seeded; official school years, sections, subjects, and teaching assignments remain pending.
 
 ### `academic_years`
 
@@ -112,7 +117,7 @@ Columns: `id`, opaque `public_id`, unique `code`, `name`, `starts_on`, `ends_on`
 
 ### `grade_levels`
 
-Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. Owner-authorized development baseline: Grades 1-12; production offerings remain configurable and preschool is not seeded.
+Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. The seeded progression is Nursery, Junior Kinder, Senior Kinder, Grades 1-6, Grades 7-10, and Grades 11-12; offerings remain editable and may be inactivated without deleting history.
 
 ### `subjects`
 
@@ -140,9 +145,9 @@ Columns: `id`, opaque `public_id`, `staff_profile_id`, `section_id`, nullable `s
 
 One student application/enrollment per academic year and intended grade.
 
-Key columns: `id`, `public_id`, unique `application_number`, `student_id`, `academic_year_id`, `grade_level_id`, `applicant_guardian_id`, `student_category`, `status`, contact verification timestamps, `submitted_at`, `approved_at`, `enrolled_at`, `rejected_at`, `withdrawn_at`, decision actor/reason fields where appropriate, `previous_enrollment_id`, lock version or equivalent concurrency control, timestamps.
+Key columns: `id`, `public_id`, unique `application_number`, `student_id`, `academic_year_id`, `grade_level_id`, `applicant_guardian_id`, nullable `student_applicant_user_id`, `student_category`, guardian relationship, nullable previous school name/address, `status`, contact verification timestamps, `submitted_at`, `approved_at`, `enrolled_at`, `rejected_at`, `withdrawn_at`, decision actor/reason fields where appropriate, `previous_enrollment_id`, lock version or equivalent concurrency control, timestamps.
 
-Unique constraint: one non-cancelled active enrollment per `student_id` and `academic_year_id`, implemented in a MySQL-compatible migration/application strategy and protected by transactions.
+Unique constraints: one non-terminal active enrollment per `student_id` and `academic_year_id`, plus one non-terminal application per signed-in Student account and academic year. Both use nullable MySQL-compatible active keys and transactional locks; rejected, withdrawn, or cancelled records retain history but release their active key.
 
 `student_category` starts with `regular`, `transferee`, and `support_review`; categories remain configurable or enum-controlled according to the final rules.
 
@@ -160,13 +165,13 @@ Captures approval/rejection/waitlist/override evidence when more than a status-h
 
 ### `promotion_recommendations`
 
-**Implementation status:** implemented in Phase 5. One recommendation belongs to one enrolled source record. It records the configured future year/next grade or a safe ineligible reason. Eligible confirmation creates one new draft linked by unique `previous_enrollment_id`; it never mutates the source year, grade, status, assignment, or history.
+**Implementation status:** implemented in Phase 5 and updated by D-026. One recommendation belongs to one enrolled source record. It records the configured future year/next grade or a safe ineligible reason. Eligible confirmation creates one new draft linked by unique `previous_enrollment_id`, generates the target checklist, and carries accepted hard-copy evidence with provenance; it never mutates the source year, grade, status, assignment, or history.
 
 Columns: source enrollment, target academic year/grade, eligibility result, reason, generated/confirmed actors and timestamps, and nullable created enrollment. Confirmation creates a new draft enrollment; it never updates the source.
 
 ## 8. Requirements and document tables
 
-**Implementation status:** implemented in Phase 4 through `document_types`, effective-dated `requirement_rules`, enrollment checklist snapshots, versioned `document_uploads`, and append-only `document_access_logs`. Files remain outside the public root. Replacement archives metadata/history; no permanent or automated retention deletion exists while P-001 is open.
+**Implementation status:** implemented in Phase 4 and updated by D-025. `document_types`, effective-dated `requirement_rules`, and enrollment checklist snapshots remain current. Each checklist item has separate soft-copy review and hard-copy receipt/review state. Versioned uploads and append-only access logs protect both current and historical files. No permanent or automated retention deletion exists while P-001 is open.
 
 ### `document_types`
 
@@ -178,13 +183,13 @@ Columns: `id`, `academic_year_id`, `student_category`, `document_type_id`, `is_r
 
 ### `enrollment_requirements`
 
-Snapshot/checklist row. Columns: `enrollment_id`, `document_type_id`, `rule_snapshot` JSON or explicit snapshot columns, `status`, current upload reference, reviewer, reviewed timestamp, rejection/waiver reason, waived_by, timestamps.
+Snapshot/checklist row. Columns: `enrollment_id`, `document_type_id`, nullable self-referencing `carried_from_requirement_id`, nullable `carried_over_by` and `carried_over_at`, `rule_snapshot`, hard-copy `status`, `received_by`, `received_at`, `receipt_notes`, hard-copy reviewer/timestamp/reason/waiver, `soft_copy_status`, soft-copy reviewer/timestamp/reason, and timestamps.
 
 Unique constraint on enrollment and document type for the active checklist row unless policy permits multiples.
 
 ### `document_uploads`
 
-Columns: `id`, `public_id`, `enrollment_requirement_id`, opaque `disk` and `path`, original filename, stored filename, MIME, extension, byte size, checksum, uploaded_by/user or applicant reference, scan/validation status, version, archived/deleted/hold timestamps and actors, timestamps.
+Stores current and historical soft-copy versions. A replacement archives the previous active version without deleting it. Columns: `id`, `public_id`, `enrollment_requirement_id`, opaque `disk` and `path`, original filename, stored filename, MIME, extension, byte size, checksum, uploaded_by user, validation status, version, archived/deleted/hold timestamps and actors, timestamps.
 
 Files are private and never referenced by a direct public URL.
 

@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthenticateUserAction
 {
-    public function execute(string $identifier, string $password): ?User
+    /** @param list<string> $allowedRoles */
+    public function execute(string $identifier, string $password, array $allowedRoles = []): ?User
     {
         $email = ContactNormalizer::email($identifier);
         $mobile = ContactNormalizer::mobile($identifier);
@@ -33,6 +34,10 @@ class AuthenticateUserAction
         }
 
         if (! Hash::check($password, $user->password)) {
+            return null;
+        }
+
+        if ($allowedRoles !== [] && ! $user->hasAnyRole($allowedRoles)) {
             return null;
         }
 

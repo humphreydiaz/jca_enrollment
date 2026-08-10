@@ -19,6 +19,9 @@ class CreateAssessmentAction
 
     public function execute(Enrollment $enrollment, FeeSchedule $schedule, array $selectedIds, User $actor, ?string $revisionReason = null): FeeAssessment
     {
+        // Form values arrive as strings; normalize so the strict in_array match below works.
+        $selectedIds = array_map('intval', $selectedIds);
+
         return DB::transaction(function () use ($enrollment, $schedule, $selectedIds, $actor, $revisionReason) {
             if (! in_array($enrollment->status, ['approved', 'enrolled'], true)) {
                 throw ValidationException::withMessages(['enrollment' => 'Only approved or enrolled records may be assessed.']);

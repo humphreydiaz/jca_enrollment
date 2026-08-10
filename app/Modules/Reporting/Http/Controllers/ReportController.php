@@ -35,7 +35,7 @@ class ReportController
     {
         $filters = $request->filters();
 
-        return view('reporting.show', [
+        $viewData = [
             'reportCode' => $report,
             'definition' => $reports->definitions()[$report],
             'columns' => $reports->columns($report, $request->user()),
@@ -45,7 +45,13 @@ class ReportController
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(),
             'sections' => $this->sectionsFor($request),
-        ]);
+        ];
+
+        if ($report === 'enrollments') {
+            $viewData['enrollmentSummary'] = $reports->enrollmentSummary($filters);
+        }
+
+        return view('reporting.show', $viewData);
     }
 
     private function sectionsFor(Request $request): Collection
@@ -67,7 +73,13 @@ class ReportController
         $truncated = $rows->count() > $limit;
         $audit->record($request->user(), 'reporting.report.printed', null, ['report_code' => $report, 'row_count' => min($rows->count(), $limit)]);
 
-        return view('reporting.print', ['definition' => $reports->definitions()[$report], 'columns' => $reports->columns($report, $request->user()), 'rows' => $rows->take($limit), 'filters' => $filters, 'truncated' => $truncated]);
+        $viewData = ['definition' => $reports->definitions()[$report], 'columns' => $reports->columns($report, $request->user()), 'rows' => $rows->take($limit), 'filters' => $filters, 'truncated' => $truncated, 'reportCode' => $report];
+
+        if ($report === 'enrollments') {
+            $viewData['enrollmentSummary'] = $reports->enrollmentSummary($filters);
+        }
+
+        return view('reporting.print', $viewData);
     }
 
     public function export(ReportFilterRequest $request, string $report, RequestReportExportAction $action): RedirectResponse

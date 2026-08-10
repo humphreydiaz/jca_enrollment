@@ -10,12 +10,15 @@ use App\Modules\Billing\Models\FeeSchedule;
 use App\Modules\Billing\Models\FeeScheduleItem;
 use App\Modules\Billing\Models\FeeType;
 use App\Modules\Billing\Models\PaymentPlanOption;
+use Database\Seeders\Academics\GradeLevelSeeder;
 use Illuminate\Database\Seeder;
 
 class BillingDevelopmentSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call(GradeLevelSeeder::class);
+
         $year = AcademicYear::query()->updateOrCreate(['code' => 'DEV-2026'], ['name' => 'DEVELOPMENT ONLY — SY 2026–2027', 'starts_on' => '2026-06-01', 'ends_on' => '2027-03-31', 'status' => 'closed']);
         $types = collect([
             ['code' => 'TUI', 'name' => 'Tuition Fee', 'category' => 'Tuition', 'is_mandatory' => true, 'is_conditional' => false, 'is_permit_critical' => true, 'max_quantity' => 1],
@@ -28,7 +31,7 @@ class BillingDevelopmentSeeder extends Seeder
         ])->mapWithKeys(fn (array $attributes) => [$attributes['code'] => FeeType::query()->updateOrCreate(['code' => $attributes['code']], $attributes)]);
 
         foreach (range(1, 12) as $number) {
-            $grade = GradeLevel::query()->updateOrCreate(['code' => 'G'.$number], ['name' => 'Grade '.$number, 'sequence' => $number, 'is_active' => true]);
+            $grade = GradeLevel::query()->where('code', 'G'.$number)->firstOrFail();
             [$tuition, $misc, $books, $graduation] = match (true) {
                 $number <= 6 => ['24000.00', '4500.00', '4500.00', '2000.00'],
                 $number <= 10 => ['27000.00', '5500.00', '5500.00', '2500.00'],

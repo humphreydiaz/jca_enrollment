@@ -138,10 +138,24 @@ class CommunicationsPhaseSevenTest extends TestCase
         $admin = $this->user(['admin']);
         $accounting = $this->user(['accounting']);
         $guardian = $this->user(['guardian']);
+        $this->actingAs($admin)
+            ->get(route('communications.admin'))
+            ->assertOk()
+            ->assertSee('New announcement')
+            ->assertSee('Create SMS template version')
+            ->assertSee('Failed SMS deliveries');
         $this->actingAs($accounting)->post(route('communications.store'), ['title' => 'No access', 'body' => 'General school update.', 'status' => 'published', 'audiences' => [['type' => 'all']]])->assertForbidden();
+        $draftResponse = $this->actingAs($admin)->post(route('communications.store'), ['title' => 'Draft school update', 'body' => 'General school update.', 'status' => 'draft', 'audiences' => [['type' => 'all']]]);
+        $draft = Announcement::query()->where('title', 'Draft school update')->firstOrFail();
+        $draftResponse->assertRedirect(route('communications.show', $draft));
+        $this->actingAs($admin)->get(route('communications.show', $draft))->assertOk()->assertSee('Draft school update');
+        $this->actingAs($guardian)->get(route('communications.index'))->assertOk()->assertDontSee('Draft school update');
         $this->actingAs($admin)->post(route('communications.store'), ['title' => '<script>Unsafe</script>', 'body' => 'General school update.', 'status' => 'published', 'audiences' => [['type' => 'role', 'role_code' => 'guardian']]])->assertRedirect();
         $this->actingAs($guardian)->get(route('communications.index'))->assertOk()->assertSee('&lt;script&gt;Unsafe&lt;/script&gt;', false);
         $this->actingAs($admin)->post(route('communications.templates.store'), ['code' => 'unsafe', 'purpose' => 'transactional', 'content' => 'Your payment balance is {{status}}', 'is_active' => true])->assertSessionHasErrors('content');
+        $this->actingAs($admin)->post(route('communications.templates.store'), ['code' => 'saved-inactive', 'purpose' => 'transactional', 'content' => '{{school_name}}: enrollment status updated.', 'is_active' => false])->assertRedirect();
+        $this->assertDatabaseHas('notification_templates', ['code' => 'saved-inactive', 'version' => 1, 'is_active' => false]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'communications.template.created']);
 
         $recipient = GuardianProfile::query()->create(['user_id' => $guardian->id, 'first_name' => 'Fictional', 'last_name' => 'Recipient', 'mobile' => '09179999999']);
         SmsConsent::query()->create(['guardian_id' => $recipient->id, 'purpose' => 'announcement', 'status' => 'granted', 'source' => 'fictional-test', 'effective_at' => now(), 'recorded_by' => $guardian->id]);

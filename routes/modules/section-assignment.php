@@ -11,6 +11,8 @@ Route::middleware(['auth', 'password.changed', 'role:admin,registrar'])->prefix(
     Route::post('/{assignment}/transfer', [SectionAssignmentController::class, 'transfer'])->name('section-assignment.transfer');
     Route::post('/enrollments/{enrollment}/promotion', [SectionAssignmentController::class, 'recommendPromotion'])->name('promotion.recommend');
     Route::post('/promotions/{recommendation}/draft', [SectionAssignmentController::class, 'createPromotionDraft'])->name('promotion.create-draft');
+    Route::post('/mass-promotion/recommend', [SectionAssignmentController::class, 'massRecommendPromotion'])->name('promotion.mass-recommend');
+    Route::post('/mass-promotion/create-drafts', [SectionAssignmentController::class, 'massCreatePromotionDrafts'])->name('promotion.mass-create-drafts');
 });
 
 Route::get('/student/enrollment-progress', StudentProgressController::class)

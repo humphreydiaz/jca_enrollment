@@ -7,12 +7,15 @@ use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Academics\Models\Section;
 use App\Modules\Academics\Models\TeachingAssignment;
+use App\Modules\Enrollment\Actions\TransitionEnrollmentAction;
 use App\Modules\Enrollment\Models\Enrollment;
+use App\Modules\Enrollment\Models\EnrollmentRequirement;
 use App\Modules\Identity\Actions\AssignRolesAction;
 use App\Modules\Identity\Enums\AccountStatus;
 use App\Modules\People\Models\GuardianProfile;
 use App\Modules\People\Models\StaffProfile;
 use App\Modules\People\Models\StudentProfile;
+use App\Modules\Requirements\Models\DocumentType;
 use App\Modules\SectionAssignment\Actions\ConfirmSectionAssignmentAction;
 use App\Modules\SectionAssignment\Actions\CreatePromotionDraftAction;
 use App\Modules\SectionAssignment\Actions\RecommendPromotionAction;
@@ -77,7 +80,9 @@ class SectionAssignmentTest extends TestCase
         $this->assignment($this->enrollment('enrolled'), $this->hope);
         $this->assertNull(app(RecommendSectionAction::class)->execute($approved)->section);
         $registrar = $this->user(['registrar']);
-        $this->actingAs($registrar)->get(route('section-assignment.index'))->assertOk()->assertSeeInOrder([$earlier->student->full_name, $approved->student->full_name])->assertSee('xl:grid-cols-2');
+        $response = $this->actingAs($registrar)->get(route('section-assignment.index'));
+        $response->assertOk()->assertSeeInOrder([$earlier->student->full_name, $approved->student->full_name])->assertSee('Assign section');
+        $this->assertSame(3, substr_count($response->getContent(), '<dialog'));
 
         $this->expectException(ValidationException::class);
         app(RecommendSectionAction::class)->execute($this->enrollment('submitted'));
@@ -190,6 +195,8 @@ class SectionAssignmentTest extends TestCase
         $otherGuardian = $this->user(['guardian']);
         $studentUser = $this->user(['student']);
         $otherStudentUser = $this->user(['student']);
+        $studentUser->update(['name' => 'Portal Student']);
+        $otherStudentUser->update(['name' => 'Other Student']);
         $guardian = GuardianProfile::query()->create(['user_id' => $guardianUser->id, 'first_name' => 'Linked', 'last_name' => 'Guardian']);
         GuardianProfile::query()->create(['user_id' => $otherGuardian->id, 'first_name' => 'Other', 'last_name' => 'Guardian']);
         $student = StudentProfile::query()->create(['user_id' => $studentUser->id, 'first_name' => 'Portal', 'last_name' => 'Student']);
@@ -199,7 +206,7 @@ class SectionAssignmentTest extends TestCase
         app(ConfirmSectionAssignmentAction::class)->execute($enrollment, $this->faith, $registrar, false);
 
         $this->actingAs($guardianUser)->get(route('guardian.enrollment.progress'))->assertOk()->assertSee('Confirmed section: Faith')->assertDontSee('Capacity override');
-        $this->actingAs($guardianUser)->get(route('portal.section.print', $enrollment))->assertOk()->assertSee('Confirmed section and schedule')->assertSee('Section Faith')->assertDontSee('Capacity override')->assertDontSee('Restricted rationale');
+        $this->actingAs($guardianUser)->get(route('portal.section.print', $enrollment))->assertOk()->assertSee('Confirmed section and schedule')->assertSee('images/reporting/jca-reports-header.png')->assertSee('Section Faith')->assertDontSee('Capacity override')->assertDontSee('Restricted rationale');
         $this->actingAs($otherGuardian)->get(route('guardian.enrollment.progress'))->assertOk()->assertDontSee('Portal Student')->assertDontSee('Confirmed section: Faith');
         $this->actingAs($otherGuardian)->get(route('portal.section.print', $enrollment))->assertNotFound();
         $this->actingAs($studentUser)->get(route('student.enrollment.progress'))->assertOk()->assertSee('Confirmed section: Faith')->assertDontSee('Capacity override');
@@ -219,6 +226,26 @@ class SectionAssignmentTest extends TestCase
         $teacher = $this->user(['teacher']);
         $accounting = $this->user(['accounting']);
         $source = $this->enrollment('enrolled');
+        $birthCertificate = DocumentType::query()->create(['code' => 'P5-BIRTH', 'name' => 'Fictional Birth Certificate']);
+        $waivedDocument = DocumentType::query()->create(['code' => 'P5-WAIVED', 'name' => 'Fictional Waived Document']);
+        $sourceRequirement = EnrollmentRequirement::query()->create([
+            'enrollment_id' => $source->id,
+            'document_type_id' => $birthCertificate->id,
+            'rule_snapshot' => ['is_required' => true, 'is_blocking' => true, 'name' => $birthCertificate->name],
+            'status' => 'verified',
+            'received_by' => $registrar->id,
+            'received_at' => now()->subMonth(),
+            'receipt_notes' => 'Original inspected once.',
+            'reviewed_by' => $registrar->id,
+            'reviewed_at' => now()->subMonth(),
+        ]);
+        EnrollmentRequirement::query()->create([
+            'enrollment_id' => $source->id,
+            'document_type_id' => $waivedDocument->id,
+            'rule_snapshot' => ['is_required' => true, 'is_blocking' => true, 'name' => $waivedDocument->name],
+            'status' => 'waived',
+            'waived_by' => $registrar->id,
+        ]);
         $this->post(route('promotion.recommend', $source), ['target_academic_year_public_id' => $this->futureYear->public_id])->assertRedirect(route('identity.login'));
         $this->actingAs($teacher)->post(route('promotion.recommend', $source), ['target_academic_year_public_id' => $this->futureYear->public_id])->assertForbidden();
         $this->actingAs($accounting)->post(route('promotion.recommend', $source), ['target_academic_year_public_id' => $this->futureYear->public_id])->assertForbidden();
@@ -232,6 +259,29 @@ class SectionAssignmentTest extends TestCase
         $this->assertSame($this->nextGrade->id, $draft->grade_level_id);
         $this->assertSame('enrolled', $source->fresh()->status);
         $this->assertSame($this->grade->id, $source->fresh()->grade_level_id);
+
+        $carried = $draft->requirements()->with('carriedFromRequirement')->firstOrFail();
+        $this->assertSame($sourceRequirement->id, $carried->carried_from_requirement_id);
+        $this->assertSame('verified', $carried->status);
+        $this->assertSame($sourceRequirement->received_at->toDateTimeString(), $carried->received_at->toDateTimeString());
+        $this->assertSame($registrar->id, $carried->carried_over_by);
+        $this->assertDatabaseCount('enrollment_requirements', 3);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'requirements.hard_copy.carried_forward',
+            'actor_user_id' => $registrar->id,
+            'subject_id' => $carried->id,
+        ]);
+
+        app(TransitionEnrollmentAction::class)->execute($draft, 'submitted', $registrar);
+        app(TransitionEnrollmentAction::class)->execute($draft->fresh(), 'under_review', $registrar);
+        $this->actingAs($registrar)
+            ->get(route('enrollment.registrar.index', ['status' => 'under_review']))
+            ->assertOk()
+            ->assertSee('Carried forward')
+            ->assertSee('No resubmission is required');
+        app(TransitionEnrollmentAction::class)->execute($draft->fresh(), 'approved', $registrar);
+        $this->assertSame('approved', $draft->fresh()->status);
+
         $this->expectException(ValidationException::class);
         app(CreatePromotionDraftAction::class)->execute($recommendation->fresh(), $registrar);
     }
@@ -257,6 +307,74 @@ class SectionAssignmentTest extends TestCase
         }
         $this->expectException(QueryException::class);
         $this->faith->delete();
+    }
+
+    public function test_workspace_uses_server_filtered_independently_paginated_tables_and_shared_action_modals(): void
+    {
+        $registrar = $this->user(['registrar']);
+        $otherGrade = GradeLevel::query()->create(['code' => 'P5-G9', 'name' => 'Fictional Grade 9', 'sequence' => 9, 'is_active' => true]);
+
+        for ($index = 1; $index <= 18; $index++) {
+            $student = StudentProfile::query()->create(['first_name' => 'Scale', 'last_name' => sprintf('Approved%02d', $index)]);
+            $this->enrollment('approved', 'regular', $student);
+        }
+
+        for ($index = 1; $index <= 16; $index++) {
+            $student = StudentProfile::query()->create(['first_name' => 'Scale', 'last_name' => sprintf('Assigned%02d', $index)]);
+            $this->assignment($this->enrollment('enrolled', 'regular', $student), $this->faith);
+        }
+
+        for ($index = 1; $index <= 16; $index++) {
+            $student = StudentProfile::query()->create(['first_name' => 'Scale', 'last_name' => sprintf('History%02d', $index)]);
+            $assignment = $this->assignment($this->enrollment('enrolled', 'regular', $student), $this->hope);
+            $assignment->update([
+                'status' => 'ended',
+                'active_assignment_key' => null,
+                'ended_at' => now(),
+                'ended_reason' => 'Historical scale test transfer.',
+            ]);
+        }
+
+        $excludedStudent = StudentProfile::query()->create(['first_name' => 'Excluded', 'last_name' => 'DifferentGrade']);
+        $this->enrollment('approved', 'regular', $excludedStudent, null, $otherGrade);
+
+        $response = $this->actingAs($registrar)->get(route('section-assignment.index', [
+            'grade' => $this->grade->public_id,
+            'per_page' => 15,
+        ]));
+
+        $response
+            ->assertOk()
+            ->assertSee('Find students and assignments')
+            ->assertSee('Active filters')
+            ->assertSee('Grade: '.$this->grade->name)
+            ->assertDontSee('Excluded DifferentGrade')
+            ->assertViewHas('approvedEnrollments', fn ($rows): bool => $rows->total() === 18 && $rows->count() === 15 && $rows->lastPage() === 2)
+            ->assertViewHas('currentAssignments', fn ($rows): bool => $rows->total() === 16 && $rows->count() === 15 && $rows->lastPage() === 2)
+            ->assertViewHas('assignmentHistory', fn ($rows): bool => $rows->total() === 16 && $rows->count() === 15 && $rows->lastPage() === 2)
+            ->assertViewHas('enrolledForPromotion', fn ($rows): bool => $rows->total() === 32 && $rows->count() === 15 && $rows->lastPage() === 3);
+
+        $this->assertSame(3, substr_count($response->getContent(), '<dialog'));
+        $this->assertSame(45, substr_count($response->getContent(), 'aria-haspopup="dialog"'));
+
+        $searchResponse = $this->actingAs($registrar)->get(route('section-assignment.index', [
+            'search' => 'Scale Approved18',
+            'grade' => $this->grade->public_id,
+            'per_page' => 15,
+        ]));
+        $searchResponse
+            ->assertOk()
+            ->assertSee('Scale Approved18')
+            ->assertViewHas('approvedEnrollments', fn ($rows): bool => $rows->total() === 1)
+            ->assertViewHas('currentAssignments', fn ($rows): bool => $rows->total() === 0)
+            ->assertViewHas('assignmentHistory', fn ($rows): bool => $rows->total() === 0)
+            ->assertViewHas('enrolledForPromotion', fn ($rows): bool => $rows->total() === 0);
+
+        $this->actingAs($registrar)
+            ->from(route('section-assignment.index'))
+            ->get(route('section-assignment.index', ['promotion_status' => 'promote_everyone', 'per_page' => 500]))
+            ->assertRedirect(route('section-assignment.index'))
+            ->assertSessionHasErrors(['promotion_status', 'per_page']);
     }
 
     private function enrollment(string $status, string $category = 'regular', ?StudentProfile $student = null, ?GuardianProfile $guardian = null, ?GradeLevel $grade = null): Enrollment

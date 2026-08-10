@@ -13,10 +13,10 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - The foundation includes default Laravel migrations plus an audit-log migration, database-backed cache/jobs/sessions, and MySQL-only configuration.
 - `.env.example` and `.env.testing.example` target MySQL; the application configuration has no SQLite, PostgreSQL, or Redis connection.
 - Shared module routing, a non-business smoke route, reusable Blade layouts/components, private-document disk configuration, and log-context redaction are available.
-- Phase 2 adds closed login, rate limiting, one-time invitations, staff-assisted recovery invitations, password-change enforcement, role history, people profiles, and guardian/student relationships.
-- Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. No official JCA catalog data was seeded.
-- Phase 4 adds Enrollment, Requirements & Documents, and Student Support delivery: rate-limited public drafts, hashed resume/contact-verification secrets, email code delivery with staff verification fallback, MySQL identity locks, duplicate review, guardian invitation connection, explicit enrollment transitions/history/decisions, checklist snapshots, versioned private uploads, restricted reviewer queues/events, and guardian-safe progress.
-- Phase 5 adds the Section Assignment module: deterministic available-capacity recommendation, transactionally locked confirmation/transfer, Admin-only overrides, append-only history, final academic `enrolled` transition, promotion recommendations/drafts, portal-safe section/schedule views, and assignment-scoped Teacher summaries.
+- Phase 2 adds closed login, separate role-gated parent/student and staff sign-in entry points over one identity/session system, rate limiting, one-time invitations, staff-assisted recovery invitations, password-change enforcement, role history, people profiles, and guardian/student relationships.
+- Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. The confirmed Nursery-to-Grade-12 progression is seeded; the remaining official catalog inputs are still pending.
+- Phase 4 adds Enrollment, Requirements & Documents, and Student Support delivery: rate-limited public drafts, hashed resume/contact-verification secrets, email code delivery with staff verification fallback, MySQL identity locks, duplicate review, guardian invitation connection, explicit enrollment transitions/history/decisions, checklist snapshots, restricted reviewer queues/events, and guardian-safe progress. D-025 now supports versioned private soft-copy evidence alongside audited hard-copy receipt tracking.
+- Phase 5 adds the Section Assignment module: deterministic available-capacity recommendation, transactionally locked confirmation/transfer, Admin-only overrides, append-only history, final academic `enrolled` transition, promotion recommendations/drafts with audited accepted hard-copy requirement carryover, portal-safe section/schedule views, and assignment-scoped Teacher summaries.
 - Phase 6 adds Billing: versioned configuration, immutable assessment snapshots/revisions, exact-centavo plan generation, after-commit approval discount awards, append-only offline collections/corrections, private evidence, permit calculations/overrides, scoped portals, and audited print history. MySQL row locks protect award and reference allocation.
 - Live Semaphore communication, approved official report formats, grades, and attendance remain unimplemented.
 
@@ -96,7 +96,7 @@ An application Action owns each transaction. Controllers must not coordinate par
 | People | student, guardian, staff profiles and relationships | Identity, Shared/Audit |
 | Academics | school years, grade levels, subjects, sections, teaching assignments | People, Shared/Audit |
 | Enrollment | applications, enrollment state, decisions, promotion | People, Academics, Requirements, Support, Shared/Audit |
-| Requirements & Documents | requirement rules, checklists, uploads, verification | Enrollment identity references, Shared/Audit |
+| Requirements & Documents | requirement rules, checklist snapshots, versioned private soft-copy evidence, hard-copy receipt/review metadata, private-file access logs | Enrollment identity references, Shared/Audit |
 | Student Support | restricted assessment, observations, approved teacher summary | People, Enrollment, Academics, Shared/Audit |
 | Section Assignment | recommendations, confirmations, transfers, capacity overrides | Enrollment, Academics, Student Support, Shared/Audit |
 | Billing | fees, assessments, discounts, due schedules, payment ledger, permits | Enrollment, People, Shared/Audit |
@@ -116,21 +116,27 @@ An application Action owns each transaction. Controllers must not coordinate par
 
 ## 6. Key workflows
 
-### 6.1 Applicant to guardian account
+### 6.1 Applicant to guardian and student accounts
 
-1. Public form accepts only the minimum information required to create a draft and verify a contact channel.
-2. Rate limiting, validation, duplicate detection, and bot/spam controls protect the endpoint.
-3. Applicant receives an opaque application reference.
-4. Registrar validates the submission as legitimate.
-5. Identity creates an expiring, single-use guardian invitation tied to the existing guardian profile.
-6. Guardian sets a password; the invitation is consumed and existing application relationships determine portal access.
+1. A Grade 1-6 learner applies with a guardian. For Grades 7-12, Admin may first invite a Student login and the signed-in learner may own and submit the application.
+2. The enrollment application creates the applicant student and guardian profiles; staff do not manually pre-create a profile for a new online applicant.
+3. Rate limiting, validation, duplicate detection, and bot/spam controls protect the endpoint, and the applicant receives an opaque application reference.
+4. Registrar validates the submission and resolves duplicate candidates.
+5. Identity connects or creates an expiring, single-use invitation for the guardian account, and People records the verified guardian/student relationship.
+6. After academic approval, Admin connects an eligible Grade 7-12 Student login to the permanent profile. Grade 1-6 Student connections remain audited exceptions.
+
+Disabled or locked guardian accounts fail closed during enrollment connection. A disabled account is reactivated only from Admin User management with a reason; the Identity action returns it to `invited`, revokes sessions, audits the change, and replaces prior setup invitations. Locked accounts remain blocked for separate security review.
+
+Student account connection is a separate People action after academic approval. It validates the Student role and one-to-one profile ownership, reads the approved/enrolled grade, permits Grades 7-12 by default, and requires an audited Admin exception reason for a younger student. Profile creation never attaches an account directly.
+
+The manual People student-profile form is for verified legacy or offline records. An unused mistaken profile may be removed only through the audited D-024 action; all historical references fail closed.
 
 The system never sends a permanent plaintext password by SMS.
 
 ### 6.2 Enrollment approval
 
 1. Enrollment Action validates the requested transition.
-2. Requirements module confirms all blocking requirements are verified or validly waived.
+2. Requirements module confirms every blocking item has a Registrar-verified soft copy, a recorded hard-copy receipt, or an authorized waiver. Soft-copy verification does not close the continuing hard-copy obligation.
 3. Student Support confirms an approved outcome when required.
 4. In one transaction, Enrollment changes state and appends status and decision history. Phase 6 will add discount allocation.
 5. Phase 5 will consume approved enrollment state for section recommendation/finalization; later phases add assessment preparation and notification events.

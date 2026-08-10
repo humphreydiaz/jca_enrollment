@@ -20,9 +20,9 @@ class CreateUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'channel' => ['required', Rule::in(['email', 'mobile'])],
-            'email' => ['nullable', 'email', 'max:255', 'required_if:channel,email'],
-            'mobile' => ['nullable', 'string', 'max:30', 'required_if:channel,mobile'],
+            'channel' => ['required', Rule::in(['mobile'])],
+            'email' => ['nullable', 'email', 'max:255'],
+            'mobile' => ['required', 'string', 'max:30'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => [Rule::in(array_map(static fn (RoleCode $role): string => $role->value, RoleCode::cases()))],
         ];

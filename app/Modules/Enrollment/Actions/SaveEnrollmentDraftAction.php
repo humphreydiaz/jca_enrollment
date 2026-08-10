@@ -26,6 +26,7 @@ class SaveEnrollmentDraftAction
             $record->update([
                 'guardian_relationship' => $data['guardian_relationship'],
                 'previous_school_name' => $data['previous_school_name'] ?? null,
+                'previous_school_address' => $data['previous_school_address'] ?? null,
             ]);
             $this->audit->record(null, 'enrollment.draft.saved', $record);
 

@@ -14,12 +14,32 @@ use Illuminate\View\View;
 
 class AuthenticatedSessionController
 {
+    private const PORTAL_ROLES = ['guardian', 'student'];
+
+    private const STAFF_ROLES = ['admin', 'registrar', 'accounting', 'teacher'];
+
     public function create(): View
     {
         return view('identity.auth.login');
     }
 
+    public function createStaff(): View
+    {
+        return view('identity.auth.staff-login');
+    }
+
     public function store(LoginRequest $request, AuthenticateUserAction $authenticateUser, AuditRecorder $auditRecorder): RedirectResponse
+    {
+        return $this->authenticate($request, $authenticateUser, $auditRecorder, self::PORTAL_ROLES);
+    }
+
+    public function storeStaff(LoginRequest $request, AuthenticateUserAction $authenticateUser, AuditRecorder $auditRecorder): RedirectResponse
+    {
+        return $this->authenticate($request, $authenticateUser, $auditRecorder, self::STAFF_ROLES);
+    }
+
+    /** @param list<string> $allowedRoles */
+    private function authenticate(LoginRequest $request, AuthenticateUserAction $authenticateUser, AuditRecorder $auditRecorder, array $allowedRoles): RedirectResponse
     {
         $key = $this->throttleKey($request);
 
@@ -32,6 +52,7 @@ class AuthenticatedSessionController
         $user = $authenticateUser->execute(
             $request->string('identifier')->toString(),
             $request->string('password')->toString(),
+            $allowedRoles,
         );
 
         if ($user === null) {
@@ -57,6 +78,9 @@ class AuthenticatedSessionController
     public function destroy(Request $request, AuditRecorder $auditRecorder): RedirectResponse
     {
         $user = $request->user();
+        $loginRoute = $user?->hasAnyRole(self::STAFF_ROLES)
+            ? 'identity.staff.login'
+            : 'identity.login';
 
         if ($user !== null) {
             $auditRecorder->record($user, 'identity.logout', $user);
@@ -66,7 +90,7 @@ class AuthenticatedSessionController
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('identity.login');
+        return redirect()->route($loginRoute);
     }
 
     private function throttleKey(Request $request): string

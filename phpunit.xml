@@ -29,6 +29,11 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="database"/>
         <env name="SESSION_DRIVER" value="database"/>
+        <env name="SMS_ENABLED" value="false"/>
+        <env name="SMS_DRIVER" value="disabled"/>
+        <env name="SEMAPHORE_API_KEY" value=""/>
+        <env name="SEMAPHORE_SENDER_NAME" value=""/>
+        <env name="JCA_SMS_POLICY_APPROVED" value="false"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

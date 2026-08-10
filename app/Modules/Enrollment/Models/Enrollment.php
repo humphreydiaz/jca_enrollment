@@ -2,6 +2,7 @@
 
 namespace App\Modules\Enrollment\Models;
 
+use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Billing\Models\DiscountAward;
@@ -18,7 +19,10 @@ use Illuminate\Support\Str;
 
 class Enrollment extends Model
 {
-    protected $fillable = ['application_number', 'student_id', 'academic_year_id', 'grade_level_id', 'applicant_guardian_id', 'student_category', 'guardian_relationship', 'previous_school_name', 'status', 'active_enrollment_key', 'resume_token_hash', 'verification_code_hash', 'verification_expires_at', 'verification_attempts', 'duplicate_review_status', 'potential_duplicate_student_id', 'potential_duplicate_guardian_id', 'duplicate_reviewed_by', 'duplicate_reviewed_at', 'duplicate_review_reason', 'contact_verified_at', 'submitted_at', 'approved_at', 'enrolled_at', 'rejected_at', 'withdrawn_at', 'decided_by', 'decision_reason', 'previous_enrollment_id', 'lock_version'];
+    /** @var list<string> */
+    public const TERMINAL_STATUSES = ['rejected', 'withdrawn', 'cancelled'];
+
+    protected $fillable = ['application_number', 'student_id', 'academic_year_id', 'grade_level_id', 'applicant_guardian_id', 'student_applicant_user_id', 'student_category', 'guardian_relationship', 'previous_school_name', 'previous_school_address', 'status', 'active_enrollment_key', 'active_student_application_key', 'resume_token_hash', 'verification_code_hash', 'verification_expires_at', 'verification_attempts', 'duplicate_review_status', 'potential_duplicate_student_id', 'potential_duplicate_guardian_id', 'duplicate_reviewed_by', 'duplicate_reviewed_at', 'duplicate_review_reason', 'contact_verified_at', 'submitted_at', 'approved_at', 'enrolled_at', 'rejected_at', 'withdrawn_at', 'decided_by', 'decision_reason', 'previous_enrollment_id', 'lock_version'];
 
     protected static function booted(): void
     {
@@ -38,6 +42,11 @@ class Enrollment extends Model
     public function guardian(): BelongsTo
     {
         return $this->belongsTo(GuardianProfile::class, 'applicant_guardian_id');
+    }
+
+    public function studentApplicantUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'student_applicant_user_id');
     }
 
     public function potentialDuplicateStudent(): BelongsTo
@@ -103,5 +112,10 @@ class Enrollment extends Model
     public function getRouteKeyName(): string
     {
         return 'public_id';
+    }
+
+    public function isTerminal(): bool
+    {
+        return in_array($this->status, self::TERMINAL_STATUSES, true);
     }
 }

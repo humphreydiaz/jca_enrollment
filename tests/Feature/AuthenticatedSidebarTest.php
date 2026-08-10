@@ -28,13 +28,31 @@ class AuthenticatedSidebarTest extends TestCase
             ->get(route('identity.dashboard'));
 
         $response->assertOk()
+            ->assertSee('JCSGO Christian')
+            ->assertSee('Academy R1-Inc.')
+            ->assertSee(asset('images/logo/jca_logo.png'), false)
             ->assertSee('id="primary-navigation"', false)
             ->assertSee('x-show="navigationOpen"', false)
-            ->assertSee('lg:!block', false)
+            ->assertSee('lg:!flex', false)
             ->assertSee('overflow-y-auto', false)
             ->assertSee('aria-controls="primary-navigation"', false)
             ->assertSee('@keydown.escape.window="navigationOpen = false"', false)
             ->assertSee('@click="navigationOpen = false"', false);
+    }
+
+    public function test_authenticated_shell_has_grouped_icon_navigation_and_an_active_page_state(): void
+    {
+        $response = $this->actingAs($this->user(['admin']))
+            ->get(route('identity.dashboard'));
+
+        $response->assertOk()
+            ->assertSee('Overview')
+            ->assertSee('School records')
+            ->assertSee('Finance')
+            ->assertSee('Administration')
+            ->assertSee('aria-current="page"', false)
+            ->assertSee('<svg', false)
+            ->assertDontSee('Foundation');
     }
 
     public function test_registrar_sidebar_contains_only_registrar_authorized_navigation(): void
@@ -84,6 +102,27 @@ class AuthenticatedSidebarTest extends TestCase
             ->assertDontSee('Users')
             ->assertDontSee('People')
             ->assertDontSee('Audit');
+    }
+
+    public function test_admin_workspaces_use_finished_ui_language_and_styled_controls(): void
+    {
+        $admin = $this->user(['admin']);
+
+        $this->actingAs($admin)
+            ->get(route('section-assignment.index'))
+            ->assertOk()
+            ->assertSee('Registrar workspace')
+            ->assertSee('Awaiting placement')
+            ->assertDontSee('Phase 5 workspace');
+
+        $this->actingAs($admin)
+            ->get(route('billing.configuration.index'))
+            ->assertOk()
+            ->assertSee('Admin workspace')
+            ->assertSee('Production approval is still required')
+            ->assertSee('jca-input', false)
+            ->assertSee('School non-business days')
+            ->assertDontSee('Development fixtures are not production policy');
     }
 
     /** @param list<string> $roles */

@@ -177,4 +177,90 @@ class ReportCatalog
             $assigned->selectRaw('1')->from('teaching_assignments as ta')->join('staff_profiles as sp', 'sp.id', '=', 'ta.staff_profile_id')->whereColumn('ta.section_id', $sectionColumn)->where('sp.user_id', $user->id)->where('ta.is_active', true)->where(fn (Builder $dates) => $dates->whereNull('ta.active_from')->orWhereDate('ta.active_from', '<=', today()))->where(fn (Builder $dates) => $dates->whereNull('ta.active_until')->orWhereDate('ta.active_until', '>=', today()));
         });
     }
+
+    /**
+     * Aggregate enrollment counts by grade level and sex for the Enrolment Data summary.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array{stages: array<string, list<array{grade: string, male: int, female: int, total: int}>>, school_year_name: string|null}
+     */
+    public function enrollmentSummary(array $filters): array
+    {
+        $query = DB::table('enrollments as e')
+            ->join('student_profiles as s', 's.id', '=', 'e.student_id')
+            ->join('grade_levels as g', 'g.id', '=', 'e.grade_level_id')
+            ->join('academic_years as ay', 'ay.id', '=', 'e.academic_year_id')
+            ->select([
+                'g.name as grade',
+                'g.school_stage',
+                'g.sequence',
+                's.sex',
+                DB::raw('COUNT(*) as count'),
+            ])
+            ->whereIn('e.status', ['approved', 'enrolled'])
+            ->where('g.is_active', true)
+            ->groupBy('g.id', 'g.name', 'g.school_stage', 'g.sequence', 's.sex')
+            ->orderBy('g.sequence');
+
+        // Apply school year filter — default to the most recent active year when unfiltered
+        if (filled($filters['school_year'] ?? null)) {
+            $query->where('ay.public_id', $filters['school_year']);
+        } else {
+            $latestYear = DB::table('academic_years')->orderByDesc('starts_on')->first();
+            if ($latestYear) {
+                $query->where('ay.id', $latestYear->id);
+            }
+        }
+
+        $rows = $query->get();
+
+        // Determine the school year name for the heading
+        $schoolYearName = null;
+        if (filled($filters['school_year'] ?? null)) {
+            $schoolYearName = DB::table('academic_years')->where('public_id', $filters['school_year'])->value('name');
+        } else {
+            $schoolYearName = DB::table('academic_years')->orderByDesc('starts_on')->value('name');
+        }
+
+        // Build structured data grouped by school_stage
+        $stages = [];
+        foreach ($rows as $row) {
+            $stage = $row->school_stage ?? 'Other';
+            if (! isset($stages[$stage])) {
+                $stages[$stage] = [];
+            }
+            $grade = $row->grade;
+            if (! isset($stages[$stage][$grade])) {
+                $stages[$stage][$grade] = ['grade' => $grade, 'male' => 0, 'female' => 0, 'total' => 0];
+            }
+            $sex = strtolower($row->sex ?? '');
+            if ($sex === 'male') {
+                $stages[$stage][$grade]['male'] += (int) $row->count;
+            } else {
+                $stages[$stage][$grade]['female'] += (int) $row->count;
+            }
+            $stages[$stage][$grade]['total'] += (int) $row->count;
+        }
+
+        // Convert to indexed arrays and order by expected stage sequence
+        $orderedStages = [];
+        $stageOrder = ['Pre-elementary', 'Elementary', 'Junior High School', 'Senior High School'];
+        foreach ($stageOrder as $stageKey) {
+            if (isset($stages[$stageKey])) {
+                $orderedStages[$stageKey] = array_values($stages[$stageKey]);
+            }
+        }
+        // Include any remaining stages not in the ordered list
+        foreach ($stages as $stageKey => $grades) {
+            if (! isset($orderedStages[$stageKey])) {
+                $orderedStages[$stageKey] = array_values($grades);
+            }
+        }
+
+        return [
+            'stages' => $orderedStages,
+            'school_year_name' => $schoolYearName,
+        ];
+    }
 }
+

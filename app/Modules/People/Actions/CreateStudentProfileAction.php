@@ -18,9 +18,6 @@ class CreateStudentProfileAction
     {
         return DB::transaction(function () use ($actor, $attributes): StudentProfile {
             $student = StudentProfile::query()->create([
-                'user_id' => isset($attributes['user_public_id'])
-                    ? User::query()->where('public_id', $attributes['user_public_id'])->value('id')
-                    : null,
                 'student_number' => $attributes['student_number'] ?? null,
                 'first_name' => $attributes['first_name'],
                 'last_name' => $attributes['last_name'],

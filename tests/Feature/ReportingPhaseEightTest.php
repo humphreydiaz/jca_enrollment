@@ -79,7 +79,7 @@ class ReportingPhaseEightTest extends TestCase
         $this->actingAs($teacher)->get(route('reporting.show', 'students'))->assertOk()->assertSee('Student, Assigned')->assertDontSee('Student, Unrelated')->assertSee($firstSection->name)->assertDontSee($secondSection->name);
         $this->actingAs($teacher)->get(route('reporting.show', 'sections'))->assertOk()->assertSee($firstSection->name)->assertSee('1')->assertDontSee($secondSection->name);
         $print = $this->actingAs($admin)->get(route('reporting.print', ['enrollments'] + $filters));
-        $print->assertOk()->assertSee('Development operational layout')->assertSee($first->application_number)->assertDontSee('Primary navigation')->assertDontSee('support_observations')->assertDontSee('payment_evidence');
+        $print->assertOk()->assertSee('Development operational layout')->assertSee('images/reporting/jca-reports-header.png')->assertSee($first->application_number)->assertDontSee('Primary navigation')->assertDontSee('support_observations')->assertDontSee('payment_evidence');
         $this->assertDatabaseHas('audit_logs', ['action' => 'reporting.report.printed']);
     }
 

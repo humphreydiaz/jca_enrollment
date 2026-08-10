@@ -22,9 +22,9 @@ This file records decisions that future implementation tasks may treat as settle
 
 ### D-002 - Account onboarding
 
-**Decision:** Do not allow unrestricted public account registration. A guardian may begin a minimal enrollment application without a login. After the submission is verified as legitimate, the school sends an invitation for an individual guardian account so the guardian can track progress before final enrollment. Student accounts are provisioned only after enrollment approval.
+**Decision:** Do not allow unrestricted public account registration. Pre-elementary and Grades 1-6 use a guardian-assisted enrollment application. For Grades 7-12, Admin may invite a Student login before enrollment so the learner can sign in and own the application described in D-023. After either kind of submission is verified as legitimate, the school connects or invites the individual guardian account so the required guardian relationship is retained.
 
-**Consequences:** Applicant records and user accounts are separate. An application can exist before a `users` row is linked. Invitations expire, are single-use, and must never contain a reusable plaintext password.
+**Consequences:** Applicant ownership, login accounts, and permanent people profiles are separate. A high-school Student login may own an application before it is connected to the permanent learner profile; that profile connection remains post-approval. Invitations expire, are single-use, and must never contain a reusable plaintext password.
 
 ### D-003 - Guardian and student relationships
 
@@ -32,7 +32,7 @@ This file records decisions that future implementation tasks may treat as settle
 
 ### D-004 - Student portal eligibility
 
-**Decision:** Provision student accounts for Grades 7-12 after enrollment approval. Grades 1-6 use guardian access by default. Admin may provision an exception with a recorded and audited reason.
+**Decision:** Grades 7-12 may receive an Admin-issued Student invitation and submit their own application, while pre-elementary and Grades 1-6 require guardian-assisted enrollment. Permanent Student login-to-profile access is connected only after approval. Pre-elementary and Grades 1-6 use guardian portal access by default; Admin may connect a younger Student login only as a recorded and audited exception.
 
 **Rationale:** This matches the outline's statement that high school students may participate directly while keeping younger-child access with guardians.
 
@@ -76,13 +76,13 @@ This file records decisions that future implementation tasks may treat as settle
 
 ### D-012 - Grade coverage
 
-**Decision:** Use Grades 1-12 as the development catalog baseline: Elementary 1-6, Junior High 7-10, and Senior High 11-12. Preschool is not included unless JCSGO later confirms it. Store grade levels as configurable records and do not encode this list in authorization or workflow code.
+**Decision:** The offered grade progression is Nursery, Junior Kinder, Senior Kinder, Elementary Grades 1-6, Junior High Grades 7-10, and Senior High Grades 11-12. Store grade levels as configurable records and base authorization on the configured school stage rather than numeric sequence positions.
 
-**Status:** Owner-authorized for development; the official offered catalog must still be confirmed before production import.
+**Status:** Accepted by the owner on 2026-07-23. Official section names, subjects, and teaching assignments remain pending under P-003.
 
 ### D-013 - Confidential document storage
 
-**Decision:** Uploaded requirements and support documents are private files outside the public web root. The database stores metadata and opaque storage keys, not binary documents. Download is always mediated by authorization, logged, and returned with safe content headers.
+**Decision:** Uploaded requirements and any support documents are private files outside the public web root. The database stores metadata and opaque storage keys, not binary documents. Preview/download is always mediated by authorization, logged, and returned with safe content headers. New enrollment-requirement handling is governed by D-025.
 
 ### D-014 - Retention and deletion
 
@@ -116,7 +116,7 @@ These do not block restrictive generic foundations. The named production capabil
 |---|---|---|---|
 | P-001 | School-approved retention periods per document category | Before production launch | Configurable policy; no automated production deletion |
 | P-002 | Final fee schedules, installment due dates, discount values, and exam-permit thresholds | Before production launch | Phase 6 uses owner-authorized, explicitly development-only data; production configuration remains blocked pending approval |
-| P-003 | Official section names, subjects, teaching assignments, and confirmed grade offerings | Before Academics phase production import | Seed only clearly labeled development fixtures |
+| P-003 | Official section names, subjects, and teaching assignments | Before Academics phase production import | Grade offerings are confirmed; seed only clearly labeled development fixtures for the remaining catalog |
 | P-004 | Exact support-assessment form, decision labels, and authorized reviewer roster | Before official production support-form activation | Phase 4 uses restrictive access, reviewer assignment, neutral generic outcomes, private observations, history, and approved teacher-safe summaries only |
 | P-005 | Official SMS sender name, approved templates, consent wording, and escalation contacts | Before enabling live SMS | SMS disabled by default; log driver/test fake |
 | P-006 | Required official reports and signatories | Before Reporting phase acceptance | Build reusable filters and exports from normalized data |
@@ -130,6 +130,82 @@ These do not block restrictive generic foundations. The named production capabil
 **Decision:** Production deployment must pass `php artisan jca:production-check`. The command validates secure environment, database-backed infrastructure, private storage, queue health, absence of development fixtures, backup controls, and explicit approval attestations. Every attestation defaults to false and may become true only after the signed source approval is stored in the launch record.
 
 **Consequences:** Engineering verification can finish while policy remains pending, but the system cannot be represented as production-ready by assumption. The command reports only check names and pass/fail state, never secret values.
+
+### D-020 - Physical enrollment requirements
+
+**Status:** Superseded by D-025 on 2026-07-21.
+
+**Decision:** Enrollment admission requirements are submitted as hard copies to the Registrar. The system stores a checklist snapshot plus who recorded receipt, when it was received, optional receipt notes, review outcome, reviewer, timestamps, and rejection or waiver reason. It does not accept new digital uploads for enrollment requirements.
+
+**Consequences:** Registrar and Admin may record or correct receipt before review, verify a received hard copy, or reject it and request a replacement. Only Admin may waive a requirement with a reason. Receipt and review changes are audited. Historical uploaded files remain private and protected under D-013 and D-014, but no new enrollment-requirement upload route is exposed.
+
+### D-025 - Dual-evidence enrollment requirements
+
+**Status:** Accepted by the owner on 2026-07-21; supersedes D-020 for new enrollment-requirement handling.
+
+**Decision:** Birth Certificate, Form 137/Form 138 or Report Card, Certificate of LOV, and other configured enrollment requirements may be supported by either a privately uploaded soft copy or a physically submitted hard copy. A blocking checklist item is sufficient for academic approval when the Registrar has verified its current soft copy, or when staff has recorded receipt of the hard copy. Soft-copy submission alone is not sufficient until reviewed. The hard copy remains a separately visible continuing obligation after soft-copy verification and may be submitted later. An authorized Admin waiver remains an exceptional alternative with a required reason.
+
+Authenticated Student applicants and authorized Guardians may upload PDF, JPG, JPEG, or PNG files of at most 5 MB while an application is actively under review. Each replacement creates a new version and archives the previous version. Files remain on the private non-serving document disk, use opaque paths, and have no public URL. Registrar/Admin preview and authorized owner download recheck policy, reject archived/deleted files, use safe response headers, and append both document-access and general audit evidence.
+
+**Consequences:** Enrollment approval evaluates soft-copy evidence and hard-copy receipt independently. Approval does not erase or falsely complete the hard-copy obligation. Registrar review displays one current soft-copy preview in an audited modal and retains separate hard-copy receipt/review controls. Automated retention deletion remains disabled until P-001 is approved.
+
+### D-026 - Promotion requirement evidence carryover
+
+**Status:** Accepted by the owner on 2026-07-23.
+
+**Decision:** When promotion creates a linked next-school-year enrollment, accepted hard-copy evidence from the prior enrollment carries forward into the new checklist. Accepted evidence means a verified hard copy or a recorded hard-copy receipt. Birth Certificate, Form 138/Report Card, and other accepted physical requirements therefore do not need to be submitted again solely because the school year changed.
+
+The new checklist records the source requirement, carryover actor, and carryover timestamp while preserving the prior enrollment and original receipt/review evidence. Waivers, rejected hard copies, unreviewed soft-copy uploads, and soft-copy verification without a received hard copy are not represented as carried hard-copy proof. Current-year requirement rules may still add document types not present in the prior enrollment.
+
+**Consequences:** Promotion remains a new enrollment under D-011, but it does not discard reusable physical-document evidence. The Registrar can see the source grade and school year, and the normal approval check accepts the carried evidence. An explicit rejection on the promoted checklist overrides carryover for that enrollment without rewriting the historical source.
+
+### D-027 - Separate portal and staff sign-in surfaces
+
+**Status:** Accepted by the owner on 2026-07-24.
+
+**Decision:** Guardian/Parent and Student accounts use `/login`. Admin, Registrar, Accounting, and Teacher accounts use `/staff/login`. Both entry points retain the same user table, authenticated session guard, credential rules, rate limiter, session regeneration, and downstream authorization policies. Each authentication endpoint accepts only its assigned role group, and a valid account presented to the wrong endpoint receives the same neutral invalid-credentials response as any other failed sign-in.
+
+**Consequences:** The separate pages improve audience clarity without creating a second identity system or weakening policy checks. A successful logout returns the user to the entry point for their role group. Staff and portal roles remain incompatible on one account under D-005, and authorization after sign-in remains role- and record-scoped.
+
+### D-021 - Account reactivation and student-account connection
+
+**Status:** Accepted by the owner on 2026-07-18.
+
+**Decision:** A disabled account may be returned only to the `invited` state by an Admin after offline identity review. Reactivation requires a reason, revokes sessions, creates a new single-use setup invitation, and records separate reactivation and invitation audit events. Disabling an account also requires a reason and revokes every outstanding invitation. Enrollment review must not create setup links for disabled or locked guardian accounts.
+
+Student accounts are connected to permanent student profiles only through the audited People action after an `approved` or `enrolled` school-year record exists. Grades 7-12 are eligible by default. A younger student requires an Admin-supplied exception reason. Student-profile creation cannot attach an account and bypass these gates.
+
+**Consequences:** Repeated links cannot make a disabled account redeemable; Admin must deliberately reactivate it. Standalone Student-role users do not gain student-record access until linked to exactly one eligible profile. A clearly mismatched login/profile connection renders no student data. Admin may disconnect a wrong connection only with a reason, audit entry, and session revocation; both records and all enrollment history remain intact. Erroneous accounts themselves are disabled with history preserved rather than deleted.
+
+### D-022 - DepEd-aligned learner profile intake
+
+**Status:** Accepted by the owner on 2026-07-21 for the enrollment form implementation.
+
+**Decision:** The public application collects the learner identity, background indicators, address, parent/guardian, and previous-school facts represented by the DepEd Basic Education Enrollment Form, while retaining JCA's separate grade, school-year, category, and contact-verification workflow. LRN is optional and must contain exactly 12 digits when supplied. The 4Ps household ID and disability type are conditionally required. Religion, Indigenous Peoples group, and parent-name fields remain optional because they are sensitive or may not apply. Age is calculated from birth date and is never stored as an independent fact.
+
+Permanent learner facts belong to `student_profiles`; guardian identity/contact belongs to `guardian_profiles`; guardian relationship and previous-school facts belong to the school-year `enrollments` record. Duplicate candidates are still reviewed by staff and are never merged automatically.
+
+**Consequences:** The form is DepEd-aligned but does not claim direct LIS integration or replace the school's official submission duties. Access to collected child and family data remains role-scoped and auditable under the existing privacy rules. Conditional fields are validated server-side even when the browser enhancement is unavailable.
+
+### D-023 - Pre-approval Student application ownership
+
+**Status:** Accepted by the owner on 2026-07-21.
+
+**Decision:** When a signed-in Student starts a public enrollment application, the enrollment records that Student account as its applicant owner without connecting the account to the permanent student profile. The owner may view the application reference, grade, school year, status timeline, dual requirement statuses, and upload private soft-copy evidence during active review, and may resume the application only while it remains a draft. Anonymous applicants continue to use the hashed private resume-token flow.
+
+One Student account may have at most one non-terminal application per school year. A nullable unique active-account/year key enforces this alongside a transaction and account lock. `rejected`, `withdrawn`, and `cancelled` release the key; all other states, including `approved` and `enrolled`, remain active for that year.
+
+**Consequences:** Application ownership grants access only to that application and its non-confidential checklist status. It does not grant access to a student profile, section, financial record, support record, or another applicant's application. The existing post-approval Admin connection rule in D-021 remains unchanged.
+
+### D-024 - Removal of unused mistaken student profiles
+
+**Status:** Accepted by the owner on 2026-07-21.
+
+**Decision:** Admin may permanently remove an active student profile created by mistake only when it has no login connection, enrollment history, guardian relationship history, or communication targeting history. Profiles already marked duplicate or inactive remain historical and cannot be deleted. A reason and explicit confirmation are required. An unresolved draft/submitted enrollment may reference the active profile only as a pending duplicate candidate; removal clears and audits that candidate reference without deleting or reassigning the application.
+
+**Rationale:** Online enrollment creates the authoritative applicant profile. The manual People form exists for verified legacy or offline records and must not be used before a new application. Allowing narrow cleanup of a truly unused mistaken record prevents permanent duplicate clutter without weakening the rule that student history is preserved.
+
+**Consequences:** Any historical or access-bearing reference blocks deletion server-side. The deletion and each cleared duplicate-candidate reference are audited with opaque identifiers. Profiles with any enrollment remain preserved even when that enrollment is rejected, withdrawn, or cancelled.
 
 ## Phase 6 development-policy status
 

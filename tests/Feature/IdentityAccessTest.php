@@ -58,6 +58,87 @@ class IdentityAccessTest extends TestCase
         $this->assertGuest();
     }
 
+    public function test_portal_and_staff_login_pages_are_distinct_and_explain_their_audiences(): void
+    {
+        $this->get(route('identity.login'))
+            ->assertOk()
+            ->assertSee('Parent &amp; student portal', false)
+            ->assertSee('JCA-Parent-Student-Login-Image.png')
+            ->assertSee(route('identity.login.store'), false)
+            ->assertSee(route('identity.staff.login'), false);
+
+        $this->get(route('identity.staff.login'))
+            ->assertOk()
+            ->assertSee('JCA staff workspace')
+            ->assertSee('school administrators, registrars, accounting staff, and teachers')
+            ->assertSee(route('identity.staff.login.store'), false)
+            ->assertSee(route('identity.login'), false);
+    }
+
+    public function test_each_staff_role_can_sign_in_only_through_the_staff_login(): void
+    {
+        foreach (['admin', 'registrar', 'accounting', 'teacher'] as $role) {
+            $user = $this->activeUser([$role]);
+
+            $this->post(route('identity.staff.login.store'), [
+                'identifier' => $user->email,
+                'password' => 'Password12345',
+            ])->assertRedirect(route('identity.dashboard'));
+
+            $this->assertAuthenticatedAs($user);
+            $this->post(route('identity.logout'))->assertRedirect(route('identity.staff.login'));
+            $this->assertGuest();
+        }
+    }
+
+    public function test_each_portal_role_can_sign_in_only_through_the_parent_and_student_login(): void
+    {
+        foreach (['guardian', 'student'] as $role) {
+            $user = $this->activeUser([$role]);
+
+            $this->post(route('identity.login.store'), [
+                'identifier' => $user->email,
+                'password' => 'Password12345',
+            ])->assertRedirect(route('identity.dashboard'));
+
+            $this->assertAuthenticatedAs($user);
+            $this->post(route('identity.logout'))->assertRedirect(route('identity.login'));
+            $this->assertGuest();
+        }
+    }
+
+    public function test_login_surfaces_reject_the_wrong_account_group_without_revealing_its_role(): void
+    {
+        $guardian = $this->activeUser(['guardian']);
+        $admin = $this->activeUser(['admin']);
+
+        $this->from(route('identity.staff.login'))
+            ->post(route('identity.staff.login.store'), [
+                'identifier' => $guardian->email,
+                'password' => 'Password12345',
+            ])
+            ->assertRedirect(route('identity.staff.login'))
+            ->assertSessionHasErrors([
+                'identifier' => 'The provided credentials are not valid.',
+            ]);
+
+        $this->assertGuest();
+        $this->assertNull($guardian->fresh()->last_login_at);
+
+        $this->from(route('identity.login'))
+            ->post(route('identity.login.store'), [
+                'identifier' => $admin->email,
+                'password' => 'Password12345',
+            ])
+            ->assertRedirect(route('identity.login'))
+            ->assertSessionHasErrors([
+                'identifier' => 'The provided credentials are not valid.',
+            ]);
+
+        $this->assertGuest();
+        $this->assertNull($admin->fresh()->last_login_at);
+    }
+
     public function test_login_is_rate_limited_without_revealing_account_state(): void
     {
         $user = $this->activeUser(['guardian']);
@@ -154,8 +235,9 @@ class IdentityAccessTest extends TestCase
         $this->actingAs($admin)
             ->post(route('identity.admin.users.store'), [
                 'name' => 'Registrar Account',
-                'channel' => 'email',
+                'channel' => 'mobile',
                 'email' => 'registrar@example.test',
+                'mobile' => '+639171234589',
                 'roles' => ['registrar'],
             ])
             ->assertRedirect(route('identity.admin.users.index'))
@@ -165,6 +247,111 @@ class IdentityAccessTest extends TestCase
         $this->assertSame(AccountStatus::Invited, $user->status);
         $this->assertTrue($user->hasRole('registrar'));
         $this->assertDatabaseHas('staff_profiles', ['user_id' => $user->id]);
+    }
+
+    public function test_admin_user_creation_temporarily_allows_only_mobile_invitations(): void
+    {
+        $admin = $this->activeUser(['admin']);
+
+        $this->actingAs($admin)
+            ->get(route('identity.admin.users.index'))
+            ->assertOk()
+            ->assertSee('aria-label="Invitation channel: Mobile"', false)
+            ->assertSee('name="channel" value="mobile"', false)
+            ->assertDontSee('<option value="email"', false);
+
+        $this->actingAs($admin)
+            ->from(route('identity.admin.users.index'))
+            ->post(route('identity.admin.users.store'), [
+                'name' => 'Email Channel Attempt',
+                'channel' => 'email',
+                'email' => 'email-channel@example.test',
+                'roles' => ['guardian'],
+            ])
+            ->assertRedirect(route('identity.admin.users.index'))
+            ->assertSessionHasErrors(['channel', 'mobile']);
+
+        $this->assertDatabaseMissing('users', ['email' => 'email-channel@example.test']);
+    }
+
+    public function test_user_management_list_requires_an_admin_account(): void
+    {
+        $this->get(route('identity.admin.users.index'))
+            ->assertRedirect(route('identity.login'));
+
+        $guardian = $this->activeUser(['guardian']);
+
+        $this->actingAs($guardian)
+            ->get(route('identity.admin.users.index'))
+            ->assertForbidden();
+    }
+
+    public function test_admin_can_search_filter_sort_and_paginate_the_user_management_list(): void
+    {
+        $admin = $this->activeUser(['admin'], ['name' => 'System Administrator']);
+
+        for ($number = 1; $number <= 17; $number++) {
+            $this->activeUser(['guardian'], [
+                'name' => sprintf('Family Portal %02d', $number),
+                'email' => sprintf('family%02d@example.test', $number),
+            ]);
+        }
+
+        $this->activeUser(['teacher'], [
+            'name' => 'Family Portal Teacher',
+            'email' => 'family-teacher@example.test',
+        ]);
+
+        $disabled = $this->activeUser(['guardian'], [
+            'name' => 'Family Portal Disabled',
+            'email' => 'family-disabled@example.test',
+        ]);
+        $disabled->forceFill([
+            'status' => AccountStatus::Disabled,
+            'disabled_at' => now(),
+        ])->save();
+
+        $response = $this->actingAs($admin)->get(route('identity.admin.users.index', [
+            'search' => 'Family Portal',
+            'role' => 'guardian',
+            'status' => 'active',
+            'sort' => 'name_asc',
+            'per_page' => 15,
+        ]));
+
+        $response
+            ->assertOk()
+            ->assertSee('17 results')
+            ->assertSee('Active filters')
+            ->assertSee('Family Portal 01')
+            ->assertViewHas('users', function ($users): bool {
+                return $users->total() === 17
+                    && $users->count() === 15
+                    && $users->lastPage() === 2
+                    && $users->getCollection()->every(
+                        fn (User $user): bool => $user->status === AccountStatus::Active
+                            && $user->roles->contains('code', 'guardian')
+                    );
+            });
+
+        $this->assertSame(1, substr_count($response->getContent(), '<dialog'));
+        $this->assertSame(15, substr_count($response->getContent(), 'aria-haspopup="dialog"'));
+    }
+
+    public function test_user_management_filters_reject_unsupported_values(): void
+    {
+        $admin = $this->activeUser(['admin']);
+
+        $this->actingAs($admin)
+            ->from(route('identity.admin.users.index'))
+            ->get(route('identity.admin.users.index', [
+                'status' => 'archived',
+                'role' => 'super-admin',
+                'sort' => 'password',
+                'per_page' => 500,
+            ]))
+            ->assertRedirect(route('identity.admin.users.index'))
+            ->assertSessionHasErrors(['status', 'role', 'sort', 'per_page']);
     }
 
     public function test_first_admin_is_bootstrapped_only_through_the_secure_console_prompt(): void
@@ -199,6 +386,109 @@ class IdentityAccessTest extends TestCase
             'user_id' => $guardian->id,
             'purpose' => 'account_recovery',
         ]);
+    }
+
+    public function test_admin_can_reactivate_a_disabled_account_with_reason_and_new_setup_link(): void
+    {
+        $admin = $this->activeUser(['admin']);
+        $guardian = $this->activeUser(['guardian']);
+        $oldInvitation = app(CreateAccountInvitationAction::class)->execute(
+            $guardian,
+            'email',
+            $guardian->email,
+            $admin,
+        );
+        $guardian->forceFill([
+            'status' => AccountStatus::Disabled,
+            'disabled_at' => now(),
+        ])->save();
+
+        $this->actingAs($admin)
+            ->post(route('identity.admin.users.reactivate', $guardian))
+            ->assertSessionHasErrors('reason');
+
+        $reason = 'Identity confirmed in person by the school administrator.';
+        $response = $this->actingAs($admin)
+            ->post(route('identity.admin.users.reactivate', $guardian), [
+                'reason' => $reason,
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('invitation_url');
+
+        $this->assertSame(AccountStatus::Invited, $guardian->fresh()->status);
+        $this->assertNull($guardian->fresh()->disabled_at);
+        $this->assertNotNull($oldInvitation->invitation->fresh()->revoked_at);
+        $this->assertDatabaseHas('audit_logs', [
+            'actor_user_id' => $admin->id,
+            'action' => 'identity.user.reactivated',
+            'subject_id' => $guardian->id,
+        ]);
+
+        $audit = DB::table('audit_logs')
+            ->where('action', 'identity.user.reactivated')
+            ->where('subject_id', $guardian->id)
+            ->first();
+        $this->assertSame($reason, json_decode($audit->metadata, true)['reason']);
+
+        $invitationUrl = $response->getSession()->get('invitation_url');
+        $this->post(route('identity.logout'));
+        $this->post($invitationUrl, [
+            'password' => 'ReactivatedPassword123',
+            'password_confirmation' => 'ReactivatedPassword123',
+        ])->assertRedirect(route('identity.dashboard'));
+
+        $this->assertSame(AccountStatus::Active, $guardian->fresh()->status);
+    }
+
+    public function test_non_admin_cannot_reactivate_a_disabled_account(): void
+    {
+        $registrar = $this->activeUser(['registrar']);
+        $guardian = $this->activeUser(['guardian']);
+        $guardian->forceFill([
+            'status' => AccountStatus::Disabled,
+            'disabled_at' => now(),
+        ])->save();
+
+        $this->actingAs($registrar)
+            ->post(route('identity.admin.users.reactivate', $guardian), [
+                'reason' => 'Unauthorized attempt.',
+            ])
+            ->assertForbidden();
+
+        $this->assertSame(AccountStatus::Disabled, $guardian->fresh()->status);
+    }
+
+    public function test_disabling_an_account_requires_reason_and_revokes_open_invitations(): void
+    {
+        $admin = $this->activeUser(['admin']);
+        $guardian = $this->activeUser(['guardian']);
+        $invitation = app(CreateAccountInvitationAction::class)->execute(
+            $guardian,
+            'email',
+            $guardian->email,
+            $admin,
+        );
+
+        $this->actingAs($admin)
+            ->delete(route('identity.admin.users.disable', $guardian))
+            ->assertSessionHasErrors('reason');
+
+        $reason = 'Duplicate standalone account created during enrollment review.';
+        $this->actingAs($admin)
+            ->delete(route('identity.admin.users.disable', $guardian), [
+                'reason' => $reason,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(AccountStatus::Disabled, $guardian->fresh()->status);
+        $this->assertNotNull($guardian->fresh()->disabled_at);
+        $this->assertNotNull($invitation->invitation->fresh()->revoked_at);
+
+        $audit = DB::table('audit_logs')
+            ->where('action', 'identity.user.disabled')
+            ->where('subject_id', $guardian->id)
+            ->first();
+        $this->assertSame($reason, json_decode($audit->metadata, true)['reason']);
     }
 
     public function test_staff_and_portal_roles_cannot_be_mixed_and_role_updates_revoke_sessions(): void

@@ -31,6 +31,14 @@ class GradeLevel extends Model
         return $this->hasMany(Section::class);
     }
 
+    public function allowsStudentAccountByDefault(): bool
+    {
+        return in_array(Str::lower(trim((string) $this->school_stage)), [
+            'junior high school',
+            'senior high school',
+        ], true);
+    }
+
     public function getRouteKeyName(): string
     {
         return 'public_id';

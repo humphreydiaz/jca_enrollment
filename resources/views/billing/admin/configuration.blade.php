@@ -1,19 +1,40 @@
 <x-layouts.app title="Financial configuration">
-<div class="space-y-6">
-    <section class="jca-card p-6"><h1 class="text-3xl font-black text-brand-navy-900">Financial configuration</h1><p class="mt-2 text-slate-600">All values are school-year data. Development fixtures are not production policy.</p></section>
-    <section class="jca-card p-6"><h2 class="text-xl font-bold">Fee catalog</h2><div class="mt-3 grid gap-3 sm:grid-cols-2">@foreach($feeTypes as $fee)<form method="post" action="{{ route('billing.configuration.fee-types.update',$fee) }}" class="rounded border p-3">@csrf @method('PATCH')<p><strong>{{ $fee->code }}</strong></p><label>Name<input class="jca-input" name="name" value="{{ $fee->name }}" required></label><label>Category<input class="jca-input" name="category" value="{{ $fee->category }}" required></label><div class="mt-2 flex flex-wrap gap-3"><label><input type="checkbox" name="is_mandatory" value="1" @checked($fee->is_mandatory)> Mandatory</label><label><input type="checkbox" name="is_conditional" value="1" @checked($fee->is_conditional)> Conditional</label><label><input type="checkbox" name="is_permit_critical" value="1" @checked($fee->is_permit_critical)> Permit-critical</label><label><input type="checkbox" name="is_active" value="1" @checked($fee->is_active)> Active</label></div><button class="jca-button-secondary mt-2">Save</button></form>@endforeach</div>
-        <form method="post" action="{{ route('billing.configuration.fee-types') }}" class="mt-5 grid gap-3 sm:grid-cols-3">@csrf<label>Code<input class="jca-input" name="code" required maxlength="20"></label><label>Name<input class="jca-input" name="name" required></label><label>Category<input class="jca-input" name="category" required></label><label><input type="checkbox" name="is_mandatory" value="1"> Mandatory</label><label><input type="checkbox" name="is_conditional" value="1"> Conditional</label><label><input type="checkbox" name="is_permit_critical" value="1"> Permit-critical</label><button class="jca-button-primary sm:col-span-3">Add fee type</button></form>
-    </section>
-    <section class="jca-card p-6"><h2 class="text-xl font-bold">Fee schedule versions</h2><div class="mt-3 space-y-3">@foreach($schedules as $schedule)<div class="rounded border p-3"><p>{{ $schedule->name }} · v{{ $schedule->version }} · {{ $schedule->status }} ({{ $schedule->items->count() }} items)</p>@if($schedule->status === 'draft')<form method="post" action="{{ route('billing.configuration.schedule-items', $schedule) }}" class="mt-3 grid gap-2 sm:grid-cols-4">@csrf<select class="jca-input" name="fee_type_id" required>@foreach($feeTypes as $fee)<option value="{{ $fee->id }}">{{ $fee->code }} — {{ $fee->name }}</option>@endforeach</select><input class="jca-input" name="description" placeholder="Description" required><input class="jca-input" name="amount" inputmode="decimal" placeholder="0.00" required><label><input type="checkbox" name="is_required" value="1"> Required</label><button class="jca-button-secondary">Add item</button></form>@if($schedule->items->isNotEmpty())<form method="post" action="{{ route('billing.configuration.schedule-publish', $schedule) }}" class="mt-2">@csrf<button class="jca-button-primary">Publish version</button></form>@endif @endif</div>@endforeach</div>
-        <form method="post" action="{{ route('billing.configuration.schedules') }}" class="mt-5 grid gap-3 sm:grid-cols-2">@csrf<label>School year<select class="jca-input" name="academic_year_id" required>@foreach($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select></label><label>Grade<select class="jca-input" name="grade_level_id"><option value="">All grades</option>@foreach($gradeLevels as $grade)<option value="{{ $grade->id }}">{{ $grade->name }}</option>@endforeach</select></label><label>Name<input class="jca-input" name="name" required></label><label>Version<input class="jca-input" type="number" name="version" min="1" value="1" required></label><button class="jca-button-primary sm:col-span-2">Create draft schedule</button></form>
-    </section>
-    <section class="jca-card p-6"><h2 class="text-xl font-bold">Payment plans and examination periods</h2><p class="mt-2">Enabled plans: {{ $planOptions->pluck('name')->join(', ') ?: 'None configured' }}</p><ul class="mt-2">@foreach($periods as $period)<li>{{ $period->name }} · {{ $period->starts_on->format('M j, Y') }}</li>@endforeach</ul>
-        <form method="post" action="{{ route('billing.configuration.plan-options') }}" class="mt-5 grid gap-3 sm:grid-cols-4">@csrf<select class="jca-input" name="academic_year_id" required>@foreach($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select><select class="jca-input" name="code"><option value="full">Full</option><option value="semiannual">Semiannual</option><option value="quarterly">Quarterly</option><option value="monthly">Monthly</option></select><input class="jca-input" name="name" placeholder="Display name" required><label><input type="checkbox" name="is_active" value="1" checked> Active</label><button class="jca-button-primary">Add plan option</button></form>
-        <form method="post" action="{{ route('billing.configuration.exam-periods') }}" class="mt-5 grid gap-3 sm:grid-cols-3">@csrf<select class="jca-input" name="academic_year_id" required>@foreach($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select><input class="jca-input" name="code" placeholder="Code" required><input class="jca-input" name="name" placeholder="Period name" required><label>Starts<input class="jca-input" type="date" name="starts_on" required></label><label>Ends<input class="jca-input" type="date" name="ends_on" required></label><label>Eligibility cutoff<input class="jca-input" type="date" name="eligibility_cutoff_on" required></label><label>Issue opens<input class="jca-input" type="date" name="issue_opens_on"></label><label>Issue closes<input class="jca-input" type="date" name="issue_closes_on"></label><input type="hidden" name="status" value="planned"><button class="jca-button-primary sm:col-span-3">Add exam period</button></form>
-    </section>
-    <section class="jca-card p-6"><h2 class="text-xl font-bold">Discount campaigns</h2><ul class="mt-3">@forelse($campaigns as $campaign)<li>{{ $campaign->name }} · PHP {{ number_format((float)$campaign->value_amount,2) }} · limit {{ $campaign->slot_limit ?? 'none' }} · {{ $campaign->is_active ? 'active' : 'inactive' }}</li>@empty<li>No campaigns configured.</li>@endforelse</ul>
-        <form method="post" action="{{ route('billing.configuration.campaigns') }}" class="mt-5 grid gap-3 sm:grid-cols-3">@csrf<select class="jca-input" name="academic_year_id" required>@foreach($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select><input class="jca-input" name="code" placeholder="Code" required><input class="jca-input" name="name" placeholder="Campaign name" required><input type="hidden" name="value_type" value="fixed"><input class="jca-input" name="value_amount" placeholder="Amount" required><input class="jca-input" type="number" name="slot_limit" placeholder="Slot limit"><label>Starts<input class="jca-input" type="date" name="starts_on"></label><label>Ends<input class="jca-input" type="date" name="ends_on"></label><label><input type="checkbox" name="is_active" value="1"> Active</label><button class="jca-button-primary sm:col-span-3">Create campaign</button></form>
-    </section>
-    <section class="jca-card p-6"><h2 class="text-xl font-bold">Print settings</h2><form method="post" action="{{ route('billing.configuration.print-settings') }}" class="mt-3 grid gap-3 sm:grid-cols-3">@csrf<select class="jca-input" name="academic_year_id" required>@foreach($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select><select class="jca-input" name="setting_key"><option value="receipt_signatory_role">Receipt signatory role</option><option value="permit_signatory_role">Permit signatory role</option><option value="receipt_footer">Receipt footer</option><option value="permit_footer">Permit footer</option></select><input class="jca-input" name="setting_value" placeholder="Configured role label or footer"><button class="jca-button-primary sm:col-span-3">Save print setting</button></form></section>
-</div>
+    <div class="space-y-6" data-preserve-scroll data-ajax-config>
+        <x-ui.page-header
+            title="Financial configuration"
+            description="Manage school-year fee rules, schedules, payment options, examination periods, discounts, and controlled print wording."
+            eyebrow="Admin workspace"
+        />
+
+        <div class="flex gap-3 rounded-xl border border-brand-orange-500 bg-warning-50 p-4 text-warning-800" role="note">
+            <x-ui.icon name="warning" class="mt-0.5" />
+            <div><p class="font-bold">Production approval is still required</p><p class="mt-1 text-sm leading-6">Current development configuration is not official school policy. Replace it only with approved JCA inputs before launch.</p></div>
+        </div>
+
+        <div class="grid items-start gap-6 xl:grid-cols-[15rem_minmax(0,1fr)]">
+            <nav class="jca-card sticky top-24 hidden p-3 xl:block" aria-label="Configuration sections">
+                @foreach ([
+                    ['href' => '#fee-catalog', 'icon' => 'billing', 'label' => 'Fee catalog'],
+                    ['href' => '#fee-schedules', 'icon' => 'finance', 'label' => 'Fee schedules'],
+                    ['href' => '#payment-plans', 'icon' => 'progress', 'label' => 'Payment plans'],
+                    ['href' => '#exam-periods', 'icon' => 'academics', 'label' => 'Exam periods'],
+                    ['href' => '#calendar', 'icon' => 'sections', 'label' => 'School calendar'],
+                    ['href' => '#discounts', 'icon' => 'announcement', 'label' => 'Discounts'],
+                    ['href' => '#print-settings', 'icon' => 'settings', 'label' => 'Print settings'],
+                ] as $item)
+                    <a href="{{ $item['href'] }}" class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-600 hover:bg-brand-blue-100 hover:text-brand-navy-900"><x-ui.icon :name="$item['icon']" size="size-4" /> {{ $item['label'] }}</a>
+                @endforeach
+            </nav>
+
+            <div class="min-w-0 space-y-6">
+                @include('billing.admin.partials.fee-catalog')
+                @include('billing.admin.partials.fee-schedules')
+                @include('billing.admin.partials.payment-plans')
+                @include('billing.admin.partials.exam-periods')
+                @include('billing.admin.partials.calendar')
+                @include('billing.admin.partials.discounts')
+                @include('billing.admin.partials.print-settings')
+            </div>
+        </div>
+    </div>
 </x-layouts.app>

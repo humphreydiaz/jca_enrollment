@@ -8,6 +8,7 @@ use App\Modules\Billing\Models\ExamPeriod;
 use App\Modules\Billing\Models\ExamPermit;
 use App\Modules\Billing\Models\FeeAssessment;
 use App\Modules\Billing\Models\FeeSchedule;
+use App\Modules\Billing\Models\PaymentPlanOption;
 use App\Modules\Shared\Audit\AuditRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -51,6 +52,27 @@ class FinancialPortalController
             return view('billing.registrar.summary', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment), 'permitStatus' => $permitStatus, 'issuedPermit' => $issuedPermit]);
         }
 
-        return view('billing.portal.show', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment), 'permitStatus' => $permitStatus, 'issuedPermit' => $issuedPermit, 'discountAwards' => $discountAwards, 'examPeriods' => $request->user()->hasRole('accounting') ? ExamPeriod::query()->where('academic_year_id', $assessment->enrollment->academic_year_id)->orderBy('starts_on')->get() : collect(), 'availableSchedules' => $request->user()->hasRole('accounting') ? FeeSchedule::query()->where('status', 'published')->where('academic_year_id', $assessment->enrollment->academic_year_id)->where(fn ($query) => $query->whereNull('grade_level_id')->orWhere('grade_level_id', $assessment->enrollment->grade_level_id))->with('items.feeType')->get() : collect()]);
+        $availablePlanOptions = collect();
+        if ($request->user()->hasRole('accounting')) {
+            $configuredOptions = PaymentPlanOption::query()
+                ->where('academic_year_id', $assessment->enrollment->academic_year_id)
+                ->where(fn ($query) => $query->whereNull('grade_level_id')->orWhere('grade_level_id', $assessment->enrollment->grade_level_id))
+                ->orderByRaw('grade_level_id IS NULL')
+                ->get();
+
+            $availablePlanOptions = $configuredOptions->isEmpty()
+                ? collect([
+                    ['code' => 'full', 'name' => 'Full Payment'],
+                    ['code' => 'semiannual', 'name' => 'Semiannual'],
+                    ['code' => 'quarterly', 'name' => 'Quarterly'],
+                    ['code' => 'monthly', 'name' => 'Monthly'],
+                ])
+                : $configuredOptions->where('is_active', true)->unique('code')->values()->map(fn ($option) => [
+                    'code' => $option->code,
+                    'name' => $option->name,
+                ]);
+        }
+
+        return view('billing.portal.show', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment), 'permitStatus' => $permitStatus, 'issuedPermit' => $issuedPermit, 'discountAwards' => $discountAwards, 'availablePlanOptions' => $availablePlanOptions, 'examPeriods' => $request->user()->hasRole('accounting') ? ExamPeriod::query()->where('academic_year_id', $assessment->enrollment->academic_year_id)->orderBy('starts_on')->get() : collect(), 'availableSchedules' => $request->user()->hasRole('accounting') ? FeeSchedule::query()->where('status', 'published')->where('academic_year_id', $assessment->enrollment->academic_year_id)->where(fn ($query) => $query->whereNull('grade_level_id')->orWhere('grade_level_id', $assessment->enrollment->grade_level_id))->with('items.feeType')->get() : collect()]);
     }
 }

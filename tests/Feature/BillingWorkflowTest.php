@@ -35,6 +35,7 @@ use App\Modules\Billing\Models\FeeType;
 use App\Modules\Billing\Models\Payment;
 use App\Modules\Billing\Models\PaymentAllocation;
 use App\Modules\Billing\Models\PaymentEvidence;
+use App\Modules\Billing\Models\PaymentPlanOption;
 use App\Modules\Billing\Models\PaymentReversal;
 use App\Modules\Billing\Models\ReceiptPrint;
 use App\Modules\Enrollment\Models\Enrollment;
@@ -111,6 +112,38 @@ class BillingWorkflowTest extends TestCase
         $this->get('/payment-gateway')->assertNotFound();
     }
 
+    public function test_admin_can_view_the_awaiting_assessment_queue_without_receiving_accounting_authority(): void
+    {
+        $admin = $this->user(['admin']);
+        $accounting = $this->user(['accounting']);
+        $registrar = $this->user(['registrar']);
+        [$enrollment, $schedule] = $this->fixture();
+
+        $adminResponse = $this->actingAs($admin)->get(route('billing.index'));
+        $adminResponse
+            ->assertOk()
+            ->assertSee('1. Students awaiting an assessment')
+            ->assertSee('Fictional Student')
+            ->assertSee('Ready for Accounting assessment')
+            ->assertDontSee(route('billing.assessments.create', $enrollment), false);
+
+        $this->actingAs($accounting)
+            ->get(route('billing.index'))
+            ->assertOk()
+            ->assertSee('Fictional Student')
+            ->assertSee(route('billing.assessments.create', $enrollment), false);
+
+        $this->actingAs($registrar)
+            ->get(route('billing.index'))
+            ->assertOk()
+            ->assertDontSee('Fictional Student');
+
+        $this->actingAs($admin)
+            ->post(route('billing.assessments.create', $enrollment), ['fee_schedule_id' => $schedule->id])
+            ->assertForbidden();
+        $this->assertDatabaseMissing('fee_assessments', ['enrollment_id' => $enrollment->id]);
+    }
+
     public function test_payment_plan_permit_print_and_portal_contracts(): void
     {
         $accounting = $this->user(['accounting']);
@@ -151,10 +184,10 @@ class BillingWorkflowTest extends TestCase
         $permit = app(IssueExamPermitAction::class)->execute($assessment->fresh(), $period, $accounting);
         $this->assertSame('issued', $permit->status);
 
-        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('ORIGINAL')->assertSee($payment->fresh()->receipt_reference);
+        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('ORIGINAL')->assertSee($payment->fresh()->receipt_reference)->assertSee('images/reporting/jca-reports-header.png');
         $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('REPRINT #1');
         $permitResponse = $this->actingAs($guardian)->get(route('billing.print.permit', $permit));
-        $permitResponse->assertOk()->assertSee('AUTHORIZED')->assertDontSee('outstanding balance')->assertDontSee('hardship')->assertDontSee('payment history');
+        $permitResponse->assertOk()->assertSee('AUTHORIZED')->assertSee('images/reporting/jca-reports-header.png')->assertDontSee('outstanding balance')->assertDontSee('hardship')->assertDontSee('payment history');
         $this->assertSame(2, ReceiptPrint::query()->where('payment_id', $payment->id)->count());
         $this->assertSame(1, ExamPermitPrint::query()->where('exam_permit_id', $permit->id)->count());
 
@@ -319,6 +352,148 @@ class BillingWorkflowTest extends TestCase
         app(ApproveAdjustmentAction::class)->execute($debit, $admin, true);
         $this->assertSame('500.00', app(BalanceCalculator::class)->calculate($assessment)['credit']);
         $this->assertDatabaseHas('refunds', ['id' => $refund->id, 'status' => 'approved', 'release_reference' => 'FIC-RELEASE-1']);
+    }
+
+    public function test_payment_plan_configuration_prevents_duplicates_and_uses_safe_deactivation(): void
+    {
+        $admin = $this->user(['admin']);
+        $accounting = $this->user(['accounting']);
+        [$enrollment] = $this->fixture();
+        $data = [
+            'academic_year_id' => $enrollment->academic_year_id,
+            'grade_level_id' => $enrollment->grade_level_id,
+            'code' => 'monthly',
+            'name' => 'Fictional Grade 1 Monthly',
+            'is_active' => '1',
+        ];
+
+        $this->actingAs($admin)->post(route('billing.configuration.plan-options'), $data)->assertRedirect();
+        $this->actingAs($admin)->post(route('billing.configuration.plan-options'), $data)->assertSessionHasErrors('code');
+        $this->assertSame(1, PaymentPlanOption::query()->where('academic_year_id', $enrollment->academic_year_id)->where('grade_level_id', $enrollment->grade_level_id)->where('code', 'monthly')->count());
+
+        $allGrades = [...$data, 'grade_level_id' => null, 'code' => 'full', 'name' => 'Fictional All Grades Full'];
+        $this->actingAs($admin)->post(route('billing.configuration.plan-options'), $allGrades)->assertRedirect();
+        $this->actingAs($admin)->post(route('billing.configuration.plan-options'), $allGrades)->assertSessionHasErrors('code');
+        $this->assertSame(1, PaymentPlanOption::query()->where('academic_year_id', $enrollment->academic_year_id)->whereNull('grade_level_id')->where('code', 'full')->count());
+
+        $option = PaymentPlanOption::query()->where('grade_level_id', $enrollment->grade_level_id)->firstOrFail();
+        $this->actingAs($accounting)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional request'])->assertForbidden();
+        $this->actingAs($admin)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional configuration correction'])->assertRedirect();
+        $this->assertFalse($option->fresh()->is_active);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'billing.payment_plan_option.deactivated', 'subject_id' => $option->id]);
+    }
+
+    public function test_accounting_search_explains_missing_fee_schedule_and_only_shows_valid_plans(): void
+    {
+        $accounting = $this->user(['accounting']);
+        [$enrollment, $schedule] = $this->fixture();
+        $schedule->update(['status' => 'draft']);
+
+        $this->actingAs($accounting)
+            ->get(route('billing.index', ['search' => 'Fictional Student']))
+            ->assertOk()
+            ->assertSee('Fictional Student')
+            ->assertSee('Blocked: no published fee schedule')
+            ->assertSee('A payment plan by itself is not enough.');
+
+        $schedule->update(['status' => 'published']);
+        $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
+        app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
+        PaymentPlanOption::query()->create(['academic_year_id' => $enrollment->academic_year_id, 'grade_level_id' => $enrollment->grade_level_id, 'code' => 'monthly', 'name' => 'Fictional Grade 1 Monthly', 'is_active' => true]);
+        PaymentPlanOption::query()->create(['academic_year_id' => $enrollment->academic_year_id, 'grade_level_id' => $enrollment->grade_level_id, 'code' => 'full', 'name' => 'Fictional Grade 1 Full', 'is_active' => false]);
+
+        $this->actingAs($accounting)
+            ->get(route('billing.portal.show', $assessment))
+            ->assertOk()
+            ->assertSee('Fictional Grade 1 Monthly')
+            ->assertDontSee('Fictional Grade 1 Full');
+    }
+
+    public function test_optional_fee_items_selected_by_string_ids_are_saved_to_draft_assessment(): void
+    {
+        $accounting = $this->user(['accounting']);
+        [$enrollment, $schedule] = $this->fixture();
+        $books = FeeType::query()->create(['code' => 'BKS', 'name' => 'Books', 'category' => 'Materials', 'is_mandatory' => false, 'is_permit_critical' => false]);
+        $booksItem = FeeScheduleItem::query()->create(['fee_schedule_id' => $schedule->id, 'fee_type_id' => $books->id, 'description' => 'Books', 'amount' => '5500.00', 'is_required' => false]);
+
+        $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
+        $this->assertFalse($assessment->items()->where('fee_code', 'BKS')->exists());
+
+        // The browser submits checkbox values as strings; the action must still match them.
+        $this->actingAs($accounting)
+            ->put(route('billing.assessments.update', $assessment), [
+                'fee_schedule_id' => (string) $schedule->id,
+                'selected_items' => [(string) $booksItem->id],
+                'revision_reason' => 'Add books',
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('status');
+
+        $this->assertTrue($assessment->fresh()->items()->where('fee_code', 'BKS')->exists());
+    }
+
+    public function test_cancelled_assessment_reopens_re_assessment_and_hides_plan_actions(): void
+    {
+        $accounting = $this->user(['accounting']);
+        [$enrollment, $schedule] = $this->fixture();
+
+        // Create a draft assessment — the student leaves the awaiting queue.
+        $this->actingAs($accounting)->post(route('billing.assessments.create', $enrollment), ['fee_schedule_id' => $schedule->id])->assertRedirect();
+        $assessment = FeeAssessment::query()->where('enrollment_id', $enrollment->id)->firstOrFail();
+        $awaitingWithDraft = $this->actingAs($accounting)->get(route('billing.index'))->viewData('assessableEnrollments')->getCollection()->pluck('id');
+        $this->assertFalse($awaitingWithDraft->contains($enrollment->id));
+
+        // Cancel the draft — the student returns to the awaiting queue (Fix 1).
+        $this->actingAs($accounting)->post(route('billing.assessments.cancel', $assessment), ['reason' => 'Fictional wrong schedule'])->assertRedirect();
+        $this->assertSame('cancelled', $assessment->fresh()->status);
+        $awaitingAfterCancel = $this->actingAs($accounting)->get(route('billing.index'))->viewData('assessableEnrollments')->getCollection()->pluck('id');
+        $this->assertTrue($awaitingAfterCancel->contains($enrollment->id));
+
+        // The billing queue no longer offers "Choose plan" on the cancelled row (Fix 2).
+        $this->actingAs($accounting)->get(route('billing.index'))->assertSee('Re-assess in Step 1');
+
+        // The portal hides plan/payment actions for a cancelled assessment (Fix 3).
+        $this->actingAs($accounting)->get(route('billing.portal.show', $assessment->fresh()))
+            ->assertSee('can no longer take a payment plan')
+            ->assertDontSee('Step 3: Choose payment plan');
+
+        // Re-assessment is possible again and produces a fresh draft revision.
+        $this->actingAs($accounting)->post(route('billing.assessments.create', $enrollment), ['fee_schedule_id' => $schedule->id])->assertRedirect();
+        $this->assertSame(1, FeeAssessment::query()->where('enrollment_id', $enrollment->id)->where('status', 'draft')->count());
+    }
+
+    public function test_configuration_forms_answer_ajax_with_section_json_and_validation_json(): void
+    {
+        $admin = $this->user(['admin']);
+        [$enrollment] = $this->fixture();
+
+        $payload = [
+            'academic_year_id' => $enrollment->academic_year_id,
+            'grade_level_id' => $enrollment->grade_level_id,
+            'code' => 'monthly',
+            'name' => 'Fictional AJAX Monthly',
+            'is_active' => '1',
+        ];
+
+        // A JSON (AJAX) request gets the re-rendered section back, not a redirect.
+        $ok = $this->actingAs($admin)->postJson(route('billing.configuration.plan-options'), $payload);
+        $ok->assertOk()
+            ->assertJsonPath('section', 'payment-plans')
+            ->assertJsonStructure(['section', 'html', 'message']);
+        $this->assertStringContainsString('data-section="payment-plans"', $ok->json('html'));
+        $this->assertStringContainsString('Fictional AJAX Monthly', $ok->json('html'));
+
+        // A JSON request that fails validation gets 422 JSON, not an HTML redirect.
+        $this->actingAs($admin)
+            ->postJson(route('billing.configuration.plan-options'), [...$payload, 'name' => ''])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('name');
+
+        // A normal (non-JSON) request still redirects with a flash status.
+        $this->actingAs($admin)
+            ->post(route('billing.configuration.fee-types'), ['code' => 'LAB', 'name' => 'Laboratory', 'category' => 'Academic'])
+            ->assertRedirect()
+            ->assertSessionHas('status');
     }
 
     private function fixture(?User $guardianUser = null, ?User $studentUser = null): array
