@@ -3,8 +3,8 @@
 namespace App\Modules\Communications\Http\Controllers;
 
 use App\Modules\Communications\Actions\CreateAnnouncementAction;
+use App\Modules\Communications\Actions\CreateNotificationTemplateVersionAction;
 use App\Modules\Communications\Actions\RetrySmsNotificationAction;
-use App\Modules\Communications\Actions\SafeMessageContent;
 use App\Modules\Communications\Http\Requests\StoreAnnouncementRequest;
 use App\Modules\Communications\Http\Requests\StoreNotificationTemplateRequest;
 use App\Modules\Communications\Models\Announcement;
@@ -43,19 +43,17 @@ class CommunicationsController
     {
         $announcement = $action->execute($request->safe()->except('audiences'), $request->validated('audiences'), $request->user());
 
-        return to_route('communications.show', $announcement)->with('success', 'Announcement saved.');
+        return to_route('communications.show', $announcement)->with('status', 'Announcement saved.');
     }
 
-    public function storeTemplate(StoreNotificationTemplateRequest $request, SafeMessageContent $content): RedirectResponse
+    public function storeTemplate(StoreNotificationTemplateRequest $request, CreateNotificationTemplateVersionAction $action): RedirectResponse
     {
-        $content->validate($request->string('content')->toString());
-        $nextVersion = (int) NotificationTemplate::query()->where('code', $request->string('code'))->where('channel', 'sms')->max('version') + 1;
-        if ($request->boolean('is_active')) {
-            NotificationTemplate::query()->where('code', $request->string('code'))->where('channel', 'sms')->update(['is_active' => false]);
-        }
-        NotificationTemplate::query()->create($request->safe()->only(['code', 'purpose', 'content', 'is_active']) + ['channel' => 'sms', 'version' => $nextVersion, 'created_by' => $request->user()->id]);
+        $action->execute([
+            ...$request->safe()->only(['code', 'purpose', 'content']),
+            'is_active' => $request->boolean('is_active'),
+        ], $request->user());
 
-        return to_route('communications.admin')->with('success', 'Template version saved.');
+        return to_route('communications.admin')->with('status', 'Template version saved.');
     }
 
     public function admin(): View
@@ -73,6 +71,6 @@ class CommunicationsController
         Gate::authorize('retrySms', Announcement::class);
         $action->execute($notification, $request->user());
 
-        return back()->with('success', 'SMS retry queued.');
+        return back()->with('status', 'SMS retry queued.');
     }
 }

@@ -18,7 +18,8 @@ class SemaphoreSmsGateway implements SmsGateway
 
         $response = Http::asForm()->timeout(10)->post(rtrim((string) config('communications.sms.semaphore.base_url'), '/').'/api/v4/messages', [
             'apikey' => $key,
-            'number' => $recipient,
+            // Semaphore expects local (09XXXXXXXXX) or 63-prefixed digits, not a leading "+".
+            'number' => ltrim($recipient, '+'),
             'message' => $body,
             'sendername' => $sender,
         ]);

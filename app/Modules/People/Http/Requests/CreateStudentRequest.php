@@ -17,7 +17,7 @@ class CreateStudentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'user_public_id' => ['nullable', 'ulid', 'exists:users,public_id'],
+            'user_public_id' => ['prohibited'],
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'middle_name' => ['nullable', 'string', 'max:100'],

@@ -138,7 +138,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 3 - Academic catalog, sections, and teaching assignments
 
-**Status:** Complete on 2026-07-11. The catalog is intentionally empty until JCA supplies its official school-year data; no production fixtures were seeded.
+**Status:** Complete on 2026-07-11. On 2026-07-23, JCA confirmed and populated the grade progression from Nursery through Grade 12; official school years, subjects, sections, advisers, and teaching assignments remain pending.
 
 **Goal:** create school-year academic structure and teacher scopes before enrollment uses them.
 
@@ -151,7 +151,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 **Prerequisite input**
 
-- Confirm grade offerings and supply the initial school year, subjects, official section names, advisers, and teaching assignments. Development fixtures may be used if clearly non-production.
+- Supply the initial school year, subjects, official section names, advisers, and teaching assignments. Grade offerings were confirmed on 2026-07-23. Development fixtures may be used if clearly non-production.
 
 **Scope**
 
@@ -204,7 +204,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 - Minimal unauthenticated application start with contact verification and abuse controls.
 - Student/guardian deduplication review and invitation connection.
 - Multi-step enrollment form, save/resume, submission, state machine, history, decisions.
-- Requirement rule catalog/snapshot/checklist, private uploads, replacement, verification, rejection, authorized waiver.
+- Requirement rule catalog/snapshot/checklist, D-025 versioned private soft-copy evidence, audited hard-copy receipt/replacement tracking, independent review states, and authorized waiver.
 - Restricted support case, observations, assessment decision, approved teacher-safe summary, and access audit.
 - Guardian enrollment progress and Registrar review queues.
 - Promotion is excluded until Phase 5, but schema retains predecessor links.
@@ -216,7 +216,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 **Acceptance criteria**
 
 - Invalid transitions are impossible through UI and direct requests.
-- Approval requires all blocking requirements resolved and support approval when required.
+- Approval requires each blocking item to have a verified soft copy, a recorded hard-copy receipt, or an authorized waiver; soft-copy approval preserves the outstanding hard-copy obligation.
 - Raw files are not publicly addressable and all access is authorized/logged.
 - General/Accounting/Teacher views cannot retrieve raw support data.
 - Duplicate active school-year enrollment is transactionally prevented.
@@ -254,6 +254,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 - Admin-only capacity override with reason.
 - Final academic `enrolled` transition independent of finance.
 - Promotion recommendation and next-school-year draft creation.
+- Audited carryover of accepted hard-copy requirement evidence into the linked promotion enrollment.
 - Portal display of confirmed section and schedule.
 
 **Excluded**
@@ -267,6 +268,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 - Support-review students cannot be confirmed without suitability approval.
 - Transfers preserve prior assignment.
 - Promotion creates a new draft and does not mutate historical enrollment.
+- Promotion retains accepted prior hard-copy evidence with explicit source provenance and does not carry rejected or waived evidence as accepted proof.
 
 **Required tests**
 

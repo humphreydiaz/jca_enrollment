@@ -1,0 +1,7 @@
+<section id="calendar" data-section="calendar" class="scroll-mt-28 jca-card overflow-hidden" aria-labelledby="calendar-title">
+    <div class="border-b border-border px-5 py-4 sm:px-6"><h2 id="calendar-title" class="text-xl font-black text-brand-navy-900">School non-business days</h2><p class="mt-1 text-sm text-muted">Dates used when financial due dates must roll forward.</p></div>
+    <div class="p-5 sm:p-6">
+        <div class="flex flex-wrap gap-2">@forelse ($nonBusinessDays as $day)<x-ui.status-badge tone="neutral">{{ $day->calendar_date->format('M j, Y') }} · {{ $day->label }}</x-ui.status-badge>@empty<span class="text-sm text-muted">No non-business days configured.</span>@endforelse</div>
+        <form method="POST" action="{{ route('billing.configuration.non-business-days') }}" data-ajax class="mt-5 grid gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-3">@csrf<label class="jca-label">School year<select class="jca-input" name="academic_year_id" required>@foreach ($academicYears as $year)<option value="{{ $year->id }}">{{ $year->name }}</option>@endforeach</select></label><label class="jca-label">Date<input class="jca-input" type="date" name="calendar_date" required></label><label class="jca-label">Label<input class="jca-input" name="label" placeholder="School holiday" required></label><button class="jca-button-primary sm:col-span-3" type="submit">Add non-business day</button></form>
+    </div>
+</section>

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ExcludeFromPreviousUrl;
 use App\Http\Middleware\SecurityHeaders;
 use App\Modules\Identity\Http\Middleware\EnsurePasswordChanged;
 use App\Modules\Identity\Http\Middleware\EnsureRole;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'password.changed' => EnsurePasswordChanged::class,
             'role' => EnsureRole::class,
+            'exclude.previous-url' => ExcludeFromPreviousUrl::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -40,7 +42,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'token',
             'verification_code',
         ]);
+        // Render JSON for API routes and for any request that explicitly accepts
+        // JSON (e.g. the configuration page's background AJAX form posts), so
+        // validation failures return 422 JSON instead of an HTML redirect.
+        // Normal Blade form posts and feature tests don't send Accept: JSON, so
+        // they keep the classic redirect-with-errors behaviour.
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
+            fn (Request $request) => $request->is('api/*') || $request->wantsJson(),
         );
     })->create();

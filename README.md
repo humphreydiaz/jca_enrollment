@@ -8,6 +8,8 @@ Browser-based enrollment and student management for J.C.S.G.O. Christian Academy
 
 The codebase now also contains a configurable offline Billing module. Phase 6 adds versioned fee schedules, immutable assessment revisions, exact-centavo installment schedules, transactionally ranked development discount campaigns, append-only payment/reversal/adjustment/refund history, private payment evidence, reproducible permit calculations and overrides, scoped financial portals, and audited statement/receipt/permit/ledger print views. No online collection integration exists.
 
+The authenticated interface includes a responsive role-scoped admin shell with grouped icon navigation, active-page states, permanent desktop and drawer-based mobile navigation, role-aware operational dashboards, standardized form/button/empty-state components, and modernized Section Assignment and Financial Configuration workspaces. These presentation changes do not broaden route authorization or alter business transitions.
+
 Verified baseline on 2026-07-11:
 
 - Laravel Framework 13.19.0 (`composer.json` allows `^13.8`)
@@ -22,7 +24,7 @@ Verified baseline on 2026-07-11:
 - Admin-only user/role management, guardian/student profile linkage, and relationship verification
 - Admin/Registrar academic catalog management with history-preserving inactivation and assignment-scoped teacher read-only views
 - public email-code verification with staff-assisted verification for mobile-only applicants while live SMS remains disabled
-- MySQL-serialized duplicate intake, private document history, restricted reviewer assignment, append-only support events, and non-enumerating sensitive record denials
+- MySQL-serialized duplicate intake, private versioned soft-copy evidence, independently audited hard-copy requirement tracking, authorized document preview/download, restricted reviewer assignment, append-only support events, and non-enumerating sensitive record denials
 - Phase 4 verification: 38 tests and 267 assertions, dedicated-MySQL fresh/rollback/reapply, production asset build, Pint, Composer validation, route listing, and diff checks
 - Phase 5 verification: 47 tests and 376 assertions, including second-connection MySQL row-lock tests for confirmation/transfer and full migration rollback/reapplication
 - Phase 6 verification: 65 tests and 548 assertions, MySQL fresh migration plus complete rollback/reapplication, true second-connection campaign/reference lock tests, production asset build, Pint, Composer validation, 112-route inspection, and Git whitespace checks. Development fee values and calendars remain explicitly non-production.
@@ -68,9 +70,10 @@ The original source material is retained as `JCA-OUTLINE.pdf`; the school identi
 ## Identity foundation
 
 - Public registration is intentionally unavailable.
-- Login accepts a configured email or mobile identifier and uses rate limiting.
+- Parent/Student login is available at `/login`; Admin, Registrar, Accounting, and Teacher login is available at `/staff/login`. Both accept a configured email or mobile identifier, use rate limiting, and reject the other role group without revealing account state.
 - Account setup uses a one-time invitation token; no permanent plaintext password is sent.
 - Recovery is staff-assisted: after identity verification, an Admin issues a short-lived recovery invitation to the existing contact channel.
+- Disabled accounts require an audited Admin reactivation reason and a replacement setup invitation; disabling revokes open invitations, and locked accounts remain blocked for security review.
 - Staff roles can be combined; Guardian/Student portal roles cannot be combined with staff roles.
 - Guardian/student links are many-to-many and have explicit visibility/contact permissions plus verification state.
 
@@ -118,14 +121,16 @@ The following prepares the skeleton only; it does not add JCA features.
    php artisan migrate
    ```
 
-7. Seed fixed system roles, then create the first administrator through a secure interactive prompt. This command never creates a default password:
+7. Seed fixed system roles and the confirmed Nursery-to-Grade-12 progression, then create the first administrator through a secure interactive prompt. This command never creates a default password:
 
    ```powershell
    php artisan db:seed
    php artisan identity:bootstrap-admin
    ```
 
-   Optional Phase 6 development fixtures are never run by `DatabaseSeeder`. To load the clearly labeled fictional Grades 1-12 fee/calendar baseline into a disposable development database, run `php artisan db:seed --class="Database\\Seeders\\Billing\\BillingDevelopmentSeeder"` explicitly. Replace it with approved school configuration before production.
+   The base grade catalog is safe to reseed and preserves existing grade IDs while restoring names, stages, order, active status, and progression links. Optional development fixtures are never run by `DatabaseSeeder`. To load the clearly labeled fictional fee/calendar baseline into a disposable development database, run `php artisan db:seed --class="Database\\Seeders\\Billing\\BillingDevelopmentSeeder"` explicitly. To populate only the active Junior High grades in the current local School Year 2026-2027, run `php artisan db:seed --class="Database\\Seeders\\Billing\\CurrentSchoolYearJuniorHighBillingTestSeeder"`. To configure the owner-approved dual-evidence requirement checklist for an existing local School Year 2026-2027 and backfill active applications, run `php artisan db:seed --class="Database\\Seeders\\Requirements\\RequirementsDevelopmentSeeder"`. Replace all development configuration with approved school configuration before production.
+
+   After deploying the promotion-requirement carryover migration to a database that already contains promotion enrollments, run `php artisan requirements:carry-forward-promotions`. The command is idempotent, carries only accepted hard-copy evidence, and reports counts without printing student information.
 
 8. Start development processes using the existing Composer script or separate Laravel/Vite processes:
 
@@ -178,7 +183,7 @@ This structure lets future tasks work from current contracts without loading the
 - JCA has not supplied the approved Semaphore sender name, consent wording, live message templates, escalation contacts, or live credentials. SMS is intentionally disabled until these P-005 inputs are approved.
 - JCA has not approved the official report list, final column sets, signatories, control/reference formats, or branded print layouts. Phase 8 outputs are explicitly development operational reports until P-006 is resolved.
 - Role owners, UAT signatories, training completion, incident contacts, and launch authority remain pending P-008.
-- The source logo is a JPEG in the project root and needs non-destructive web optimization during a later UI refinement task.
+- The source logo remains preserved, and the shared navbar/sidebar brand uses `public/images/logo/jca_logo.png` as its web asset.
 
 ## License
 

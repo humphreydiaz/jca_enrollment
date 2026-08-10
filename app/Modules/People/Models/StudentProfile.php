@@ -19,11 +19,26 @@ class StudentProfile extends Model
         'public_id',
         'user_id',
         'student_number',
+        'lrn',
         'first_name',
         'last_name',
         'middle_name',
+        'extension_name',
         'preferred_name',
+        'sex',
         'birth_date',
+        'birth_place',
+        'mother_tongue',
+        'religion',
+        'ip_group',
+        'is_4ps_recipient',
+        'four_ps_household_id',
+        'is_learner_with_disability',
+        'disability_type',
+        'current_address',
+        'permanent_address',
+        'father_name',
+        'mother_maiden_name',
         'status',
     ];
 
@@ -41,6 +56,8 @@ class StudentProfile extends Model
     {
         return [
             'birth_date' => 'date',
+            'is_4ps_recipient' => 'boolean',
+            'is_learner_with_disability' => 'boolean',
         ];
     }
 
@@ -87,9 +104,14 @@ class StudentProfile extends Model
         return $this->hasMany(Enrollment::class, 'student_id');
     }
 
+    public function potentialDuplicateEnrollments(): HasMany
+    {
+        return $this->hasMany(Enrollment::class, 'potential_duplicate_student_id');
+    }
+
     public function getFullNameAttribute(): string
     {
-        return collect([$this->first_name, $this->middle_name, $this->last_name])
+        return collect([$this->first_name, $this->middle_name, $this->last_name, $this->extension_name])
             ->filter()
             ->join(' ');
     }

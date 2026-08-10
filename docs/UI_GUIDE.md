@@ -4,7 +4,7 @@
 
 The interface should feel welcoming, lively, trustworthy, and school-oriented. Use the PSU screenshots only as functional references for portal login, account setup, enrollment forms, and menu organization. Do not reproduce their dated dense layout or tiny typography.
 
-The school logo is the visual source of truth. The inspected source asset is `JCA Logo.jpg`, an 825 x 787 RGB JPEG. It is not yet a web asset under `public/`. Preserve the original; a future UI phase may create optimized web derivatives and an accessible favicon without overwriting it.
+The school logo is the visual source of truth. Preserve the original `JCA Logo.jpg`; the shared navbar/sidebar brand uses the approved web asset at `public/images/logo/jca_logo.png` without overwriting the source.
 
 ## 2. Visual principles
 
@@ -52,8 +52,8 @@ Do not use gold text on white for essential content. Verify all text/background 
 
 ### Desktop
 
-- Navy top bar with logo, product name, school-year selector/status, notifications, and profile menu.
-- Light sidebar with role-scoped navigation and clear selected state.
+- Navy top bar beside the permanent sidebar with the current workspace title, authenticated user context, and sign-out control. Do not render non-functional search, notification, or school-year controls.
+- Light full-height sidebar with grouped, icon-supported, role-scoped navigation and a clear selected state. The sidebar scrolls independently when its authorized menu is taller than the viewport.
 - Main area uses a readable max width for forms and a wider layout for reports/tables.
 - Breadcrumbs only where hierarchy is deeper than one level.
 
@@ -74,6 +74,15 @@ Do not use gold text on white for essential content. Verify all text/background 
 - **Student:** Home, My Enrollment, Requirements, Schedule/Section, Announcements, Profile.
 
 The server decides what navigation is rendered; hiding an item is not authorization.
+
+### Implemented UI foundations
+
+- Reusable local SVG icon, navigation-link, page-header, empty-state, status-badge, field, and button components; no icon or dashboard dependency is required.
+- Shared `.jca-input`, label, checkbox, card, and button treatments provide visible focus, consistent sizing, disabled states, and accessible contrast across legacy and modernized forms.
+- Internal engineering phase names are not presented as workspace titles. Unapproved production policy remains visible only as a clearly worded operational warning where it affects safe use.
+- Empty queues explain what will appear and avoid decorative charts or invented operational data.
+- Section Assignment uses queue summaries, anchored workspace sections, status text, deliberate tables, and history-preserving actions.
+- Financial Configuration uses anchored configuration areas, labeled controls, policy warnings, and compact summaries while retaining the existing audited server actions.
 
 ## 6. Core patterns
 
@@ -99,18 +108,20 @@ Payment standing appears as a separate panel so an unpaid balance does not visua
 
 ### Status badges
 
-Use stable language across screens:
+Use the shared `x-ui.status-badge` component for record states in cards, tables, summaries, queues, and public progress views. Pass the canonical status value so the component formats its label and applies the same semantic tone everywhere. Form controls remain normal selects, checkboxes, or radio buttons.
 
-- Draft - neutral
+Use stable language and tones across screens:
+
+- Draft/Planned/Pending/Incomplete - amber
 - Submitted/Under review - blue
-- Incomplete/Payment due - amber
-- Assessment required - orange
-- Approved/Verified/Paid - green
-- Waitlisted - violet or blue with explicit label
-- Rejected/Cancelled/Failed - red
-- Enrolled - navy/green combination with explicit label
+- Assessment required/Waitlisted - amber with an explicit label
+- Active/Open/Approved/Verified/Paid/Completed - green
+- Rejected/Cancelled/Failed/Revoked/Expired - red
+- Inactive/Closed/Archived/Withdrawn - neutral
 
-Badges need readable text such as “3 requirements missing,” not an unlabeled colored dot.
+Badges always include readable text; color is supplementary and never the only status indicator. Context-specific wording may override the generated label without changing the canonical status tone.
+
+Presentation varies by urgency to avoid a wall of identical pills: attention and failure states use soft filled pills with a dot, positive/current states use compact bordered badges with a very light tone-matched fill, and inactive or historical states use flat status text. Metadata such as enrollment category may use the lightly filled bordered variant. The canonical label and tone must remain unchanged when choosing a presentation variant.
 
 ### Forms
 
@@ -122,13 +133,15 @@ Badges need readable text such as “3 requirements missing,” not an unlabeled
 - Break long enrollment into resumable steps; show save state and last saved time.
 - Confirm before irreversible submission, rejection, waiver, override, reversal, or deletion.
 
-### Document upload
+### Enrollment requirement evidence
 
-- State allowed formats and maximum size before selection.
-- Show filename, type, size, upload/validation state, and replacement rules.
-- Preview only safe supported types through an authorized route.
-- Never show raw storage paths.
-- Explain rejection and allow replacement while retaining review history.
+- Show soft-copy evidence and the continuing hard-copy obligation as two separate states for every configured requirement.
+- Tell applicants that a verified soft copy or received hard copy may support approval, but the physical document remains required and may be submitted later.
+- Student applicants and authorized Guardians receive private PDF/JPG/PNG upload controls only while the application is actively under review; show the 5 MB limit before upload.
+- Registrar/Admin sees one audited preview modal for the current soft copy, plus a separate Verify or Reject/replace decision.
+- Registrar/Admin can record receipt, receiving notes, and a correction back to Not Received before review.
+- Verification and rejection are available only after receipt; rejection explains that a replacement hard copy is required.
+- Only Admin can waive an item, with a required reason. Preserve receipt and review history in audit records.
 
 ### Tables and filters
 
@@ -149,11 +162,14 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 
 ### Login and invitation setup
 
-- Friendly light page with the logo and school name, one focused card, and clear support contact.
+- The parent/student `/login` page uses a focused two-column card: a short credential form and audience explanation beside the approved school collage. On small screens the image becomes a compact banner and the form remains the primary content.
+- Staff use the separate `/staff/login` page, which clearly names the Admin, Registrar, Accounting, and Teacher audience and links back to the parent/student entry point.
+- Both sign-in pages keep real labels, visible keyboard focus, password reveal, recovery help, and a neutral failure message that does not reveal an account's existence or role.
 - Use “Application reference,” “Mobile/email,” or school-issued identifier according to the flow; do not expose whether an arbitrary account exists.
 - Invitation setup explains expiry and password requirements.
 - Do not emulate the PSU page's tiny centered form or send permanent temporary passwords.
 - Account recovery is a neutral staff-contact page; it must not ask for an identifier or reveal whether an account exists.
+- User management shows reactivation only for disabled accounts. Reactivation and disabling both require visible reason fields; a successful reactivation displays the replacement one-time setup link once.
 
 ### Guardian portal
 
@@ -162,10 +178,21 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 - Financial view is a summary/ledger within permitted guardian relationship settings.
 - Do not expose another guardian's private contact information.
 
+### Student portal
+
+- A Student-role account must be connected one-to-one to a student profile before private student-profile, section, schedule, or financial records are available.
+- Before profile connection, a signed-in Student who owns an application sees only that application's reference, grade/year, status timeline, dual requirement statuses, and private upload controls during active review. Drafts show Resume draft; active non-drafts show View application status; a new-application action returns only after the prior application is rejected, withdrawn, or cancelled.
+- Admin connects an existing unlinked Student account from People management only after enrollment approval; the server rejects non-Student accounts, accounts already connected elsewhere, and students without an approved/enrolled record. Grades 1-6 require a visible exception reason and the material identity link is audited.
+- People management must show the student profile, approved grade/year, and connected login as separate facts. Account linking requires an explicit identity confirmation, rejects clearly mismatched names, and supports an Admin-only audited disconnect that revokes sessions without deleting the profile or enrollment. Placeholder exception reasons such as `N/A` are rejected.
+- People management explains that Grades 1-6 use guardian-assisted enrollment and Grades 7-12 may self-apply from an invited Student login. The manual student-profile form is labeled for existing/legacy records and warns staff not to use it before online enrollment.
+- An unused mistaken student profile exposes a reasoned, confirmed Admin deletion control. The server hides or rejects deletion once login, enrollment, guardian, communication, or closed duplicate-review history exists.
+- Missing profile linkage remains fail-closed with no student data rendered. Staff roles do not inherit Student portal access.
+
 ### Registrar workspace
 
 - Queue-first dashboard: submitted, incomplete, assessment pending, ready for approval, section pending.
 - Review layout keeps student summary, checklist, and history visible without opening multiple windows.
+- Section assignment uses independently paginated tables for awaiting placement, current assignments, transfer history, and promotion review. Shared server-validated filters narrow student, school year, grade, and promotion status; focused row actions open one reusable placement, transfer, or promotion dialog instead of rendering a full form in every row.
 - Raw support documents are separated behind an explicit sensitive-content boundary and audited access.
 
 ### Accounting workspace

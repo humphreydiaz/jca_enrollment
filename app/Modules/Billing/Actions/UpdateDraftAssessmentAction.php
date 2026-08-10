@@ -18,6 +18,9 @@ final class UpdateDraftAssessmentAction
 
     public function execute(FeeAssessment $assessment, FeeSchedule $schedule, array $selectedIds, ?string $reason, User $actor): FeeAssessment
     {
+        // Form values arrive as strings; normalize so the strict in_array match below works.
+        $selectedIds = array_map('intval', $selectedIds);
+
         return DB::transaction(function () use ($assessment, $schedule, $selectedIds, $reason, $actor): FeeAssessment {
             $record = FeeAssessment::query()->with('enrollment')->lockForUpdate()->findOrFail($assessment->id);
             if ($record->status !== 'draft') {

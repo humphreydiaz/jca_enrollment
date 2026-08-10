@@ -75,7 +75,7 @@ class BootstrapAdminCommand extends Command
         StaffProfile::query()->firstOrCreate(['user_id' => $user->id]);
         $auditRecorder->record(null, 'identity.initial_admin.created', $user);
 
-        $this->info('Administrator account created. Sign in through the normal login page and change the password if it was shared during setup.');
+        $this->info('Administrator account created. Sign in through /staff/login and change the password if it was shared during setup.');
 
         return self::SUCCESS;
     }

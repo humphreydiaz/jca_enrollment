@@ -7,6 +7,7 @@ use App\Modules\Enrollment\Events\EnrollmentApproved;
 use App\Modules\Enrollment\Events\EnrollmentStatusChanged;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Enrollment\Models\EnrollmentStatusHistory;
+use App\Modules\Requirements\Actions\AssertEnrollmentRequirementsSatisfiedAction;
 use App\Modules\Requirements\Actions\GenerateEnrollmentChecklistAction;
 use App\Modules\Shared\Audit\AuditRecorder;
 use App\Modules\StudentSupport\Models\SupportCase;
@@ -15,24 +16,32 @@ use Illuminate\Validation\ValidationException;
 
 class TransitionEnrollmentAction
 {
-    public function __construct(private AuditRecorder $audit, private GenerateEnrollmentChecklistAction $checklist) {}
+    /** @var array<string, list<string>> */
+    private const ALLOWED_TRANSITIONS = [
+        'draft' => ['submitted', 'cancelled'],
+        'submitted' => ['under_review', 'incomplete', 'assessment_required', 'waitlisted', 'rejected', 'cancelled'],
+        'under_review' => ['incomplete', 'assessment_required', 'approved', 'waitlisted', 'rejected', 'cancelled'],
+        'incomplete' => ['submitted', 'rejected', 'cancelled'],
+        'assessment_required' => ['assessment_pending', 'rejected', 'cancelled'],
+        'assessment_pending' => ['under_review', 'rejected', 'cancelled'],
+        'waitlisted' => ['under_review', 'rejected', 'cancelled'],
+        'approved' => ['withdrawn'],
+    ];
+
+    public function __construct(private AuditRecorder $audit, private GenerateEnrollmentChecklistAction $checklist, private AssertEnrollmentRequirementsSatisfiedAction $requirementsSatisfied) {}
+
+    /** @return list<string> */
+    public static function allowedTransitionsFrom(string $status): array
+    {
+        return self::ALLOWED_TRANSITIONS[$status] ?? [];
+    }
 
     public function execute(Enrollment $enrollment, string $to, ?User $actor, string $reason = ''): Enrollment
     {
         return DB::transaction(function () use ($enrollment, $to, $actor, $reason) {
             $record = Enrollment::query()->lockForUpdate()->with('requirements')->findOrFail($enrollment->id);
             $from = $record->status;
-            $allowed = [
-                'draft' => ['submitted', 'cancelled'],
-                'submitted' => ['under_review', 'incomplete', 'assessment_required', 'waitlisted', 'rejected', 'cancelled'],
-                'under_review' => ['incomplete', 'assessment_required', 'approved', 'waitlisted', 'rejected', 'cancelled'],
-                'incomplete' => ['submitted', 'rejected', 'cancelled'],
-                'assessment_required' => ['assessment_pending', 'rejected', 'cancelled'],
-                'assessment_pending' => ['under_review', 'rejected', 'cancelled'],
-                'waitlisted' => ['under_review', 'rejected', 'cancelled'],
-                'approved' => ['withdrawn'],
-            ];
-            if (! in_array($to, $allowed[$from] ?? [], true)) {
+            if (! in_array($to, self::allowedTransitionsFrom($from), true)) {
                 throw ValidationException::withMessages(['status' => 'This enrollment transition is not allowed.']);
             }
             if ($to === 'submitted' && $record->contact_verified_at === null) {
@@ -50,12 +59,7 @@ class TransitionEnrollmentAction
                 if ($record->duplicate_review_status === 'pending') {
                     throw ValidationException::withMessages(['status' => 'Potential duplicate identity must be reviewed first.']);
                 }
-                if ($record->requirements->filter(fn ($requirement) => (bool) ($requirement->rule_snapshot['is_required'] ?? false))->isEmpty()) {
-                    throw ValidationException::withMessages(['status' => 'The applicable requirement checklist has not been configured.']);
-                }
-                if ($record->requirements->whereIn('status', ['missing', 'submitted', 'under_review', 'rejected'])->where(fn ($r) => ($r->rule_snapshot['is_blocking'] ?? false))->isNotEmpty()) {
-                    throw ValidationException::withMessages(['status' => 'Blocking requirements must be resolved.']);
-                }
+                $this->requirementsSatisfied->execute($record);
                 if ($record->student_category === 'support_review' && ! SupportCase::query()->where('enrollment_id', $record->id)->where('final_outcome', 'approved')->exists()) {
                     throw ValidationException::withMessages(['status' => 'An approved support review is required.']);
                 }
@@ -70,6 +74,7 @@ class TransitionEnrollmentAction
                     $record->withdrawn_at = now();
                 }
                 $record->active_enrollment_key = null;
+                $record->active_student_application_key = null;
             }
             $record->decided_by = $actor?->id;
             $record->decision_reason = $reason ?: null;

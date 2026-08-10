@@ -3,6 +3,7 @@
 namespace App\Modules\Billing\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PaymentPlan extends Model
@@ -12,6 +13,11 @@ class PaymentPlan extends Model
     protected function casts(): array
     {
         return ['selected_at' => 'datetime'];
+    }
+
+    public function feeAssessment(): BelongsTo
+    {
+        return $this->belongsTo(FeeAssessment::class);
     }
 
     public function scheduleItems(): HasMany

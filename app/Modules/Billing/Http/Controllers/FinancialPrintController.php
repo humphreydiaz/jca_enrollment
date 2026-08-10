@@ -28,7 +28,7 @@ class FinancialPrintController
         $assessment->load(['enrollment.student', 'enrollment.gradeLevel', 'enrollment.academicYear', 'enrollment.currentSectionAssignment.section', 'items', 'plan.scheduleItems', 'payments' => fn ($query) => $query->where('status', 'posted')]);
         $audit->record($request->user(), 'billing.statement.printed', $assessment);
 
-        return view('billing.print.statement', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment), 'logoData' => $this->logoData()]);
+        return view('billing.print.statement', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment)]);
     }
 
     public function receipt(Payment $payment, Request $request, RecordReceiptPrintAction $record): View
@@ -39,7 +39,7 @@ class FinancialPrintController
         Gate::authorize('print', $payment);
         $print = $record->execute($payment, $request->user());
 
-        return view('billing.print.receipt', ['payment' => $payment->load(['assessment.enrollment.student', 'allocations', 'poster']), 'print' => $print, 'logoData' => $this->logoData()]);
+        return view('billing.print.receipt', ['payment' => $payment->load(['assessment.enrollment.student', 'allocations', 'poster']), 'print' => $print]);
     }
 
     public function permit(ExamPermit $permit, Request $request, RecordPermitPrintAction $record): View
@@ -53,7 +53,7 @@ class FinancialPrintController
         $permit->load(['enrollment.student', 'enrollment.gradeLevel', 'enrollment.academicYear', 'enrollment.currentSectionAssignment.section', 'period', 'issuer']);
         $signatoryRole = FinancialPrintSetting::query()->where('academic_year_id', $permit->enrollment->academic_year_id)->where('setting_key', 'permit_signatory_role')->value('setting_value') ?: 'Authorized School Signatory';
 
-        return view('billing.print.permit', ['permit' => $permit, 'print' => $print, 'logoData' => $this->logoData(), 'signatoryRole' => $signatoryRole]);
+        return view('billing.print.permit', ['permit' => $permit, 'print' => $print, 'signatoryRole' => $signatoryRole]);
     }
 
     public function ledger(FeeAssessment $assessment, Request $request, BalanceCalculator $balance, AuditRecorder $audit): View
@@ -63,12 +63,5 @@ class FinancialPrintController
         $audit->record($request->user(), 'billing.ledger.printed', $assessment);
 
         return view('billing.print.ledger', ['assessment' => $assessment, 'balance' => $balance->calculate($assessment)]);
-    }
-
-    private function logoData(): ?string
-    {
-        $path = base_path('JCA Logo.jpg');
-
-        return is_file($path) ? 'data:image/jpeg;base64,'.base64_encode((string) file_get_contents($path)) : null;
     }
 }

@@ -16,6 +16,8 @@ class DisableUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'reason' => ['required', 'string', 'max:2000'],
+        ];
     }
 }

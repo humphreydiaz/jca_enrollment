@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('guest')->group(function (): void {
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('identity.login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store'])->name('identity.login.store');
+    Route::get('/staff/login', [AuthenticatedSessionController::class, 'createStaff'])->name('identity.staff.login');
+    Route::post('/staff/login', [AuthenticatedSessionController::class, 'storeStaff'])->name('identity.staff.login.store');
     Route::get('/account-recovery', [AccountRecoveryController::class, 'create'])->name('identity.recovery');
     Route::get('/invitations/{invitation}/{token}', [InvitationAcceptanceController::class, 'create'])->name('identity.invitations.show');
     Route::post('/invitations/{invitation}/{token}', [InvitationAcceptanceController::class, 'store'])
@@ -33,11 +35,15 @@ Route::middleware(['auth', 'password.changed'])->group(function (): void {
         Route::post('/users', [UserManagementController::class, 'store'])->name('identity.admin.users.store');
         Route::put('/users/{user}/roles', [UserManagementController::class, 'updateRoles'])->name('identity.admin.users.roles');
         Route::post('/users/{user}/recovery-invitation', [UserManagementController::class, 'issueRecoveryInvitation'])->name('identity.admin.users.recovery');
+        Route::post('/users/{user}/reactivate-invitation', [UserManagementController::class, 'reactivate'])->name('identity.admin.users.reactivate');
         Route::delete('/users/{user}', [UserManagementController::class, 'disable'])->name('identity.admin.users.disable');
 
         Route::get('/people', [PeopleManagementController::class, 'index'])->name('people.admin.index');
         Route::post('/guardians', [PeopleManagementController::class, 'storeGuardian'])->name('people.admin.guardians.store');
         Route::post('/students', [PeopleManagementController::class, 'storeStudent'])->name('people.admin.students.store');
+        Route::delete('/students/{student}', [PeopleManagementController::class, 'destroyStudent'])->name('people.admin.students.destroy');
+        Route::put('/students/{student}/account', [PeopleManagementController::class, 'linkStudentAccount'])->name('people.admin.students.account');
+        Route::delete('/students/{student}/account', [PeopleManagementController::class, 'disconnectStudentAccount'])->name('people.admin.students.account.disconnect');
         Route::post('/guardian-student-links', [PeopleManagementController::class, 'link'])->name('people.admin.links.store');
         Route::post('/guardians/{guardian}/students/{student}/verify', [PeopleManagementController::class, 'verify'])->name('people.admin.links.verify');
     });

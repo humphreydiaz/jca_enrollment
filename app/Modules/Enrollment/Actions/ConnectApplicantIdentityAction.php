@@ -8,6 +8,7 @@ use App\Modules\Identity\Actions\ContactNormalizer;
 use App\Modules\Identity\Actions\CreateAccountInvitationAction;
 use App\Modules\Identity\Actions\CreatedInvitation;
 use App\Modules\Identity\Actions\CreateInvitedUserAction;
+use App\Modules\Identity\Enums\AccountStatus;
 use App\Modules\People\Actions\LinkGuardianStudentAction;
 use App\Modules\People\Actions\VerifyGuardianStudentLinkAction;
 use App\Modules\Shared\Audit\AuditRecorder;
@@ -53,9 +54,28 @@ class ConnectApplicantIdentityAction
                 $invitation = $created->invitation;
             } else {
                 if (! $user->hasRole('guardian')) {
-                    throw ValidationException::withMessages(['application' => 'The verified contact belongs to an incompatible account. Admin review is required.']);
+                    $contactLabel = $channel === 'email' ? 'email address' : 'mobile number';
+                    $conflictRoles = $user->roles->pluck('code')->implode(', ');
+                    throw ValidationException::withMessages([
+                        'application' => "This guardian's {$contactLabel} is already registered to a non-guardian account"
+                            .($conflictRoles !== '' ? " (role: {$conflictRoles})" : '')
+                            .", so it cannot be used to create a guardian login. Give the guardian a {$contactLabel} that no other account uses, then connect again. If this is genuinely the same person, an Admin must reconcile the two accounts first.",
+                    ]);
                 }
-                if (! $user->isActive()) {
+
+                if ($user->disabled_at !== null || $user->status === AccountStatus::Disabled) {
+                    throw ValidationException::withMessages([
+                        'application' => 'The connected guardian account is disabled. An Admin must reactivate it from User management before issuing a new setup link.',
+                    ]);
+                }
+
+                if ($user->locked_at !== null || $user->status === AccountStatus::Locked) {
+                    throw ValidationException::withMessages([
+                        'application' => 'The connected guardian account is locked and requires Admin security review.',
+                    ]);
+                }
+
+                if ($user->status === AccountStatus::Invited) {
                     $invitation = $this->createInvitation->execute($user, $channel, $sentTo, $actor);
                 }
             }

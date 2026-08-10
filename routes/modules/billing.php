@@ -47,10 +47,15 @@ Route::middleware(['auth', 'password.changed'])->group(function (): void {
         Route::patch('/configuration/fee-types/{feeType}', [BillingConfigurationController::class, 'updateFeeType'])->name('billing.configuration.fee-types.update');
         Route::post('/configuration/schedules', [BillingConfigurationController::class, 'schedule'])->name('billing.configuration.schedules');
         Route::post('/configuration/schedules/{schedule}/items', [BillingConfigurationController::class, 'scheduleItem'])->name('billing.configuration.schedule-items');
+        Route::put('/configuration/schedules/{schedule}/items/{item}', [BillingConfigurationController::class, 'updateScheduleItem'])->name('billing.configuration.schedule-items.update');
+        Route::delete('/configuration/schedules/{schedule}/items/{item}', [BillingConfigurationController::class, 'deleteScheduleItem'])->name('billing.configuration.schedule-items.destroy');
         Route::post('/configuration/schedules/{schedule}/publish', [BillingConfigurationController::class, 'publish'])->name('billing.configuration.schedule-publish');
         Route::post('/configuration/campaigns', [BillingConfigurationController::class, 'campaign'])->name('billing.configuration.campaigns');
         Route::post('/configuration/exam-periods', [BillingConfigurationController::class, 'period'])->name('billing.configuration.exam-periods');
         Route::post('/configuration/plan-options', [BillingConfigurationController::class, 'planOption'])->name('billing.configuration.plan-options');
+        Route::patch('/configuration/plan-options/{planOption}', [BillingConfigurationController::class, 'setPlanOptionStatus'])->name('billing.configuration.plan-options.status');
+        Route::put('/configuration/plan-options/{planOption}', [BillingConfigurationController::class, 'updatePlanOption'])->name('billing.configuration.plan-options.update');
+        Route::delete('/configuration/plan-options/{planOption}', [BillingConfigurationController::class, 'deletePlanOption'])->name('billing.configuration.plan-options.destroy');
         Route::post('/configuration/non-business-days', [BillingConfigurationController::class, 'nonBusinessDay'])->name('billing.configuration.non-business-days');
         Route::post('/configuration/print-settings', [BillingConfigurationController::class, 'printSetting'])->name('billing.configuration.print-settings');
         Route::post('/reversals/{reversal}/decision', [BillingController::class, 'decideReversal'])->name('billing.reversals.decide');

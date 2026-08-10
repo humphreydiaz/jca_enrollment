@@ -5,20 +5,45 @@
             <h1 id="application-title" class="mt-2 text-3xl font-black text-brand-navy-900">{{ $enrollment->student->full_name }}</h1>
             <dl class="mt-5 grid gap-4 text-sm sm:grid-cols-2">
                 <div><dt class="font-semibold text-muted">Private reference</dt><dd class="font-bold text-ink">{{ $enrollment->application_number }}</dd></div>
-                <div><dt class="font-semibold text-muted">Status</dt><dd class="font-bold text-ink">{{ ucfirst(str_replace('_', ' ', $enrollment->status)) }}</dd></div>
+                <div><dt class="font-semibold text-muted">Status</dt><dd class="mt-1"><x-ui.status-badge :status="$enrollment->status" /></dd></div>
                 <div><dt class="font-semibold text-muted">School year</dt><dd>{{ $enrollment->academicYear->name }}</dd></div>
                 <div><dt class="font-semibold text-muted">Requested grade</dt><dd>{{ $enrollment->gradeLevel->name }}</dd></div>
             </dl>
-            <p class="mt-5 text-sm text-muted">Save this page securely. The resume link contains a private secret and must not be shared.</p>
+            @if($resumeToken !== '')
+                <p class="mt-5 text-sm text-muted">Save this page securely. The resume link contains a private secret and must not be shared.</p>
+            @else
+                <p class="mt-5 text-sm text-muted">This application is securely linked to your signed-in Student account. Your permanent student profile remains separate until approval and Admin connection.</p>
+            @endif
+        </section>
+
+        <section class="jca-card p-6" aria-labelledby="application-timeline-title">
+            <h2 id="application-timeline-title" class="text-xl font-black text-brand-navy-900">Application timeline</h2>
+            <ol class="mt-4 space-y-3 border-l-2 border-brand-blue-100 pl-4 text-sm">
+                <li>
+                    <p class="font-bold text-brand-navy-900">Application created</p>
+                    <time class="text-muted" datetime="{{ $enrollment->created_at->toIso8601String() }}">{{ $enrollment->created_at->timezone('Asia/Manila')->format('d M Y, g:i A') }}</time>
+                </li>
+                @foreach($enrollment->history->sortBy('changed_at') as $event)
+                    <li>
+                        <p class="font-bold text-brand-navy-900">{{ str($event->to_status)->replace('_', ' ')->title() }}</p>
+                        <time class="text-muted" datetime="{{ $event->changed_at->toIso8601String() }}">{{ $event->changed_at->timezone('Asia/Manila')->format('d M Y, g:i A') }}</time>
+                        @if($event->reason)<p class="mt-1 text-muted">{{ $event->reason }}</p>@endif
+                    </li>
+                @endforeach
+            </ol>
         </section>
 
         @if($enrollment->contact_verified_at === null)
             <section class="jca-card p-6" aria-labelledby="verify-title">
                 <h2 id="verify-title" class="text-xl font-black text-brand-navy-900">1. Verify the contact</h2>
-                <p class="mt-2 text-sm text-muted">Enter the six-digit code sent to the email contact. Mobile-only applicants must ask JCA staff to verify the contact after an identity check; live SMS remains disabled.</p>
-                @if(session('verification_code'))
-                    <p class="mt-3 rounded-lg bg-warning-100 p-3 text-sm text-warning-800"><strong>Local testing code:</strong> {{ session('verification_code') }}</p>
-                @endif
+                @php
+                    $verificationChannelPhrase = match (true) {
+                        $enrollment->guardian->mobile && $enrollment->guardian->email => 'by SMS to your mobile number and by email',
+                        (bool) $enrollment->guardian->mobile => 'by SMS to your mobile number',
+                        default => 'to your email contact',
+                    };
+                @endphp
+                <p class="mt-2 text-sm text-muted">Enter the six-digit code we sent {{ $verificationChannelPhrase }}. The code expires in 15 minutes.</p>
                 <form method="POST" action="{{ route('enrollment.public.verify', $enrollment) }}" class="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
                     @csrf
                     <input type="hidden" name="resume_token" value="{{ $resumeToken }}">
@@ -26,6 +51,13 @@
                         <input id="verification_code" name="verification_code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required class="block w-full rounded-lg border-border px-3 py-3">
                     </x-ui.field>
                     <x-ui.button type="submit">Verify contact</x-ui.button>
+                </form>
+                <form method="POST" action="{{ route('enrollment.public.resend', $enrollment) }}" class="mt-3">
+                    @csrf
+                    <input type="hidden" name="resume_token" value="{{ $resumeToken }}">
+                    <button type="submit" class="text-sm font-semibold text-brand-navy-700 underline underline-offset-2 hover:text-brand-navy-900">
+                        Didn't get it? Resend code
+                    </button>
                 </form>
             </section>
         @elseif($enrollment->status === 'draft')
@@ -36,7 +68,12 @@
                     @csrf @method('PUT')
                     <input type="hidden" name="resume_token" value="{{ $resumeToken }}">
                     <x-ui.field for="guardian_relationship" label="Relationship to student">
-                        <input id="guardian_relationship" name="guardian_relationship" required value="{{ old('guardian_relationship', $enrollment->guardian_relationship) }}" class="block w-full rounded-lg border-border px-3 py-3">
+                        <select id="guardian_relationship" name="guardian_relationship" required class="jca-input">
+                            <option value="">Select</option>
+                            @foreach($guardianRelationships as $value => $label)
+                                <option value="{{ $value }}" @selected(old('guardian_relationship', $enrollment->guardian_relationship) === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </x-ui.field>
                     <x-ui.field for="student_middle_name" label="Student middle name (optional)">
                         <input id="student_middle_name" name="student_middle_name" value="{{ old('student_middle_name', $enrollment->student->middle_name) }}" class="block w-full rounded-lg border-border px-3 py-3">
@@ -44,6 +81,9 @@
                     @if($enrollment->student_category === 'transferee')
                         <x-ui.field for="previous_school_name" label="Previous school">
                             <input id="previous_school_name" name="previous_school_name" required value="{{ old('previous_school_name', $enrollment->previous_school_name) }}" class="block w-full rounded-lg border-border px-3 py-3">
+                        </x-ui.field>
+                        <x-ui.field for="previous_school_address" label="Previous school address">
+                            <input id="previous_school_address" name="previous_school_address" required value="{{ old('previous_school_address', $enrollment->previous_school_address) }}" class="block w-full rounded-lg border-border px-3 py-3">
                         </x-ui.field>
                     @endif
                     <div class="sm:col-span-2"><x-ui.button type="submit" variant="secondary">Save application details</x-ui.button></div>
@@ -62,11 +102,12 @@
         @if($enrollment->requirements->isNotEmpty())
             <section class="jca-card p-6" aria-labelledby="requirements-title">
                 <h2 id="requirements-title" class="text-xl font-black text-brand-navy-900">Requirements</h2>
-                <ul class="mt-4 space-y-2 text-sm">
+                <p class="mt-2 text-sm text-muted">A verified soft copy or a received hard copy may support enrollment approval. The physical hard copy remains required and may be submitted later.</p>
+                <div class="mt-4 space-y-3">
                     @foreach($enrollment->requirements as $requirement)
-                        <li class="flex justify-between gap-4 rounded-lg bg-canvas p-3"><span>{{ $requirement->documentType->name }}</span><strong>{{ ucfirst(str_replace('_', ' ', $requirement->status)) }}</strong></li>
+                        <x-enrollment.requirement-status :requirement="$requirement" />
                     @endforeach
-                </ul>
+                </div>
             </section>
         @endif
     </div>

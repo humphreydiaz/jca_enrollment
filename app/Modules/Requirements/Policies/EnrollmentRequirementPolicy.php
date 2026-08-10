@@ -8,13 +8,7 @@ use Illuminate\Auth\Access\Response;
 
 class EnrollmentRequirementPolicy
 {
-    public function upload(User $user, EnrollmentRequirement $requirement): Response
-    {
-        return in_array($requirement->enrollment->status, ['draft', 'submitted', 'incomplete'], true)
-            && ($this->owns($user, $requirement) || $user->hasAnyRole(['admin', 'registrar']))
-            ? Response::allow()
-            : Response::denyAsNotFound();
-    }
+    private const SOFT_COPY_UPLOAD_STATUSES = ['submitted', 'under_review', 'incomplete', 'assessment_required', 'assessment_pending', 'waitlisted'];
 
     public function view(User $user, EnrollmentRequirement $requirement): Response
     {
@@ -28,6 +22,15 @@ class EnrollmentRequirementPolicy
         return $user->hasAnyRole(['admin', 'registrar']);
     }
 
+    public function upload(User $user, EnrollmentRequirement $requirement): Response
+    {
+        $allowed = $user->hasAnyRole(['student', 'guardian'])
+            && $this->owns($user, $requirement)
+            && in_array($requirement->enrollment->status, self::SOFT_COPY_UPLOAD_STATUSES, true);
+
+        return $allowed ? Response::allow() : Response::denyAsNotFound();
+    }
+
     public function waive(User $user): bool
     {
         return $user->hasRole('admin');
@@ -35,6 +38,14 @@ class EnrollmentRequirementPolicy
 
     private function owns(User $user, EnrollmentRequirement $requirement): bool
     {
+        if ($requirement->enrollment->student_applicant_user_id === $user->id && $user->hasRole('student')) {
+            return true;
+        }
+
+        if ($user->studentProfile?->id === $requirement->enrollment->student_id) {
+            return true;
+        }
+
         $guardian = $user->guardianProfile;
         if ($guardian === null) {
             return false;

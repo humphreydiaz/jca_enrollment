@@ -35,6 +35,7 @@ use App\Modules\Billing\Models\FinancialAdjustment;
 use App\Modules\Billing\Models\Payment;
 use App\Modules\Billing\Models\PaymentReversal;
 use App\Modules\Billing\Models\Refund;
+use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Enrollment\Models\Enrollment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -46,14 +47,79 @@ class BillingController
     public function index(Request $request, BalanceCalculator $balance): View
     {
         Gate::authorize('viewAny', FeeAssessment::class);
-        $assessments = FeeAssessment::query()->with(['enrollment.student', 'items', 'payments'])->latest()->paginate(20);
+        $search = trim($request->string('search')->toString());
+        $gradeFilter = $request->integer('grade') ?: null;
+        $tokens = collect(preg_split('/\s+/', $search) ?: [])->filter()->take(5);
+        $filterByStudent = static function ($query, string $relation) use ($tokens): void {
+            if ($tokens->isEmpty()) {
+                return;
+            }
+
+            $query->whereHas($relation, function ($studentQuery) use ($tokens): void {
+                foreach ($tokens as $token) {
+                    $studentQuery->where(function ($nameQuery) use ($token): void {
+                        $like = '%'.$token.'%';
+                        $nameQuery->where('first_name', 'like', $like)
+                            ->orWhere('middle_name', 'like', $like)
+                            ->orWhere('last_name', 'like', $like)
+                            ->orWhere('student_number', 'like', $like);
+                    });
+                }
+            });
+        };
+        $filterByGrade = static function ($query, string $relation = 'enrollment') use ($gradeFilter): void {
+            if (! $gradeFilter) {
+                return;
+            }
+            $query->whereHas($relation, fn ($q) => $q->where('grade_level_id', $gradeFilter));
+        };
+
+        $assessmentQuery = FeeAssessment::query()->with([
+            'enrollment.student',
+            'enrollment.gradeLevel',
+            'enrollment.academicYear',
+            'items',
+            'payments',
+            'plan',
+        ])->latest();
+        $filterByStudent($assessmentQuery, 'enrollment.student');
+        $filterByGrade($assessmentQuery);
+        $assessments = $assessmentQuery->paginate(20, ['*'], 'assessments_page')->withQueryString();
+
+        $canViewAssessmentQueue = $request->user()->hasAnyRole(['admin', 'accounting']);
+        $canManageAssessments = $request->user()->hasRole('accounting');
+        $assessableEnrollments = collect();
+        $publishedSchedules = collect();
+        if ($canViewAssessmentQueue) {
+            $enrollmentQuery = Enrollment::query()
+                ->whereIn('status', ['approved', 'enrolled'])
+                // A student is "awaiting an assessment" when they have no live
+                // (draft or finalized) assessment. Cancelled/superseded records
+                // are void, so those students reappear here to be re-assessed.
+                ->whereDoesntHave('feeAssessments', fn ($query) => $query->whereIn('status', ['draft', 'finalized']))
+                ->with(['student', 'gradeLevel', 'academicYear'])
+                ->orderBy('approved_at');
+            $filterByStudent($enrollmentQuery, 'student');
+            if ($gradeFilter) {
+                $enrollmentQuery->where('grade_level_id', $gradeFilter);
+            }
+            $assessableEnrollments = $enrollmentQuery->paginate(20, ['*'], 'awaiting_page')->withQueryString();
+            $publishedSchedules = FeeSchedule::query()->where('status', 'published')->with('items.feeType')->get();
+        }
+
+        $gradeLevels = GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(['id', 'name']);
 
         return view('billing.accounting.index', [
             'assessments' => $assessments,
             'balances' => $assessments->getCollection()->mapWithKeys(fn ($assessment) => [$assessment->id => $balance->calculate($assessment)]),
+            'search' => $search,
+            'gradeFilter' => $gradeFilter,
+            'gradeLevels' => $gradeLevels,
+            'canViewAssessmentQueue' => $canViewAssessmentQueue,
+            'canManageAssessments' => $canManageAssessments,
             'draftPayments' => $request->user()->hasRole('accounting') ? Payment::query()->where('status', 'draft')->with('assessment.enrollment.student')->get() : collect(),
-            'assessableEnrollments' => $request->user()->hasRole('accounting') ? Enrollment::query()->whereIn('status', ['approved', 'enrolled'])->whereDoesntHave('feeAssessments')->with(['student', 'gradeLevel', 'academicYear'])->orderBy('approved_at')->get() : collect(),
-            'publishedSchedules' => $request->user()->hasRole('accounting') ? FeeSchedule::query()->where('status', 'published')->with('items.feeType')->get() : collect(),
+            'assessableEnrollments' => $assessableEnrollments,
+            'publishedSchedules' => $publishedSchedules,
             'pendingReversals' => $request->user()->hasRole('admin') ? PaymentReversal::query()->where('status', 'requested')->with('payment')->get() : collect(),
             'pendingAdjustments' => $request->user()->hasRole('admin') ? FinancialAdjustment::query()->where('status', 'requested')->get() : collect(),
             'pendingRefunds' => $request->user()->hasRole('admin') ? Refund::query()->where('status', 'requested')->get() : collect(),
@@ -68,9 +134,9 @@ class BillingController
         Gate::authorize('manage', FeeAssessment::class);
         $data = $request->validated();
         $schedule = FeeSchedule::query()->findOrFail($data['fee_schedule_id']);
-        $create->execute($enrollment, $schedule, $data['selected_items'] ?? [], $request->user(), $data['revision_reason'] ?? null);
+        $assessment = $create->execute($enrollment, $schedule, $data['selected_items'] ?? [], $request->user(), $data['revision_reason'] ?? null);
 
-        return back()->with('status', 'Draft assessment created.');
+        return redirect()->route('billing.portal.show', $assessment)->with('status', 'Draft assessment created. Review the fee items, then finalize it.');
     }
 
     public function finalize(FeeAssessment $assessment, Request $request, FinalizeAssessmentAction $finalize): RedirectResponse
@@ -94,7 +160,7 @@ class BillingController
         Gate::authorize('manage', FeeAssessment::class);
         $create->execute($assessment, $request->validated(), $request->user());
 
-        return back()->with('status', 'Draft payment created.');
+        return redirect()->to(route('billing.index').'#draft-payments')->with('status', 'Draft payment created. Review it below, then post it to assign the official receipt.');
     }
 
     public function post(Payment $payment, Request $request, PostPaymentAction $post): RedirectResponse

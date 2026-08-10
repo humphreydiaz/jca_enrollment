@@ -1,5 +1,6 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><title>Statement of Account</title><style>@page{size:A4;margin:15mm}body{font:14px Arial,sans-serif;color:#172554}h1,p{margin:.35rem 0}table{width:100%;border-collapse:collapse;margin:1rem 0}th,td{padding:.45rem;border-bottom:1px solid #cbd5e1;text-align:left}.num{text-align:right}.brand{text-align:center;margin-bottom:1.5rem}.total{font-weight:700}.muted{color:#475569}@media print{button{display:none}}</style></head><body>
-<header class="brand">@if($logoData)<img src="{{ $logoData }}" alt="JCSGO Christian Academy logo" style="width:64px;height:64px;object-fit:contain">@endif<strong>JCSGO Christian Academy</strong><h1>Statement of Account</h1></header>
+<x-print.letterhead />
+<header class="brand"><h1>Statement of Account</h1></header>
 <p><strong>Student:</strong> {{ $assessment->enrollment->student->full_name }} ({{ $assessment->enrollment->student->student_number ?: 'Not assigned' }})</p>
 <p><strong>Grade / Section:</strong> {{ $assessment->enrollment->gradeLevel->name }} / {{ $assessment->enrollment->currentSectionAssignment?->section?->name ?? 'Not assigned' }}</p>
 <p><strong>School year:</strong> {{ $assessment->enrollment->academicYear->name }}</p>

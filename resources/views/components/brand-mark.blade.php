@@ -1,7 +1,12 @@
-<a href="{{ url('/') }}" class="inline-flex items-center gap-3 rounded-lg text-left" aria-label="JCA Enrollment and Student Management System home">
-    <span aria-hidden="true" class="grid size-11 place-items-center rounded-full border-4 border-brand-gold-500 bg-brand-navy-700 text-sm font-black tracking-tight text-white shadow-sm">JCA</span>
-    <span class="leading-tight">
-        <span class="block text-sm font-extrabold text-brand-navy-900">JCA Enrollment</span>
-        <span class="block text-xs font-semibold text-muted">Student Management System</span>
+@props(['inverse' => false])
+
+<a href="{{ url('/') }}" class="inline-flex min-w-0 items-center gap-2.5 rounded-lg text-left" aria-label="JCSGO Christian Academy R1-Inc. Student Management System home">
+    <img src="{{ asset('images/logo/jca_logo.png') }}" alt="" class="size-11 shrink-0 object-contain drop-shadow-sm" aria-hidden="true">
+    <span class="w-32 min-w-0 leading-tight">
+        <span @class(['block text-[0.68rem] font-extrabold uppercase leading-[0.85rem]', 'text-white' => $inverse, 'text-brand-navy-900' => ! $inverse])>
+            <span class="block">JCSGO Christian</span>
+            <span class="block">Academy R1-Inc.</span>
+        </span>
+        <span @class(['mt-0.5 block whitespace-nowrap text-[0.65rem] font-semibold', 'text-slate-300' => $inverse, 'text-muted' => ! $inverse])>Student Management System</span>
     </span>
 </a>

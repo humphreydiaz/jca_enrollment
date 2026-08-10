@@ -39,12 +39,15 @@ This remains the requirements baseline; the short phase-status note below preven
 | IAM-004 | The system shall support password change, secure recovery, account disable/lock, and session invalidation. |
 | IAM-005 | Teachers shall have limited access to assigned advisory/subject students only. |
 | IAM-006 | Therapy/support information, uploaded documents, personal information, and payment data shall be restricted to authorized users. |
+| IAM-007 | Admin reactivation of a disabled account shall require a reason, return the account to invited state, revoke sessions, issue a new single-use setup link, and create audit evidence. |
+| IAM-008 | Disabling an account shall require a reason and revoke every outstanding invitation; enrollment workflows shall not issue setup links for disabled or locked accounts. |
+| IAM-009 | Guardian/Parent and Student accounts shall sign in through the parent/student portal entry point, while Admin, Registrar, Accounting, and Teacher accounts shall use a separate staff entry point; each endpoint shall reject the other role group without disclosing account or role state. |
 
 ### 3.3 Enrollment
 
 | ID | Requirement |
 |---|---|
-| ENR-001 | A guardian shall be able to enroll a child; a high-school student may participate directly while retaining a linked guardian. |
+| ENR-001 | Pre-elementary and Grades 1-6 shall use guardian-assisted enrollment; Grades 7-12 may submit through an invited Student login while retaining a linked guardian. |
 | ENR-002 | The system shall collect a validated online enrollment form and required documents. |
 | ENR-003 | Registrar shall be able to verify, reject, waive when authorized, or request replacement of individual requirements. |
 | ENR-004 | The system shall track enrollment state and its history rather than overwrite the latest outcome without evidence. |
@@ -54,6 +57,8 @@ This remains the requirements baseline; the short phase-status note below preven
 | ENR-008 | Status changes shall support targeted SMS notifications and notification history. |
 | ENR-009 | The system shall prevent duplicate active enrollment for the same student, school year, and grade level. |
 | ENR-010 | Enrollment actions and overrides shall be auditable. |
+| ENR-011 | A Student-role account shall be connected one-to-one to a student profile only after enrollment approval; Grades 1-6 require an audited Admin exception while Grades 7-12 are eligible by default. |
+| ENR-012 | A manual mistaken student profile may be deleted only when it has no login, enrollment, guardian-relationship, or communication history; the reason and any pending duplicate-candidate cleanup shall be audited. |
 
 ### 3.4 Requirement rules
 
@@ -63,8 +68,10 @@ This remains the requirements baseline; the short phase-status note below preven
 | REQ-002 | Non-therapy students require at least a Birth Certificate and Form 138/Report Card, subject to the active school policy. |
 | REQ-003 | Transferees require at least a Birth Certificate, Report Card, and Form 137/school-to-school requirement. |
 | REQ-004 | Students requiring therapy/special-support review require at least a Birth Certificate and therapist Certificate of LOV, plus school observation/review. |
-| REQ-005 | Documents shall be stored privately and downloads shall require authorization. |
-| REQ-006 | The system shall retain document version, uploader, verification result, reviewer, timestamps, and rejection/waiver reason. |
+| REQ-005 | Authorized Student applicants and Guardians may privately upload PDF/JPG/PNG soft copies of configured requirements. A verified soft copy or a recorded hard-copy receipt may satisfy a blocking item for academic approval. |
+| REQ-006 | The system shall retain each checklist snapshot, separate soft-copy and hard-copy states, uploader/version metadata, receipt state, receiving staff member, receipt timestamp and notes, review outcomes, reviewers, timestamps, and rejection/waiver reasons. |
+| REQ-007 | Hard copies remain required and visibly outstanding after soft-copy verification unless an Admin records an authorized reasoned waiver. Private file preview/download shall be authorized, audited, and unavailable by public URL. |
+| REQ-008 | A promoted enrollment shall carry forward accepted hard-copy requirement evidence from the linked prior enrollment so the student is not required to resubmit the same physical document every school year. The source evidence and its provenance shall remain auditable; rejected, waived, or merely uploaded evidence shall not be carried as accepted hard-copy proof. |
 
 ### 3.5 Support assessment
 
@@ -141,9 +148,9 @@ The following resolve ambiguities in the outline:
 
 1. Guardian or eligible student starts an unauthenticated minimal application and verifies the designated contact channel.
 2. System creates a draft enrollment reference without creating an active login.
-3. Applicant completes the form and uploads requirements.
+3. Applicant completes the form and may upload private soft copies. Hard copies may be presented at application time or later; staff records each physical receipt separately.
 4. Registrar validates identity/duplicates and sends the guardian invitation when the submission is legitimate.
-5. Registrar reviews requirements; incomplete/rejected items return to the applicant.
+5. Registrar previews and reviews current soft copies and records hard-copy receipts. A verified soft copy or received hard copy can clear admission, while an outstanding hard-copy obligation remains visible.
 6. If support assessment is required, authorized staff complete the assessment and record the decision.
 7. Registrar approves or rejects the application. Approval may atomically award a discount campaign rank.
 8. System recommends a section; Registrar/Admin confirms it. Support cases require manual suitability confirmation.
@@ -162,7 +169,7 @@ Allowed summary states are `not_assessed`, `unpaid`, `partial`, `paid`, `overdue
 
 ### 5.4 Requirement states
 
-Allowed states are `missing`, `submitted`, `under_review`, `verified`, `rejected`, and `waived`. Waiver requires permission, reason, and audit evidence.
+Hard-copy states are `missing`, `submitted`, `verified`, `rejected`, and `waived`. Soft-copy states are `not_uploaded`, `submitted`, `verified`, and `rejected`. Waiver requires permission, reason, and audit evidence. The two evidence tracks are never collapsed into one misleading completion state.
 
 ## 6. Non-functional requirements
 

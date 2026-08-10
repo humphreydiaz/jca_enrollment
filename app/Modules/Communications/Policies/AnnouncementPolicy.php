@@ -15,6 +15,10 @@ class AnnouncementPolicy
 
     public function view(User $user, Announcement $announcement): bool
     {
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
         return app(VisibleAnnouncementsQuery::class)->forUser($user)->whereKey($announcement->id)->exists();
     }
 
