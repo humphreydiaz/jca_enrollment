@@ -76,9 +76,9 @@ This file records decisions that future implementation tasks may treat as settle
 
 ### D-012 - Grade coverage
 
-**Decision:** The offered grade progression is Nursery, Junior Kinder, Senior Kinder, Elementary Grades 1-6, Junior High Grades 7-10, and Senior High Grades 11-12. Store grade levels as configurable records and base authorization on the configured school stage rather than numeric sequence positions.
+**Decision:** The offered grade progression is Nursery, Junior Kinder, Senior Kinder, Elementary Grades 1-6, and Junior High Grades 7-10. Grade 10 completes the progression and has no next grade. Store grade levels as configurable records and base authorization on the configured school stage rather than numeric sequence positions.
 
-**Status:** Accepted by the owner on 2026-07-23. Official section names, subjects, and teaching assignments remain pending under P-003.
+**Status:** Accepted by the owner on 2026-07-23. Superseded in part on 2026-08-21: JCA confirmed it does not offer and has never offered Senior High School, so Grades 11-12 were removed from the catalog, the seeder, and the Senior High School stage. Official section names, subjects, and teaching assignments remain pending under P-003.
 
 ### D-013 - Confidential document storage
 
@@ -92,7 +92,9 @@ This file records decisions that future implementation tasks may treat as settle
 
 ### D-015 - SMS delivery
 
-**Decision:** Semaphore is the SMS provider. SMS is sent asynchronously through the database queue. Store templates, recipient, purpose, provider reference, delivery state, timestamps, and a redacted failure response. Do not store API keys or full sensitive document details in message bodies or logs.
+**Decision:** Semaphore is the SMS provider. General notifications are sent asynchronously through the database queue. On 2026-09-20, the owner approved using Semaphore's dedicated OTP route for time-sensitive enrollment verification and account activation codes at its two-credit-per-160-character cost. Account invitations use a grouped, unambiguous, high-entropy one-time code instead of embedding a URL in the SMS; recipients enter it from the portal's Activate account page. The hashed, expiring, single-use invitation and authorized staff fallback link remain the source of truth. Store the redacted recipient, purpose, provider reference, provider status, route, message length, timestamps, and a safe failure code. Do not store API keys, raw invitation codes, full SMS bodies, or sensitive document details in audit logs.
+
+**Consequences:** Announcements and routine notifications stay on Semaphore's standard route. The adapter retries one transient network/provider failure and treats provider `Failed` or `Refunded` responses as failures instead of accepted sends. A Semaphore `Queued`, `Pending`, or `Sent` response is described as provider/network acceptance, never proof that the handset received the SMS. A three-minute guard prevents staff from immediately replacing a guardian code that may still be moving through the mobile network. Live delivery remains blocked by P-005 until sender name, consent wording, approved templates, escalation contacts, and credentials are supplied.
 
 ### D-016 - Auditability
 
@@ -207,6 +209,14 @@ One Student account may have at most one non-terminal application per school yea
 
 **Consequences:** Any historical or access-bearing reference blocks deletion server-side. The deletion and each cleared duplicate-candidate reference are audited with opaque identifiers. Profiles with any enrollment remain preserved even when that enrollment is rejected, withdrawn, or cancelled.
 
+### D-025 - Shared household mobile number for controlled testing
+
+**Status:** Owner-authorized on 2026-09-19 for the Laragon and Hostinger capstone testing environments only. It is not the production default.
+
+**Decision:** When `ALLOW_SHARED_CONTACT_ACCOUNTS=true` and the opt-in shared-mobile migration has run, separate Student and Guardian accounts may reuse one normalized mobile number. Accounts remain individual under D-003 and are resolved at sign-in by their own passwords. Email addresses remain unique, staff accounts are not automatically merged, and Guardian links are still explicit and audited.
+
+**Consequences:** The setting remains false by default. A production launch must either restore mobile uniqueness after reconciling duplicates or obtain an explicit replacement decision. Disabling the setting does not delete or merge test accounts; duplicate mobile records must be reconciled before the unique database index can be restored.
+
 ## Phase 6 development-policy status
 
 P6-01 through P6-21 are **Assumed – Owner-authorized for development**. They satisfy the Phase 6 development/testing prerequisite, but they are not accepted production policies. The configurable implementation and fictional fixtures may be replaced without rewriting historical financial snapshots. The questionnaire remains the production-confirmation checklist.
@@ -235,7 +245,7 @@ P6-01 through P6-21 are **Assumed – Owner-authorized for development**. They s
 | P6-20 | Statement, receipt, permit, and internal ledger printouts | Assumed – Owner-authorized for development; layouts/signatories pending |
 | P6-21 | Approved/enrolled assessment boundary without section/payment prerequisite | Assumed – Owner-authorized for development; production confirmation pending |
 
-Production release remains blocked on actual fee amounts, class/examination dates, official receipt or invoice series, enabled methods, authorized signatories, official discount amount/dates, promissory-note procedure, statutory-certification verification, final permit wording, and the school holiday/business calendar.
+Actual fee amounts were supplied and applied on 2026-08-21 from the DepEd Region 1 approval letter of 11 June 2025 and the school's itemised fee sheet (scans in `public/images/school_fees_scanned/`). Production release remains blocked on class/examination dates, official receipt or invoice series, enabled methods, authorized signatories, official discount amount/dates, promissory-note procedure, statutory-certification verification, final permit wording, and the school holiday/business calendar.
 
 ## Out-of-scope decisions
 

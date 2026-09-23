@@ -5,6 +5,7 @@ namespace Database\Seeders\Academics;
 use App\Modules\Academics\Models\GradeLevel;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 class GradeLevelSeeder extends Seeder
@@ -24,9 +25,9 @@ class GradeLevelSeeder extends Seeder
             ['code' => 'G7', 'name' => 'Grade 7', 'sequence' => 10, 'school_stage' => 'Junior High School', 'next' => 'G8'],
             ['code' => 'G8', 'name' => 'Grade 8', 'sequence' => 11, 'school_stage' => 'Junior High School', 'next' => 'G9'],
             ['code' => 'G9', 'name' => 'Grade 9', 'sequence' => 12, 'school_stage' => 'Junior High School', 'next' => 'G10'],
-            ['code' => 'G10', 'name' => 'Grade 10', 'sequence' => 13, 'school_stage' => 'Junior High School', 'next' => 'G11'],
-            ['code' => 'G11', 'name' => 'Grade 11', 'sequence' => 14, 'school_stage' => 'Senior High School', 'next' => 'G12'],
-            ['code' => 'G12', 'name' => 'Grade 12', 'sequence' => 15, 'school_stage' => 'Senior High School', 'next' => null],
+            // JCA does not offer Senior High School, so Grade 10 completes the
+            // progression and has no next grade.
+            ['code' => 'G10', 'name' => 'Grade 10', 'sequence' => 13, 'school_stage' => 'Junior High School', 'next' => null],
         ]);
 
         DB::transaction(function () use ($catalog): void {
@@ -42,7 +43,7 @@ class GradeLevelSeeder extends Seeder
                 throw new RuntimeException('A non-catalog grade level already uses one of the required sequences: '.$conflicts->pluck('code')->join(', '));
             }
 
-            $temporarySequence = max((int) $grades->max('sequence'), 15);
+            $temporarySequence = max((int) $grades->max('sequence'), (int) max($targetSequences));
             if ($temporarySequence + $catalog->count() > 65535) {
                 throw new RuntimeException('Grade-level sequences cannot be safely reordered within the database column limit.');
             }
@@ -52,16 +53,19 @@ class GradeLevelSeeder extends Seeder
             }
 
             foreach ($catalog as $attributes) {
-                GradeLevel::query()->updateOrCreate(
-                    ['code' => $attributes['code']],
-                    [
-                        'name' => $attributes['name'],
-                        'sequence' => $attributes['sequence'],
-                        'school_stage' => $attributes['school_stage'],
-                        'next_grade_level_id' => null,
-                        'is_active' => true,
-                    ],
-                );
+                $grade = GradeLevel::query()->firstOrNew(['code' => $attributes['code']]);
+
+                if (! $grade->exists) {
+                    $grade->public_id = (string) Str::ulid();
+                }
+
+                $grade->fill([
+                    'name' => $attributes['name'],
+                    'sequence' => $attributes['sequence'],
+                    'school_stage' => $attributes['school_stage'],
+                    'next_grade_level_id' => null,
+                    'is_active' => true,
+                ])->save();
             }
 
             $saved = GradeLevel::query()->whereIn('code', $catalogCodes)->get()->keyBy('code');

@@ -4,6 +4,7 @@ namespace App\Modules\Billing\Http\Controllers;
 
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
+use App\Modules\Billing\Actions\ManageFeeScheduleAction;
 use App\Modules\Billing\Actions\ManagePaymentPlanOptionAction;
 use App\Modules\Billing\Actions\SaveBillingConfigurationAction;
 use App\Modules\Billing\Http\Requests\SetPaymentPlanOptionStatusRequest;
@@ -48,12 +49,41 @@ class BillingConfigurationController
         return $this->sectionResponse($request, 'fee-catalog', 'Fee type configuration updated without changing historical snapshots.');
     }
 
-    public function schedule(Request $request, SaveBillingConfigurationAction $save): RedirectResponse|JsonResponse
+    public function schedule(Request $request, ManageFeeScheduleAction $manage): RedirectResponse|JsonResponse
     {
-        $data = $request->validate(['academic_year_id' => ['required', 'exists:academic_years,id'], 'grade_level_id' => ['nullable', 'exists:grade_levels,id'], 'name' => ['required', 'string', 'max:255'], 'version' => ['required', 'integer', 'min:1'], 'effective_on' => ['nullable', 'date']]);
-        $save->execute(new FeeSchedule, [...$data, 'status' => 'draft'], $request->user(), 'billing.fee_schedule.created');
+        $data = $request->validate(['academic_year_id' => ['required', 'exists:academic_years,id'], 'grade_level_id' => ['nullable', 'exists:grade_levels,id'], 'name' => ['required', 'string', 'max:255'], 'effective_on' => ['nullable', 'date']]);
+        $schedule = $manage->create($data, $request->user());
 
-        return $this->sectionResponse($request, 'fee-schedules', 'Draft fee schedule created.');
+        return $this->sectionResponse($request, 'fee-schedules', "Draft fee schedule created as version {$schedule->version}.");
+    }
+
+    public function updateSchedule(FeeSchedule $schedule, Request $request, ManageFeeScheduleAction $manage): RedirectResponse|JsonResponse
+    {
+        $data = $request->validate(['academic_year_id' => ['required', 'exists:academic_years,id'], 'grade_level_id' => ['nullable', 'exists:grade_levels,id'], 'name' => ['required', 'string', 'max:255'], 'effective_on' => ['nullable', 'date']]);
+        $manage->updateDraft($schedule, [...$data, 'grade_level_id' => $data['grade_level_id'] ?? null], $request->user());
+
+        return $this->sectionResponse($request, 'fee-schedules', 'Draft fee schedule updated.');
+    }
+
+    public function destroySchedule(FeeSchedule $schedule, Request $request, ManageFeeScheduleAction $manage): RedirectResponse|JsonResponse
+    {
+        $manage->delete($schedule, $request->user());
+
+        return $this->sectionResponse($request, 'fee-schedules', 'Fee schedule deleted.');
+    }
+
+    public function archiveSchedule(FeeSchedule $schedule, Request $request, ManageFeeScheduleAction $manage): RedirectResponse|JsonResponse
+    {
+        $manage->setArchived($schedule, true, $request->user());
+
+        return $this->sectionResponse($request, 'fee-schedules', 'Fee schedule archived. It is no longer offered for new assessments.');
+    }
+
+    public function restoreSchedule(FeeSchedule $schedule, Request $request, ManageFeeScheduleAction $manage): RedirectResponse|JsonResponse
+    {
+        $manage->setArchived($schedule, false, $request->user());
+
+        return $this->sectionResponse($request, 'fee-schedules', 'Fee schedule restored and available for new assessments.');
     }
 
     public function scheduleItem(FeeSchedule $schedule, Request $request, SaveBillingConfigurationAction $save): RedirectResponse|JsonResponse
@@ -192,11 +222,25 @@ class BillingConfigurationController
 
         $planOptions = app(ManagePaymentPlanOptionAction::class);
 
+        // Ordered so every version of the same year and grade reads together,
+        // newest series first — the two "Grade 3" cards are otherwise identical
+        // on screen.
+        $schedules = FeeSchedule::query()
+            ->with(['items.feeType', 'academicYear', 'gradeLevel'])
+            ->withCount('assessments')
+            ->orderByDesc('academic_year_id')
+            ->orderBy('grade_level_id')
+            ->orderByDesc('version')
+            ->get();
+
         return [
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(),
             'feeTypes' => FeeType::query()->orderBy('code')->get(),
-            'schedules' => FeeSchedule::query()->with('items.feeType')->latest()->get(),
+            'schedules' => $schedules,
+            'scheduleUsage' => $schedules->mapWithKeys(
+                fn (FeeSchedule $schedule) => [$schedule->id => (int) $schedule->assessments_count],
+            ),
             'campaigns' => DiscountCampaign::query()->latest()->get(),
             'periods' => ExamPeriod::query()->orderBy('starts_on')->get(),
             'planOptions' => $planOptionRows,

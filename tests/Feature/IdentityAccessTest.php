@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Communications\Contracts\SmsGateway;
+use App\Modules\Communications\Enums\SmsDeliveryRoute;
+use App\Modules\Communications\Gateways\FakeSmsGateway;
 use App\Modules\Identity\Actions\AssignRolesAction;
 use App\Modules\Identity\Actions\CreateAccountInvitationAction;
 use App\Modules\Identity\Enums\AccountStatus;
@@ -188,11 +191,14 @@ class IdentityAccessTest extends TestCase
         $this->assignRoles($invitedUser, ['guardian'], $admin);
 
         $created = app(CreateAccountInvitationAction::class)->execute($invitedUser, 'email', $invitedUser->email, $admin);
+        $this->assertMatchesRegularExpression('/^[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){3}$/', $created->token);
+        $shortUrl = route('identity.invitations.short', ['token' => $created->token]);
         $url = route('identity.invitations.show', [
             'invitation' => $created->invitation->public_id,
             'token' => $created->token,
         ]);
 
+        $this->get($shortUrl)->assertOk()->assertSee('Set your private password');
         $this->get($url)->assertOk()->assertSee('Set your private password');
         $this->post($url, [
             'password' => 'InvitationPassword123',
@@ -205,6 +211,29 @@ class IdentityAccessTest extends TestCase
 
         $this->post(route('identity.logout'));
         $this->get($url)->assertStatus(410)->assertSee('This setup link cannot be used.');
+    }
+
+    public function test_invited_user_can_open_password_setup_with_the_sms_account_code(): void
+    {
+        $admin = $this->activeUser(['admin']);
+        $invitedUser = User::query()->create([
+            'name' => 'Code Recipient',
+            'mobile' => '+639171234590',
+            'status' => AccountStatus::Invited,
+        ]);
+        $this->assignRoles($invitedUser, ['guardian'], $admin);
+        $created = app(CreateAccountInvitationAction::class)->execute($invitedUser, 'mobile', $invitedUser->mobile, $admin);
+
+        $this->get(route('identity.invitations.activate'))
+            ->assertOk()
+            ->assertSee('Enter your account code');
+
+        $typedWithoutDashes = strtolower(str_replace('-', ' ', $created->token));
+        $this->post(route('identity.invitations.activate.store'), ['code' => $typedWithoutDashes])
+            ->assertRedirect(route('identity.invitations.short', ['token' => $created->token]));
+
+        $this->post(route('identity.invitations.activate.store'), ['code' => 'AAAA-AAAA-AAAA-AAAA'])
+            ->assertSessionHasErrors('code');
     }
 
     public function test_expired_or_invalid_invitation_has_a_neutral_failure_response(): void
@@ -231,6 +260,8 @@ class IdentityAccessTest extends TestCase
     public function test_admin_can_create_an_invited_staff_account_without_open_registration(): void
     {
         $admin = $this->activeUser(['admin']);
+        $fake = new FakeSmsGateway;
+        app()->instance(SmsGateway::class, $fake);
 
         $this->actingAs($admin)
             ->post(route('identity.admin.users.store'), [
@@ -241,12 +272,21 @@ class IdentityAccessTest extends TestCase
                 'roles' => ['registrar'],
             ])
             ->assertRedirect(route('identity.admin.users.index'))
+            ->assertSessionHas('invitation_code')
             ->assertSessionHas('invitation_url');
 
         $user = User::query()->where('email', 'registrar@example.test')->firstOrFail();
         $this->assertSame(AccountStatus::Invited, $user->status);
         $this->assertTrue($user->hasRole('registrar'));
         $this->assertDatabaseHas('staff_profiles', ['user_id' => $user->id]);
+        $this->assertCount(1, $fake->sent);
+        $this->assertSame(SmsDeliveryRoute::Otp, $fake->sent[0]['route']);
+        $this->assertStringContainsString('{otp}', $fake->sent[0]['body']);
+        $this->assertStringNotContainsString('http', $fake->sent[0]['body']);
+        $this->assertSame(
+            AccountInvitation::query()->where('user_id', $user->id)->value('token_hash'),
+            hash('sha256', (string) $fake->sent[0]['one_time_code']),
+        );
     }
 
     public function test_admin_user_creation_temporarily_allows_only_mobile_invitations(): void

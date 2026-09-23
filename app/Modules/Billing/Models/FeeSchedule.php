@@ -2,7 +2,10 @@
 
 namespace App\Modules\Billing\Models;
 
+use App\Modules\Academics\Models\AcademicYear;
+use App\Modules\Academics\Models\GradeLevel;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -28,6 +31,27 @@ class FeeSchedule extends Model
     public function items(): HasMany
     {
         return $this->hasMany(FeeScheduleItem::class);
+    }
+
+    public function academicYear(): BelongsTo
+    {
+        return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function gradeLevel(): BelongsTo
+    {
+        return $this->belongsTo(GradeLevel::class);
+    }
+
+    public function assessments(): HasMany
+    {
+        return $this->hasMany(FeeAssessment::class);
+    }
+
+    /** A published schedule is the only kind offered for new assessments. */
+    public function isEditable(): bool
+    {
+        return $this->status === 'draft';
     }
 
     public function getRouteKeyName(): string

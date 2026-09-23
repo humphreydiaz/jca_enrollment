@@ -30,9 +30,15 @@ class PublicEnrollmentController
                 ->with('status', 'You already have an active application for this school year.');
         }
 
+        $studentSelfApplicant = $request->user()?->hasRole('student') ?? false;
+
         return view('enrollment.public.start', [
             'years' => AcademicYear::query()->whereIn('status', ['planned', 'open'])->orderByDesc('starts_on')->get(),
-            'grades' => GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(),
+            'grades' => GradeLevel::query()
+                ->where('is_active', true)
+                ->availableForApplicant($studentSelfApplicant)
+                ->orderBy('sequence')
+                ->get(),
             'sexes' => LearnerProfileOptions::SEXES,
             'guardianRelationships' => LearnerProfileOptions::GUARDIAN_RELATIONSHIPS,
             'disabilityTypes' => LearnerProfileOptions::DISABILITY_TYPES,

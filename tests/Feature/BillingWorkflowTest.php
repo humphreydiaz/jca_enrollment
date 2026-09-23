@@ -409,6 +409,46 @@ class BillingWorkflowTest extends TestCase
             ->assertDontSee('Fictional Grade 1 Full');
     }
 
+    public function test_exam_based_payment_plan_returns_validation_error_until_exam_dates_exist(): void
+    {
+        $accounting = $this->user(['accounting']);
+        [$enrollment, $schedule] = $this->fixture();
+        $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
+        app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
+        PaymentPlanOption::query()->create([
+            'academic_year_id' => $enrollment->academic_year_id,
+            'grade_level_id' => $enrollment->grade_level_id,
+            'code' => 'quarterly',
+            'name' => 'Quarterly',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($accounting)
+            ->from(route('billing.portal.show', $assessment))
+            ->post(route('billing.plans.select', $assessment), ['plan_type' => 'quarterly'])
+            ->assertRedirect(route('billing.portal.show', $assessment))
+            ->assertSessionHasErrors('plan_type');
+        $this->assertDatabaseMissing('payment_plans', ['fee_assessment_id' => $assessment->id]);
+
+        foreach ([['Q1', '2026-08-20'], ['Q2', '2026-10-22'], ['Q3', '2027-01-21'], ['Q4', '2027-03-18']] as [$code, $startsOn]) {
+            ExamPeriod::query()->create([
+                'academic_year_id' => $enrollment->academic_year_id,
+                'code' => $code,
+                'name' => $code.' Examination',
+                'starts_on' => $startsOn,
+                'ends_on' => $startsOn,
+                'eligibility_cutoff_on' => date('Y-m-d', strtotime($startsOn.' -10 days')),
+                'status' => 'planned',
+            ]);
+        }
+
+        $this->actingAs($accounting)
+            ->post(route('billing.plans.select', $assessment), ['plan_type' => 'quarterly'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame(4, $assessment->fresh()->plan->scheduleItems()->count());
+    }
+
     public function test_optional_fee_items_selected_by_string_ids_are_saved_to_draft_assessment(): void
     {
         $accounting = $this->user(['accounting']);

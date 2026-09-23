@@ -2,6 +2,7 @@
 
 namespace App\Modules\Enrollment\Http\Requests;
 
+use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\People\Support\LearnerProfileOptions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -15,6 +16,8 @@ class StartEnrollmentRequest extends FormRequest
 
     public function rules(): array
     {
+        $studentSelfApplicant = $this->user()?->hasRole('student') ?? false;
+
         return [
             'lrn' => ['nullable', 'digits:12'],
             'student_first_name' => ['required', 'string', 'max:100'],
@@ -43,7 +46,23 @@ class StartEnrollmentRequest extends FormRequest
             'guardian_mobile' => ['required', 'string', 'max:30', 'regex:/^(?:\+63|0)9\d{9}$/'],
             'guardian_email' => ['nullable', 'email:rfc', 'max:255'],
             'academic_year_id' => ['required', Rule::exists('academic_years', 'id')->whereIn('status', ['planned', 'open'])],
-            'grade_level_id' => ['required', Rule::exists('grade_levels', 'id')->where('is_active', true)],
+            'grade_level_id' => [
+                'required',
+                'integer',
+                function (string $attribute, mixed $value, \Closure $fail) use ($studentSelfApplicant): void {
+                    $available = GradeLevel::query()
+                        ->whereKey($value)
+                        ->where('is_active', true)
+                        ->availableForApplicant($studentSelfApplicant)
+                        ->exists();
+
+                    if (! $available) {
+                        $fail($studentSelfApplicant
+                            ? 'Select an available Junior High School grade level.'
+                            : 'Junior High School applications require an invited Student login.');
+                    }
+                },
+            ],
             'student_category' => ['required', Rule::in(['regular', 'transferee', 'support_review'])],
             'previous_school_name' => [Rule::requiredIf($this->input('student_category') === 'transferee'), 'nullable', 'string', 'max:255'],
             'previous_school_address' => [Rule::requiredIf($this->input('student_category') === 'transferee'), 'nullable', 'string', 'max:255'],

@@ -20,7 +20,7 @@
         </div>
 
         @php
-            $stageLabels = ['Pre-elementary' => 'A. PRE-ELEMENTARY', 'Elementary' => 'B. ELEMENTARY', 'Junior High School' => 'C. JUNIOR HIGH SCHOOL', 'Senior High School' => 'D. SENIOR HIGH SCHOOL'];
+            $stageLabels = ['Pre-elementary' => 'A. PRE-ELEMENTARY', 'Elementary' => 'B. ELEMENTARY', 'Junior High School' => 'C. JUNIOR HIGH SCHOOL'];
             $grandMale = 0; $grandFemale = 0; $grandTotal = 0;
             $elemGrandMale = 0; $elemGrandFemale = 0; $elemGrandTotal = 0;
         @endphp

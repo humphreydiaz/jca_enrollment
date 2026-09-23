@@ -8,7 +8,7 @@
             <p class="mt-8 text-xs font-extrabold uppercase tracking-[0.2em] text-brand-orange-500 lg:mt-0">Parent &amp; student portal</p>
             <h1 id="login-title" class="mt-2 text-3xl font-black tracking-tight text-brand-navy-900 sm:text-4xl">Welcome back</h1>
             <p class="mt-3 max-w-md text-sm leading-6 text-muted">
-                Parents, guardians, and students can sign in here using the email address or mobile number connected to their JCA account.
+                Students sign in with their <strong>student number</strong>. Parents and guardians can sign in with the email address or mobile number connected to their JCA account.
             </p>
 
             <x-identity.login-form :action="route('identity.login.store')" />

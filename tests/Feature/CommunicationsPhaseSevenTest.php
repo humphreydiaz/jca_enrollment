@@ -9,6 +9,7 @@ use App\Modules\Academics\Models\Section;
 use App\Modules\Academics\Models\TeachingAssignment;
 use App\Modules\Communications\Actions\QueueSmsNotificationAction;
 use App\Modules\Communications\Contracts\SmsGateway;
+use App\Modules\Communications\Enums\SmsDeliveryRoute;
 use App\Modules\Communications\Gateways\FakeSmsGateway;
 use App\Modules\Communications\Gateways\SemaphoreSmsGateway;
 use App\Modules\Communications\Jobs\DispatchSmsNotification;
@@ -105,10 +106,67 @@ class CommunicationsPhaseSevenTest extends TestCase
         $this->assertSame('accepted', $failed->fresh()->status);
 
         config(['communications.sms.enabled' => true, 'communications.sms.driver' => 'semaphore', 'communications.sms.semaphore.api_key' => 'fictional-key', 'communications.sms.semaphore.sender_name' => 'JCA']);
-        Http::fake([config('communications.sms.semaphore.base_url').'/api/v4/messages' => Http::response([['message_id' => 'sem-fictional']], 200)]);
+        Http::fake([
+            config('communications.sms.semaphore.base_url').'/api/v4/messages' => Http::response([['message_id' => 'sem-standard', 'status' => 'Queued']], 200),
+            config('communications.sms.semaphore.base_url').'/api/v4/priority' => Http::response([['message_id' => 'sem-priority', 'status' => 'Pending']], 200),
+            config('communications.sms.semaphore.base_url').'/api/v4/otp' => Http::response([['message_id' => 'sem-otp', 'status' => 'Pending', 'code' => 'ABCD-EFGH-JKLM-NPQR']], 200),
+        ]);
         $result = (new SemaphoreSmsGateway)->send('09171234567', 'JCA: enrollment status updated.', 'fake-key');
         $this->assertTrue($result->accepted());
+        $this->assertSame('sem-standard', $result->providerReference);
+
+        $priorityResult = (new SemaphoreSmsGateway)->send('09171234567', 'JCA verification code: 123456.', 'priority-key', SmsDeliveryRoute::Priority);
+        $this->assertTrue($priorityResult->accepted());
+        $this->assertSame('sem-priority', $priorityResult->providerReference);
+        $this->assertSame('pending', $priorityResult->providerStatus);
+
+        $otpResult = (new SemaphoreSmsGateway)->send('09171234567', 'JCSGOCA account code: {otp}.', 'otp-key', SmsDeliveryRoute::Otp, 'ABCD-EFGH-JKLM-NPQR');
+        $this->assertTrue($otpResult->accepted());
+        $this->assertSame('sem-otp', $otpResult->providerReference);
         Http::assertSent(fn ($request) => $request->url() === config('communications.sms.semaphore.base_url').'/api/v4/messages' && $request['sendername'] === 'JCA' && $request['apikey'] === 'fictional-key');
+        Http::assertSent(fn ($request) => $request->url() === config('communications.sms.semaphore.base_url').'/api/v4/priority' && $request['sendername'] === 'JCA' && $request['apikey'] === 'fictional-key');
+        Http::assertSent(fn ($request) => $request->url() === config('communications.sms.semaphore.base_url').'/api/v4/otp'
+            && $request['sendername'] === 'JCA'
+            && $request['message'] === 'JCSGOCA account code: {otp}.'
+            && $request['code'] === 'ABCD-EFGH-JKLM-NPQR');
+
+    }
+
+    public function test_semaphore_rejects_an_invalid_otp_request_before_calling_the_provider(): void
+    {
+        config(['communications.sms.enabled' => true, 'communications.sms.driver' => 'semaphore', 'communications.sms.semaphore.api_key' => 'fictional-key', 'communications.sms.semaphore.sender_name' => 'JCA']);
+        Http::fake();
+
+        $result = (new SemaphoreSmsGateway)->send('09171234567', 'Missing the required placeholder.', 'otp-key', SmsDeliveryRoute::Otp, 'ABCD-EFGH-JKLM-NPQR');
+
+        $this->assertFalse($result->accepted());
+        $this->assertSame('invalid_otp_request', $result->failureCode);
+        Http::assertNothingSent();
+    }
+
+    public function test_semaphore_provider_failure_status_is_not_recorded_as_an_accepted_send(): void
+    {
+        config(['communications.sms.enabled' => true, 'communications.sms.driver' => 'semaphore', 'communications.sms.semaphore.api_key' => 'fictional-key', 'communications.sms.semaphore.sender_name' => 'JCA']);
+        Http::fake([config('communications.sms.semaphore.base_url').'/api/v4/priority' => Http::response([['message_id' => 'sem-failed', 'status' => 'Failed']], 200)]);
+
+        $result = (new SemaphoreSmsGateway)->send('09171234567', 'JCA verification code: 123456.', 'failed-key', SmsDeliveryRoute::Priority);
+
+        $this->assertFalse($result->accepted());
+        $this->assertSame('semaphore_status_failed', $result->failureCode);
+    }
+
+    public function test_semaphore_retries_one_transient_provider_failure(): void
+    {
+        config(['communications.sms.enabled' => true, 'communications.sms.driver' => 'semaphore', 'communications.sms.semaphore.api_key' => 'fictional-key', 'communications.sms.semaphore.sender_name' => 'JCA']);
+        Http::fakeSequence()
+            ->push(['message' => 'Temporary provider failure'], 503)
+            ->push([['message_id' => 'sem-recovered', 'status' => 'Queued']], 200);
+
+        $result = (new SemaphoreSmsGateway)->send('09171234567', 'JCA verification code: 123456.', 'retry-key', SmsDeliveryRoute::Priority);
+
+        $this->assertTrue($result->accepted());
+        $this->assertSame('sem-recovered', $result->providerReference);
+        Http::assertSentCount(2);
     }
 
     public function test_default_disabled_driver_records_no_live_delivery_and_each_staff_portal_has_safe_next_actions(): void
@@ -168,6 +226,122 @@ class CommunicationsPhaseSevenTest extends TestCase
         $this->actingAs($accounting)->post(route('communications.notifications.retry', $notification))->assertForbidden();
         $this->actingAs($admin)->post(route('communications.notifications.retry', $notification))->assertRedirect();
         $this->assertSame('queued', $notification->fresh()->status);
+    }
+
+    public function test_admin_communications_workspace_supports_ajax_json_responses(): void
+    {
+        $admin = $this->user(['admin']);
+        $guardian = $this->user(['guardian']);
+        $existing = $this->announcement($admin, 'Preview target notice', 'all');
+
+        // Table section returned as JSON for AJAX pagination.
+        $this->actingAs($admin)
+            ->getJson(route('communications.admin'))
+            ->assertOk()
+            ->assertJson(['section' => 'announcements'])
+            ->assertJsonStructure(['section', 'html'])
+            ->assertSee('Preview target notice', false);
+
+        // Creating an announcement over AJAX returns the refreshed table + toast.
+        $this->actingAs($admin)
+            ->postJson(route('communications.store'), [
+                'title' => 'Ajax created notice',
+                'body' => 'General school update.',
+                'status' => 'published',
+                'audiences' => [['type' => 'all']],
+            ])
+            ->assertOk()
+            ->assertJson(['section' => 'announcements', 'message' => 'Announcement saved.'])
+            ->assertSee('Ajax created notice', false);
+        $this->assertDatabaseHas('announcements', ['title' => 'Ajax created notice']);
+
+        // Template creation over AJAX returns the templates section.
+        $this->actingAs($admin)
+            ->postJson(route('communications.templates.store'), [
+                'code' => 'ajax-template',
+                'purpose' => 'announcement',
+                'content' => '{{school_name}}: {{announcement_title}}',
+                'is_active' => true,
+            ])
+            ->assertOk()
+            ->assertJson(['section' => 'templates', 'message' => 'Template version saved.']);
+
+        // Single-announcement preview payload for the modal.
+        $this->actingAs($admin)
+            ->getJson(route('communications.preview', $existing))
+            ->assertOk()
+            ->assertJson([
+                'title' => 'Preview target notice',
+                'status' => 'published',
+                'audiences' => ['All portals'],
+            ])
+            ->assertJsonStructure(['title', 'body', 'status', 'statusLabel', 'publishedAt', 'author', 'audiences', 'url']);
+
+        // The preview endpoint is admin-only.
+        $this->actingAs($guardian)->getJson(route('communications.preview', $existing))->assertForbidden();
+    }
+
+    public function test_admin_can_publish_a_draft_announcement_with_optional_sms(): void
+    {
+        $admin = $this->user(['admin']);
+        $guardianUser = $this->user(['guardian']);
+        $recipient = GuardianProfile::query()->create(['user_id' => $guardianUser->id, 'first_name' => 'Draft', 'last_name' => 'Recipient', 'mobile' => '09171234567']);
+        SmsConsent::query()->create(['guardian_id' => $recipient->id, 'purpose' => 'announcement', 'status' => 'granted', 'source' => 'fictional-test', 'effective_at' => now(), 'recorded_by' => $guardianUser->id]);
+        $template = NotificationTemplate::query()->create(['code' => 'guardian-announcement', 'channel' => 'sms', 'purpose' => 'announcement', 'version' => 1, 'content' => '{{school_name}}: {{announcement_title}}', 'is_active' => true, 'created_by' => $admin->id]);
+
+        $draft = Announcement::query()->create(['title' => 'Welcome to JCSGO', 'body' => 'General school update.', 'status' => 'draft', 'created_by' => $admin->id]);
+        AnnouncementAudience::query()->create(['announcement_id' => $draft->id, 'audience_type' => 'role', 'role_code' => 'guardian']);
+
+        // Non-admins cannot publish.
+        $this->actingAs($guardianUser)->post(route('communications.publish', $draft))->assertForbidden();
+
+        // Publish with SMS: the draft goes live and a message is queued to the consented guardian.
+        Queue::fake();
+        $this->actingAs($admin)
+            ->post(route('communications.publish', $draft), ['sms_template_public_id' => $template->public_id])
+            ->assertRedirect();
+
+        $draft->refresh();
+        $this->assertSame('published', $draft->status);
+        $this->assertNotNull($draft->published_at);
+        $this->assertDatabaseHas('notifications', ['recipient_guardian_id' => $recipient->id, 'purpose' => 'announcement', 'status' => 'queued']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'communications.announcement.published']);
+
+        // Re-publishing an already-published announcement is rejected.
+        $this->actingAs($admin)->post(route('communications.publish', $draft))->assertSessionHasErrors('status');
+    }
+
+    public function test_admin_can_manage_sms_template_versions(): void
+    {
+        $admin = $this->user(['admin']);
+        $guardianUser = $this->user(['guardian']);
+
+        $v1 = NotificationTemplate::query()->create(['code' => 'welcome-sms', 'channel' => 'sms', 'purpose' => 'announcement', 'version' => 1, 'content' => '{{school_name}} v1', 'is_active' => true, 'created_by' => $admin->id]);
+        $v2 = NotificationTemplate::query()->create(['code' => 'welcome-sms', 'channel' => 'sms', 'purpose' => 'announcement', 'version' => 2, 'content' => '{{school_name}} v2', 'is_active' => false, 'created_by' => $admin->id]);
+
+        // Only admins may manage versions.
+        $this->actingAs($guardianUser)->patch(route('communications.templates.status', $v2), ['is_active' => 1])->assertForbidden();
+        $this->actingAs($guardianUser)->delete(route('communications.templates.destroy', $v2))->assertForbidden();
+
+        // Activating v2 deactivates its sibling v1 (one active per code).
+        $this->actingAs($admin)->patch(route('communications.templates.status', $v2), ['is_active' => 1])->assertRedirect();
+        $this->assertFalse($v1->fresh()->is_active);
+        $this->assertTrue($v2->fresh()->is_active);
+
+        // Deactivating a version turns it off without touching others.
+        $this->actingAs($admin)->patch(route('communications.templates.status', $v2), ['is_active' => 0])->assertRedirect();
+        $this->assertFalse($v2->fresh()->is_active);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'communications.template.deactivated']);
+
+        // An unused version can be deleted.
+        $this->actingAs($admin)->delete(route('communications.templates.destroy', $v1))->assertRedirect();
+        $this->assertDatabaseMissing('notification_templates', ['id' => $v1->id]);
+
+        // A used version cannot be deleted — it must be deactivated instead.
+        $recipient = GuardianProfile::query()->create(['user_id' => $guardianUser->id, 'first_name' => 'Used', 'last_name' => 'Recipient', 'mobile' => '09170000000']);
+        Notification::query()->create(['notification_template_id' => $v2->id, 'recipient_guardian_id' => $recipient->id, 'purpose' => 'announcement', 'status' => 'accepted', 'idempotency_key' => 'used-'.Str::random(10), 'scheduled_at' => now()]);
+        $this->actingAs($admin)->delete(route('communications.templates.destroy', $v2))->assertSessionHasErrors('template');
+        $this->assertDatabaseHas('notification_templates', ['id' => $v2->id]);
     }
 
     /** @return array{0: StudentProfile, 1: Enrollment, 2: Section} */

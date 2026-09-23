@@ -28,10 +28,12 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('enrollments', function (Blueprint $table): void {
+            // MySQL uses the composite index to satisfy the foreign key, so the
+            // constraint has to be dropped before the index it depends on.
+            $table->dropForeign(['student_applicant_user_id']);
             $table->dropIndex('enrollment_student_applicant_status_index');
             $table->dropUnique(['active_student_application_key']);
-            $table->dropConstrainedForeignId('student_applicant_user_id');
-            $table->dropColumn('active_student_application_key');
+            $table->dropColumn(['student_applicant_user_id', 'active_student_application_key']);
         });
     }
 };

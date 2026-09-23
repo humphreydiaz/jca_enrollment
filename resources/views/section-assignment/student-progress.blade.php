@@ -68,7 +68,9 @@
                                         </div>
                                     </div>
                                     @if ($application->requirements->isEmpty())
-                                        <p class="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-muted">The checklist will appear after the draft is submitted.</p>
+                                        <p class="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-muted">
+                                            {{ $application->status === 'draft' ? 'The checklist will appear after the draft is submitted.' : 'The requirement checklist is not available yet. Please contact the JCA Registrar.' }}
+                                        </p>
                                     @else
                                         <div class="mt-4 space-y-3">
                                             @foreach ($application->requirements as $requirement)

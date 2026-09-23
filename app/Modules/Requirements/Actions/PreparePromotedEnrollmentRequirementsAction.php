@@ -37,7 +37,12 @@ class PreparePromotedEnrollmentRequirementsAction
                     $query->where('status', 'verified')
                         ->orWhere(function ($received): void {
                             $received->where('status', 'submitted')->whereNotNull('received_at');
-                        });
+                        })
+                        // A verified soft copy is durable evidence too. A birth
+                        // certificate or Form 138 is collected once, not again
+                        // every school year, so its accepted state follows the
+                        // learner into the promoted enrollment.
+                        ->orWhere('soft_copy_status', 'verified');
                 })
                 ->lockForUpdate()
                 ->get();
@@ -51,7 +56,7 @@ class PreparePromotedEnrollmentRequirementsAction
                     ->lockForUpdate()
                     ->first();
 
-                if ($targetRequirement !== null && $this->hasResolvedHardCopyState($targetRequirement)) {
+                if ($targetRequirement !== null && $this->hasOwnEvidence($targetRequirement)) {
                     continue;
                 }
 
@@ -61,7 +66,7 @@ class PreparePromotedEnrollmentRequirementsAction
                     'rule_snapshot' => $sourceRequirement->rule_snapshot,
                 ]);
 
-                $targetRequirement->fill([
+                $attributes = [
                     'carried_from_requirement_id' => $sourceRequirement->id,
                     'carried_over_by' => $actor?->id,
                     'carried_over_at' => now(),
@@ -73,13 +78,28 @@ class PreparePromotedEnrollmentRequirementsAction
                     'reviewed_at' => $sourceRequirement->reviewed_at,
                     'review_reason' => $sourceRequirement->review_reason,
                     'waived_by' => null,
-                ]);
+                ];
+
+                // Only an accepted soft copy travels; a rejected or missing one
+                // would just carry noise into the new school year.
+                $softCopyCarried = $sourceRequirement->soft_copy_status === 'verified';
+                if ($softCopyCarried) {
+                    $attributes += [
+                        'soft_copy_status' => $sourceRequirement->soft_copy_status,
+                        'soft_copy_reviewed_by' => $sourceRequirement->soft_copy_reviewed_by,
+                        'soft_copy_reviewed_at' => $sourceRequirement->soft_copy_reviewed_at,
+                        'soft_copy_review_reason' => $sourceRequirement->soft_copy_review_reason,
+                    ];
+                }
+
+                $targetRequirement->fill($attributes);
                 $targetRequirement->save();
 
                 $this->audit->record($actor, 'requirements.hard_copy.carried_forward', $targetRequirement, [
                     'source_enrollment_public_id' => $lockedSource->public_id,
                     'target_enrollment_public_id' => $lockedTarget->public_id,
                     'document_type_code' => $sourceRequirement->documentType->code,
+                    'soft_copy_carried' => $softCopyCarried,
                 ]);
                 $carried++;
             }
@@ -88,9 +108,14 @@ class PreparePromotedEnrollmentRequirementsAction
         });
     }
 
-    private function hasResolvedHardCopyState(EnrollmentRequirement $requirement): bool
+    /**
+     * Evidence the promoted enrollment already holds in its own right. Anything
+     * the family has already filed for the new year outranks a carried copy.
+     */
+    private function hasOwnEvidence(EnrollmentRequirement $requirement): bool
     {
         return in_array($requirement->status, ['verified', 'waived', 'rejected'], true)
-            || ($requirement->status === 'submitted' && $requirement->received_at !== null);
+            || ($requirement->status === 'submitted' && $requirement->received_at !== null)
+            || in_array($requirement->soft_copy_status, ['submitted', 'verified'], true);
     }
 }

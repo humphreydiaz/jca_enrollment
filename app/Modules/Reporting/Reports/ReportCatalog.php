@@ -244,7 +244,7 @@ class ReportCatalog
 
         // Convert to indexed arrays and order by expected stage sequence
         $orderedStages = [];
-        $stageOrder = ['Pre-elementary', 'Elementary', 'Junior High School', 'Senior High School'];
+        $stageOrder = ['Pre-elementary', 'Elementary', 'Junior High School'];
         foreach ($stageOrder as $stageKey) {
             if (isset($stages[$stageKey])) {
                 $orderedStages[$stageKey] = array_values($stages[$stageKey]);
@@ -263,4 +263,3 @@ class ReportCatalog
         ];
     }
 }
-

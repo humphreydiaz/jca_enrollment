@@ -14,7 +14,7 @@
                     Use the email address or mobile number assigned to your staff account.
                 </p>
 
-                <x-identity.login-form :action="route('identity.staff.login.store')" submit-label="Sign in to staff workspace" />
+                <x-identity.login-form :action="route('identity.staff.login.store')" submit-label="Sign in to staff workspace" identifier-label="Email address or mobile number" :identifier-placeholder="null" />
 
                 <div class="mt-8 border-t border-border pt-5 text-center text-sm text-muted">
                     Parent, guardian, or student?

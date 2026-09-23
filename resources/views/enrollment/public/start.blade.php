@@ -223,12 +223,13 @@
                         <select id="grade_level_id" name="grade_level_id" required class="jca-input">
                             <option value="">Select</option>
                             @foreach ($grades as $grade)
-                                @php($guardianAssistedGrade = ! $grade->allowsStudentAccountByDefault())
-                                <option value="{{ $grade->id }}" @selected(old('grade_level_id') == $grade->id) @disabled($studentSelfApplicant && $guardianAssistedGrade)>{{ $grade->name }}{{ $studentSelfApplicant && $guardianAssistedGrade ? ' — guardian-assisted' : '' }}</option>
+                                <option value="{{ $grade->id }}" @selected(old('grade_level_id') == $grade->id)>{{ $grade->name }}</option>
                             @endforeach
                         </select>
                         @if($studentSelfApplicant)
-                            <p class="mt-2 text-xs leading-5 text-muted">Pre-elementary and Grades 1–6 require a parent or guardian to complete the application. Grades 7–12 may apply using their own Student login.</p>
+                            <p class="mt-2 text-xs leading-5 text-muted">Student accounts may apply for Junior High School Grades 7–10. Pre-elementary and Grades 1–6 require a parent or guardian.</p>
+                        @else
+                            <p class="mt-2 text-xs leading-5 text-muted">This guardian-assisted form offers pre-elementary and Grades 1–6. Grade 7–10 learners must use an invited Student login.</p>
                         @endif
                     </x-ui.field>
                     <div class="sm:col-span-2">

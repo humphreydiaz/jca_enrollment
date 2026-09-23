@@ -233,6 +233,50 @@ Alpine.data('sectionAssignmentWorkspace', (placements = [], assignments = [], pr
     },
 }));
 
+// Registrar student directory: the learner record is fetched on demand rather
+// than rendered into every table row, so a page of results never carries the
+// household and demographic detail of 25 learners in its HTML.
+Alpine.data('studentDirectory', () => ({
+    recordName: '',
+    recordUrl: '',
+    recordHtml: '',
+    loading: false,
+    error: '',
+
+    async open(url, name) {
+        this.recordName = name;
+        this.recordUrl = url;
+        this.recordHtml = '';
+        this.error = '';
+        this.loading = true;
+
+        if (!this.$refs.recordDialog.open) {
+            this.$refs.recordDialog.showModal();
+        }
+
+        try {
+            const response = await fetch(url, {
+                headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error('load failed');
+            }
+            this.recordHtml = await response.text();
+        } catch (error) {
+            this.error = 'This record could not be loaded. Use "Open full page" to read it directly.';
+        } finally {
+            this.loading = false;
+        }
+    },
+
+    reset() {
+        this.recordHtml = '';
+        this.error = '';
+        this.loading = false;
+    },
+}));
+
 Alpine.start();
 
 // Preserve scroll position across full-page form posts on opted-in pages
@@ -367,6 +411,13 @@ Alpine.start();
             }
 
             const payload = await response.json();
+            // Clear the submitted form on success. When the form lives inside
+            // the swapped section it is replaced anyway; when it sits outside
+            // (e.g. a composer that updates a separate list/table) this resets
+            // it in place. CSS-only toggles reset with it.
+            try { form.reset(); } catch (error) { /* detached form — ignore */ }
+            // If the form lives inside a modal dialog, close it on success.
+            form.closest('dialog')?.close();
             if (payload.section && payload.html) {
                 const target = document.querySelector('[data-section="' + payload.section + '"]');
                 if (target) {
@@ -388,6 +439,214 @@ Alpine.start();
             form.submit();
         } finally {
             buttons.forEach((button) => { button.disabled = false; });
+        }
+    });
+})();
+
+// Announcement preview modal on the admin Communications page ([data-communications]).
+// Clicking an "Open" button fetches the announcement over AJAX and shows it in a
+// dialog instead of navigating away. Delegated from the page root so it keeps
+// working after the announcements table is swapped in by AJAX pagination/create.
+(function communicationsPreview() {
+    const root = document.querySelector('[data-communications]');
+    const dialog = document.getElementById('announcement-preview');
+    if (!root || !dialog) {
+        return;
+    }
+
+    const field = (name) => dialog.querySelector('[data-preview-' + name + ']');
+    const titleEl = field('title');
+    const statusEl = field('status');
+    const dateEl = field('date');
+    const authorEl = field('author');
+    const bodyEl = field('body');
+    const audienceWrap = field('audience-wrap');
+    const audiencesEl = field('audiences');
+    const linkEl = field('link');
+    const loadingEl = field('loading');
+    const errorEl = field('error');
+    const contentEl = field('content');
+
+    const show = (node) => node && node.classList.remove('hidden');
+    const hide = (node) => node && node.classList.add('hidden');
+    const close = () => { if (dialog.open) dialog.close(); };
+
+    dialog.querySelector('[data-preview-close]')?.addEventListener('click', close);
+    dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
+
+    root.addEventListener('click', async (event) => {
+        const trigger = event.target.closest('[data-preview-url]');
+        if (!trigger) {
+            return;
+        }
+        event.preventDefault();
+
+        titleEl.textContent = ' ';
+        hide(contentEl);
+        hide(errorEl);
+        show(loadingEl);
+        if (!dialog.open) {
+            dialog.showModal();
+        }
+
+        try {
+            const response = await fetch(trigger.getAttribute('data-preview-url'), {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!response.ok) {
+                throw new Error('load failed');
+            }
+            const data = await response.json();
+
+            titleEl.textContent = data.title || 'Announcement';
+            statusEl.textContent = data.statusLabel || '';
+            statusEl.className = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold '
+                + (data.status === 'published' ? 'bg-emerald-50 text-success-700' : 'bg-warning-100 text-warning-800');
+            dateEl.textContent = data.publishedAt ? ('Published ' + data.publishedAt) : 'Draft — not yet published';
+            if (data.author) {
+                authorEl.textContent = 'By ' + data.author;
+                show(authorEl);
+            } else {
+                hide(authorEl);
+            }
+            bodyEl.textContent = data.body || '';
+
+            audiencesEl.innerHTML = '';
+            if (Array.isArray(data.audiences) && data.audiences.length) {
+                data.audiences.forEach((label) => {
+                    const chip = document.createElement('span');
+                    chip.className = 'inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600';
+                    chip.textContent = label;
+                    audiencesEl.appendChild(chip);
+                });
+                show(audienceWrap);
+            } else {
+                hide(audienceWrap);
+            }
+
+            if (linkEl) {
+                linkEl.href = data.url || '#';
+            }
+
+            hide(loadingEl);
+            show(contentEl);
+        } catch (error) {
+            hide(loadingEl);
+            errorEl.textContent = 'Could not load this announcement. Please try again.';
+            show(errorEl);
+        }
+    });
+})();
+
+// Publish-draft modal on the admin Communications page. Clicking "Publish" on a
+// draft row opens a dialog to confirm and optionally pick an SMS template; the
+// form submits through the shared [data-ajax] handler, which swaps the table and
+// closes the dialog on success. Delegated so it survives table swaps.
+(function communicationsPublish() {
+    const root = document.querySelector('[data-communications]');
+    const dialog = document.getElementById('announcement-publish');
+    const form = document.getElementById('announcement-publish-form');
+    if (!root || !dialog || !form) {
+        return;
+    }
+
+    const titleEl = dialog.querySelector('[data-publish-title]');
+    const templateSelect = dialog.querySelector('#publish_sms_template');
+    const close = () => { if (dialog.open) dialog.close(); };
+
+    dialog.querySelectorAll('[data-publish-close]').forEach((button) => button.addEventListener('click', close));
+    dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
+
+    root.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-publish-url]');
+        if (!trigger) {
+            return;
+        }
+        event.preventDefault();
+
+        form.action = trigger.getAttribute('data-publish-url');
+        titleEl.textContent = trigger.getAttribute('data-publish-title') || 'Announcement';
+        if (templateSelect) {
+            templateSelect.value = '';
+        }
+        if (!dialog.open) {
+            dialog.showModal();
+        }
+    });
+})();
+
+// "Revise" a template version: pre-fill the create-template form with an existing
+// version's code, purpose and content so saving produces the next immutable
+// version. Delegated so it survives the templates section being swapped.
+(function communicationsReviseTemplate() {
+    const root = document.querySelector('[data-communications]');
+    if (!root) {
+        return;
+    }
+
+    root.addEventListener('click', (event) => {
+        const trigger = event.target.closest('[data-revise-template]');
+        if (!trigger) {
+            return;
+        }
+        event.preventDefault();
+
+        const code = document.getElementById('template_code');
+        const purpose = document.getElementById('template_purpose');
+        const content = document.getElementById('template_content');
+        if (code) {
+            code.value = trigger.getAttribute('data-code') || '';
+        }
+        if (purpose) {
+            purpose.value = trigger.getAttribute('data-purpose') || '';
+        }
+        if (content) {
+            content.value = trigger.getAttribute('data-content') || '';
+        }
+        document.getElementById('template-create-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        content?.focus();
+    });
+})();
+
+// AJAX pagination for the "Posted announcements" table. Intercepts pagination
+// links and swaps just that section in place; falls back to normal navigation.
+(function communicationsPagination() {
+    const root = document.querySelector('[data-communications]');
+    if (!root) {
+        return;
+    }
+
+    root.addEventListener('click', async (event) => {
+        const link = event.target.closest('[data-section="announcements"] nav a[href]');
+        if (!link || !root.contains(link)) {
+            return;
+        }
+        if (link.getAttribute('aria-disabled') === 'true') {
+            event.preventDefault();
+            return;
+        }
+        event.preventDefault();
+
+        try {
+            const response = await fetch(link.href, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!response.ok) {
+                throw new Error('load failed');
+            }
+            const payload = await response.json();
+            const target = document.querySelector('[data-section="' + payload.section + '"]');
+            if (payload.html && target) {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = payload.html.trim();
+                const fresh = wrapper.firstElementChild;
+                if (fresh) {
+                    target.replaceWith(fresh);
+                    fresh.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        } catch (error) {
+            window.location.href = link.href;
         }
     });
 })();

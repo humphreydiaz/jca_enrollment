@@ -7,6 +7,7 @@ use App\Modules\Enrollment\Events\EnrollmentApproved;
 use App\Modules\Enrollment\Events\EnrollmentStatusChanged;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Enrollment\Models\EnrollmentStatusHistory;
+use App\Modules\People\Actions\IssueStudentNumberAction;
 use App\Modules\Requirements\Actions\AssertEnrollmentRequirementsSatisfiedAction;
 use App\Modules\Requirements\Actions\GenerateEnrollmentChecklistAction;
 use App\Modules\Shared\Audit\AuditRecorder;
@@ -28,7 +29,7 @@ class TransitionEnrollmentAction
         'approved' => ['withdrawn'],
     ];
 
-    public function __construct(private AuditRecorder $audit, private GenerateEnrollmentChecklistAction $checklist, private AssertEnrollmentRequirementsSatisfiedAction $requirementsSatisfied) {}
+    public function __construct(private AuditRecorder $audit, private GenerateEnrollmentChecklistAction $checklist, private AssertEnrollmentRequirementsSatisfiedAction $requirementsSatisfied, private IssueStudentNumberAction $issueStudentNumber) {}
 
     /** @return list<string> */
     public static function allowedTransitionsFrom(string $status): array
@@ -51,8 +52,19 @@ class TransitionEnrollmentAction
                 throw ValidationException::withMessages(['status' => 'Potential duplicate identity must be reviewed first.']);
             }
             if ($to === 'submitted') {
-                $this->checklist->execute($record);
+                if ($this->checklist->execute($record) === 0) {
+                    throw ValidationException::withMessages([
+                        'application' => 'Enrollment requirements are not configured for this school year and applicant category. Please contact the JCA Registrar before submitting.',
+                    ]);
+                }
                 $record->submitted_at = now();
+                // The learner's permanent student number is issued the moment the
+                // application is submitted, so they can sign in with it while the
+                // application is still under review — and it never changes later.
+                $record->loadMissing('student', 'academicYear');
+                if ($record->student !== null && $record->academicYear !== null) {
+                    $this->issueStudentNumber->execute($record->student, $record->academicYear);
+                }
             }
             if ($to === 'approved') {
                 $record->load('requirements');

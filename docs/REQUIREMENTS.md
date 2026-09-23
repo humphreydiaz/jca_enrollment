@@ -47,7 +47,7 @@ This remains the requirements baseline; the short phase-status note below preven
 
 | ID | Requirement |
 |---|---|
-| ENR-001 | Pre-elementary and Grades 1-6 shall use guardian-assisted enrollment; Grades 7-12 may submit through an invited Student login while retaining a linked guardian. |
+| ENR-001 | Pre-elementary and Grades 1-6 shall use guardian-assisted enrollment. The guardian-assisted public form shall neither display nor accept Junior High School grades. Grades 7-10 shall submit through an invited Student login while retaining a linked guardian. |
 | ENR-002 | The system shall collect a validated online enrollment form and required documents. |
 | ENR-003 | Registrar shall be able to verify, reject, waive when authorized, or request replacement of individual requirements. |
 | ENR-004 | The system shall track enrollment state and its history rather than overwrite the latest outcome without evidence. |

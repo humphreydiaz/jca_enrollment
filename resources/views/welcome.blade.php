@@ -35,6 +35,10 @@
             </p>
 
             <div class="landing-hero__actions">
+                <a href="{{ route('enrollment.public.start') }}" class="landing-cta landing-cta--apply" id="cta-apply">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3v2zm-3-7V3.5L18.5 9H13z"/></svg>
+                    Apply for Enrollment
+                </a>
                 <a href="{{ route('identity.login') }}" class="landing-cta landing-cta--guardian" id="cta-guardian-login">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M7.5 6.5C7.5 8.981 9.519 11 12 11s4.5-2.019 4.5-4.5S14.481 2 12 2 7.5 4.019 7.5 6.5zM20 21h1.5v-1.5c0-3.426-2.574-6-6-6h-7c-3.426 0-6 2.574-6 6V21H20z"/></svg>
                     Guardian / Student Sign In
@@ -297,9 +301,13 @@
                     Ready to get started?
                 </h2>
                 <p class="landing-bottom-cta__text">
-                    Sign in to your portal to begin enrollment, check your child's status, or manage school records.
+                    New family? Apply online for Preschool through Grade 6. Already registered? Sign in to check your child's status or manage school records.
                 </p>
                 <div class="landing-hero__actions">
+                    <a href="{{ route('enrollment.public.start') }}" class="landing-cta landing-cta--apply" id="cta-apply-bottom">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3v2zm-3-7V3.5L18.5 9H13z"/></svg>
+                        Apply for Enrollment
+                    </a>
                     <a href="{{ route('identity.login') }}" class="landing-cta landing-cta--guardian" id="cta-guardian-login-bottom">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M7.5 6.5C7.5 8.981 9.519 11 12 11s4.5-2.019 4.5-4.5S14.481 2 12 2 7.5 4.019 7.5 6.5zM20 21h1.5v-1.5c0-3.426-2.574-6-6-6h-7c-3.426 0-6 2.574-6 6V21H20z"/></svg>
                         Guardian / Student Sign In

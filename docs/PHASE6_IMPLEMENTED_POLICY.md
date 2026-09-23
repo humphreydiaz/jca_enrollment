@@ -18,6 +18,10 @@ P-002 and P6-01 through P6-21 are **Assumed – Owner-authorized for development
 - Financial views are server-scoped for Admin, Accounting, Registrar, assigned Teacher, linked Guardian, and self Student. Private evidence uses opaque generated storage names on the private documents disk; generic Laravel local-storage serving routes are disabled.
 - Statement, receipt, exam-permit, and internal-ledger print routes have explicit allowlists and audit entries. Receipt and permit print histories increment without replacing the original reference.
 
+## Official fee configuration
+
+`Database\Seeders\Billing\ApprovedSchoolFeesSeeder` carries the school's **official** fee structure, transcribed from the scans in `public/images/school_fees_scanned/`: the DepEd Region 1 letter of 11 June 2025 and the school's itemised breakdown. It verifies its own transcription against the printed totals (Grades I-VI PHP 19,903.25; Grades 7-10 PHP 21,850.00) before publishing, never edits a published version, and instead publishes a new version per grade and archives the one it supersedes. Books and the PE uniform are added as separately priced, non-required items because the school's sheet marks them tentative and they sit outside the DepEd-approved total. Run it with `php artisan db:seed --class="Database\Seeders\Billing\ApprovedSchoolFeesSeeder"`.
+
 ## Development fixtures
 
 `Database\Seeders\Billing\BillingDevelopmentSeeder` is opt-in and is not called by `DatabaseSeeder`. It labels its school year, schedules, exam dates, and campaign as development-only; it provides Grades 1-12, the seven development fee types, four plan options, four fictional exam periods, and the inactive fictional First-100 campaign. It must not be used as production policy.

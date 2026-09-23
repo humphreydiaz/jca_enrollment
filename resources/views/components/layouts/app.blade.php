@@ -40,6 +40,7 @@
                             <div class="mt-2 space-y-1">
                                 @if ($user->hasAnyRole(['admin', 'registrar']))
                                     <x-ui.nav-link :href="route('enrollment.registrar.index')" icon="enrollment" :active="request()->routeIs('enrollment.registrar.*')">Enrollment review</x-ui.nav-link>
+                                    <x-ui.nav-link :href="route('people.registrar.students.index')" icon="people" :active="request()->routeIs('people.registrar.students.*')">Student directory</x-ui.nav-link>
                                     <x-ui.nav-link :href="route('section-assignment.index')" icon="sections" :active="request()->routeIs('section-assignment.*', 'promotion.*')">Section assignment</x-ui.nav-link>
                                     <x-ui.nav-link :href="route('support.queue')" icon="support" :active="request()->routeIs('support.*')">Restricted support</x-ui.nav-link>
                                     <x-ui.nav-link :href="route('academics.admin.index')" icon="academics" :active="request()->routeIs('academics.admin.*')">Academics</x-ui.nav-link>

@@ -43,6 +43,8 @@
                                 @endforeach
                             </div>
                         </section>
+                    @elseif($enrollment->status !== 'draft')
+                        <x-ui.empty-state class="mt-5 border-t border-border pt-5" icon="enrollment" title="Requirement checklist unavailable" description="Please contact the JCA Registrar so the checklist can be configured for this application." />
                     @endif
                 </article>
             @empty

@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Communications\Contracts\SmsGateway;
+use App\Modules\Communications\Enums\SmsDeliveryRoute;
 use App\Modules\Communications\Gateways\FakeSmsGateway;
 use App\Modules\Enrollment\Actions\StartEnrollmentAction;
 use App\Modules\Enrollment\Actions\TransitionEnrollmentAction;
@@ -97,6 +98,25 @@ class EnrollmentWorkflowTest extends TestCase
         $this->assertDatabaseHas('enrollment_status_history', ['enrollment_id' => $enrollment->id, 'from_status' => 'draft', 'to_status' => 'submitted']);
     }
 
+    public function test_submission_fails_closed_when_requirement_rules_are_missing(): void
+    {
+        Mail::fake();
+        $started = app(StartEnrollmentAction::class)->execute($this->startPayload());
+        $started->enrollment->update(['contact_verified_at' => now()]);
+
+        try {
+            app(TransitionEnrollmentAction::class)->execute($started->enrollment, 'submitted', null);
+            $this->fail('Submission must fail when no requirement rules match the application.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('application', $exception->errors());
+            $this->assertStringContainsString('not configured', $exception->errors()['application'][0]);
+        }
+
+        $this->assertSame('draft', $started->enrollment->fresh()->status);
+        $this->assertNull($started->enrollment->fresh()->submitted_at);
+        $this->assertDatabaseCount('enrollment_requirements', 0);
+    }
+
     public function test_enrollment_contact_verification_code_is_sent_by_sms(): void
     {
         Mail::fake();
@@ -107,9 +127,12 @@ class EnrollmentWorkflowTest extends TestCase
 
         $this->assertCount(1, $fake->sent);
         $this->assertSame(ContactNormalizer::mobile('09171234567'), $fake->sent[0]['recipient']);
-        $this->assertStringContainsString($started->verificationCode, $fake->sent[0]['body']);
+        $this->assertStringContainsString('{otp}', $fake->sent[0]['body']);
+        $this->assertSame($started->verificationCode, $fake->sent[0]['one_time_code']);
         $this->assertSame('enrollment-verify:'.$started->enrollment->id, $fake->sent[0]['idempotency_key']);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'enrollment.contact.verification.sms.sent']);
+        $this->assertSame(SmsDeliveryRoute::Otp, $fake->sent[0]['route']);
+        $this->assertLessThanOrEqual(160, strlen(str_replace('{otp}', $started->verificationCode, $fake->sent[0]['body'])));
+        $this->assertDatabaseHas('audit_logs', ['action' => 'enrollment.contact.verification.sms.accepted']);
     }
 
     public function test_applicant_can_resend_the_contact_verification_code_by_sms(): void
@@ -129,6 +152,7 @@ class EnrollmentWorkflowTest extends TestCase
 
         $this->assertCount(1, $fake->sent);
         $this->assertSame(ContactNormalizer::mobile('09171234567'), $fake->sent[0]['recipient']);
+        $this->assertSame(SmsDeliveryRoute::Otp, $fake->sent[0]['route']);
         $this->assertNotSame($originalHash, $enrollment->fresh()->verification_code_hash);
         Mail::assertQueued(EnrollmentContactVerificationMail::class);
         $this->assertDatabaseHas('audit_logs', ['action' => 'enrollment.contact.verification.resent']);
@@ -274,14 +298,32 @@ class EnrollmentWorkflowTest extends TestCase
         $this->assertCount(1, $fake->sent);
         $this->assertSame(ContactNormalizer::mobile('09171234567'), $fake->sent[0]['recipient']);
         $this->assertSame('invitation:'.$invitation->id, $fake->sent[0]['idempotency_key']);
+        $this->assertSame(SmsDeliveryRoute::Otp, $fake->sent[0]['route']);
+        $this->assertLessThanOrEqual(160, strlen(str_replace('{otp}', $fake->sent[0]['one_time_code'], $fake->sent[0]['body'])));
 
-        // The SMS body carries the one-time setup link, and its token matches the stored hash.
+        // The SMS uses the dedicated OTP route and avoids a URL that can be
+        // awkward to type or more likely to be filtered as suspicious content.
         $body = $fake->sent[0]['body'];
-        $this->assertStringContainsString('/invitations/'.$invitation->public_id.'/', $body);
-        preg_match('#/invitations/[^/]+/([^\s]+)#', $body, $matches);
-        $this->assertSame($invitation->token_hash, hash('sha256', $matches[1] ?? ''));
+        $this->assertStringContainsString('{otp}', $body);
+        $this->assertStringNotContainsString('http', $body);
+        $this->assertSame($invitation->token_hash, hash('sha256', $fake->sent[0]['one_time_code'] ?? ''));
 
-        $this->assertDatabaseHas('audit_logs', ['action' => 'identity.invitation.sms.sent']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'identity.invitation.sms.accepted']);
+        $audit = DB::table('audit_logs')->where('action', 'identity.invitation.sms.accepted')->latest('id')->first();
+        $metadata = json_decode((string) $audit?->metadata, true);
+        $this->assertSame('otp', $metadata['route'] ?? null);
+        $this->assertSame('fake-1', $metadata['provider_reference'] ?? null);
+        $this->assertLessThanOrEqual(160, $metadata['message_length'] ?? 161);
+        $this->assertArrayNotHasKey('code', $metadata);
+        $this->assertArrayNotHasKey('body', $metadata);
+
+        // A quick repeat must not invalidate a code that may still be moving
+        // through the recipient's mobile network.
+        $this->actingAs($registrar)
+            ->post(route('enrollment.registrar.connect', $enrollment))
+            ->assertSessionHasErrors('application');
+        $this->assertCount(1, $fake->sent);
+        $this->assertSame(1, AccountInvitation::query()->where('user_id', $guardianUserId)->count());
     }
 
     public function test_disabled_guardian_account_requires_admin_reactivation_instead_of_an_unusable_invitation(): void
@@ -331,6 +373,30 @@ class EnrollmentWorkflowTest extends TestCase
         // The colliding student account is untouched and no guardian login was created.
         $this->assertNull($enrollment->guardian->fresh()->user_id);
         $this->assertTrue($studentAccount->fresh()->hasRole('student'));
+        $this->assertFalse($studentAccount->fresh()->hasRole('guardian'));
+    }
+
+    public function test_connect_rejects_a_secondary_mobile_owned_by_another_account_before_insert(): void
+    {
+        $registrar = $this->user(['registrar']);
+        $studentAccount = $this->user(['student']);
+        $studentAccount->forceFill(['mobile' => '+639706059907'])->save();
+
+        $enrollment = $this->enrollment('regular', 'submitted');
+        $enrollment->update(['contact_verified_at' => now(), 'guardian_relationship' => 'Parent', 'duplicate_review_status' => 'clear']);
+        $enrollment->guardian->update([
+            'email' => 'guardian.unique@example.test',
+            'mobile' => '+639706059907',
+        ]);
+
+        $this->actingAs($registrar)
+            ->post(route('enrollment.registrar.connect', $enrollment))
+            ->assertRedirect()
+            ->assertSessionHasErrors('application');
+
+        $this->assertNull($enrollment->guardian->fresh()->user_id);
+        $this->assertDatabaseMissing('users', ['email' => 'guardian.unique@example.test']);
+        $this->assertSame(1, User::query()->where('mobile', '+639706059907')->count());
         $this->assertFalse($studentAccount->fresh()->hasRole('guardian'));
     }
 
@@ -424,10 +490,10 @@ class EnrollmentWorkflowTest extends TestCase
         ]);
 
         $highSchoolGrade = GradeLevel::query()->create([
-            'code' => 'T-G11',
-            'name' => 'Fictional Grade 11',
-            'sequence' => 11,
-            'school_stage' => 'Senior High School',
+            'code' => 'T-G10',
+            'name' => 'Fictional Grade 10',
+            'sequence' => 10,
+            'school_stage' => 'Junior High School',
             'is_active' => true,
         ]);
         $highSchoolPayload = $this->startPayload();
@@ -436,11 +502,53 @@ class EnrollmentWorkflowTest extends TestCase
         $this->actingAs($studentAccount)
             ->get(route('enrollment.public.start'))
             ->assertOk()
-            ->assertSee('Grades 1–6 require a parent or guardian')
-            ->assertSee('guardian-assisted');
+            ->assertSee('Student accounts may apply for Junior High School Grades 7–10')
+            ->assertDontSee('guardian-assisted');
 
         $this->actingAs($studentAccount)
             ->post(route('enrollment.public.store'), $highSchoolPayload)
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('enrollments', [
+            'student_applicant_user_id' => $studentAccount->id,
+            'grade_level_id' => $highSchoolGrade->id,
+            'status' => 'draft',
+        ]);
+    }
+
+    public function test_guardian_and_student_application_forms_offer_and_accept_only_their_allowed_grade_stages(): void
+    {
+        Mail::fake();
+        $highSchoolGrade = GradeLevel::query()->create([
+            'code' => 'T-G7-SPLIT',
+            'name' => 'Fictional Grade 7',
+            'sequence' => 7,
+            'school_stage' => 'Junior High School',
+            'is_active' => true,
+        ]);
+
+        $this->get(route('enrollment.public.start'))
+            ->assertOk()
+            ->assertViewHas('grades', fn ($grades): bool => $grades->contains('id', $this->grade->id)
+                && ! $grades->contains('id', $highSchoolGrade->id));
+
+        $guardianPayload = $this->startPayload();
+        $guardianPayload['grade_level_id'] = $highSchoolGrade->id;
+        $this->post(route('enrollment.public.store'), $guardianPayload)
+            ->assertSessionHasErrors('grade_level_id');
+        $this->assertDatabaseCount('enrollments', 0);
+
+        $studentAccount = $this->user(['student']);
+        $this->actingAs($studentAccount)
+            ->get(route('enrollment.public.start'))
+            ->assertOk()
+            ->assertViewHas('grades', fn ($grades): bool => ! $grades->contains('id', $this->grade->id)
+                && $grades->contains('id', $highSchoolGrade->id));
+
+        $studentPayload = $this->startPayload();
+        $studentPayload['grade_level_id'] = $highSchoolGrade->id;
+        $this->actingAs($studentAccount)
+            ->post(route('enrollment.public.store'), $studentPayload)
             ->assertRedirect();
 
         $this->assertDatabaseHas('enrollments', [

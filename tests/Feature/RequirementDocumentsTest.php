@@ -229,7 +229,12 @@ class RequirementDocumentsTest extends TestCase
         Storage::disk('documents')->assertExists($document->path);
         $this->assertDatabaseHas('audit_logs', ['action' => 'requirements.soft_copy.uploaded', 'actor_user_id' => $guardian->id]);
 
-        $this->actingAs($registrar)->get(route('requirements.documents.preview', $document))->assertOk()->assertHeader('cache-control', 'no-store, private');
+        $this->actingAs($registrar)
+            ->get(route('requirements.documents.preview', $document))
+            ->assertOk()
+            ->assertHeader('cache-control', 'no-store, private')
+            ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
+            ->assertHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors 'self'");
         $this->assertDatabaseHas('document_access_logs', ['document_upload_id' => $document->id, 'actor_user_id' => $registrar->id, 'action' => 'preview']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'requirements.document.previewed', 'actor_user_id' => $registrar->id]);
 

@@ -138,7 +138,7 @@ A phase is complete only when its acceptance criteria and test requirements pass
 
 ## Phase 3 - Academic catalog, sections, and teaching assignments
 
-**Status:** Complete on 2026-07-11. On 2026-07-23, JCA confirmed and populated the grade progression from Nursery through Grade 12; official school years, subjects, sections, advisers, and teaching assignments remain pending.
+**Status:** Complete on 2026-07-11. On 2026-07-23, JCA confirmed and populated the grade progression from Nursery through Grade 10; official school years, subjects, sections, advisers, and teaching assignments remain pending. On 2026-08-21, JCA confirmed it does not offer Senior High School, and Grades 11-12 were removed from the catalog.
 
 **Goal:** create school-year academic structure and teacher scopes before enrollment uses them.
 

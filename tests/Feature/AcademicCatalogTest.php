@@ -150,7 +150,10 @@ class AcademicCatalogTest extends TestCase
         $this->actingAs($teacher)->get(route('academics.teacher.assignments'))
             ->assertOk()
             ->assertSee('Faith')
-            ->assertDontSee('Hope');
+            ->assertDontSee('Hope')
+            ->assertSee('Class schedule')
+            ->assertSee('Mon 8:00 AM')
+            ->assertSee('Your class');
         $this->actingAs($teacher)->post(route('academics.admin.subjects.store'), [
             'code' => 'MATH', 'name' => 'Math', 'is_active' => true,
         ])->assertForbidden();

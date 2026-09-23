@@ -19,32 +19,59 @@ use App\Modules\People\Http\Requests\LinkStudentAccountRequest;
 use App\Modules\People\Models\GuardianProfile;
 use App\Modules\People\Models\GuardianStudent;
 use App\Modules\People\Models\StudentProfile;
+use App\Modules\People\Support\StudentAccountIdentityMatcher;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
 class PeopleManagementController
 {
-    public function index(): View
+    public function index(StudentAccountIdentityMatcher $identityMatcher): View
     {
+        $studentSearch = trim((string) request('student_search'));
+
+        $students = StudentProfile::query()
+            ->with(['user', 'enrollments.academicYear', 'enrollments.gradeLevel'])
+            ->withCount(['guardians', 'guardianLinks', 'potentialDuplicateEnrollments'])
+            ->when($studentSearch !== '', function ($query) use ($studentSearch): void {
+                $like = '%'.$studentSearch.'%';
+                $query->where(function ($sub) use ($like): void {
+                    $sub->where('first_name', 'like', $like)
+                        ->orWhere('middle_name', 'like', $like)
+                        ->orWhere('last_name', 'like', $like)
+                        ->orWhere('student_number', 'like', $like)
+                        ->orWhereRaw("CONCAT_WS(' ', first_name, middle_name, last_name) LIKE ?", [$like])
+                        ->orWhereHas('user', fn ($user) => $user->where('name', 'like', $like)->orWhere('email', 'like', $like));
+                });
+            })
+            ->orderBy('last_name')
+            ->paginate(8, ['*'], 'students_page')
+            ->withQueryString();
+
+        // Unconnected Student logins available to attach to a profile.
+        $studentUsers = User::query()
+            ->whereHas('roles', fn ($query) => $query->where('code', 'student'))
+            ->whereDoesntHave('studentProfile')
+            ->whereIn('status', ['invited', 'active'])
+            ->orderBy('name')
+            ->get();
+
+        // Offer, per student profile, only the logins whose name actually matches
+        // that student — the same identity rule the server enforces on connect.
+        // This keeps the dropdown from listing unrelated people's logins.
+        $studentLoginOptions = $students->getCollection()->mapWithKeys(fn (StudentProfile $student) => [
+            $student->id => $studentUsers->filter(fn (User $account) => $identityMatcher->matches($student, $account))->values(),
+        ]);
+
         return view('people.admin.index', [
             'guardians' => GuardianProfile::query()->withCount('students')->orderBy('last_name')->get(),
-            'students' => StudentProfile::query()
-                ->with(['user', 'enrollments.academicYear', 'enrollments.gradeLevel'])
-                ->withCount(['guardians', 'guardianLinks', 'potentialDuplicateEnrollments'])
-                ->orderBy('last_name')
-                ->paginate(8, ['*'], 'students_page')
-                ->withQueryString(),
+            'students' => $students,
+            'studentSearch' => $studentSearch,
+            'studentLoginOptions' => $studentLoginOptions,
             // Full, lightweight list for the "Link guardian and student" dropdown,
             // which must offer every student regardless of the paginated view above.
             'studentOptions' => StudentProfile::query()->orderBy('last_name')->get(),
             'links' => GuardianStudent::query()->with(['guardian', 'student'])->latest()->paginate(10, ['*'], 'links_page')->withQueryString(),
             'guardianUsers' => User::query()->whereHas('roles', fn ($query) => $query->where('code', 'guardian'))->orderBy('name')->get(),
-            'studentUsers' => User::query()
-                ->whereHas('roles', fn ($query) => $query->where('code', 'student'))
-                ->whereDoesntHave('studentProfile')
-                ->whereIn('status', ['invited', 'active'])
-                ->orderBy('name')
-                ->get(),
         ]);
     }
 

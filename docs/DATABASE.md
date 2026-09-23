@@ -71,7 +71,7 @@ Do not add a paid permission package. Laravel policies map stable capabilities t
 
 Columns: `id`, `public_id`, `user_id`, `purpose`, hashed `token`, `sent_to`, `expires_at`, `consumed_at`, `revoked_at`, `created_by`, timestamps.
 
-Only the raw one-time token leaves the server. Never store it plaintext.
+Only the raw one-time token leaves the server. Never store it plaintext. New account-setup tokens are grouped, unambiguous activation codes with approximately 80 bits of entropy; the hash remains the only persisted form, and legacy opaque invitation links remain redeemable until they expire.
 
 ### Framework security tables
 
@@ -117,7 +117,7 @@ Columns: `id`, opaque `public_id`, unique `code`, `name`, `starts_on`, `ends_on`
 
 ### `grade_levels`
 
-Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. The seeded progression is Nursery, Junior Kinder, Senior Kinder, Grades 1-6, Grades 7-10, and Grades 11-12; offerings remain editable and may be inactivated without deleting history.
+Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. The seeded progression is Nursery, Junior Kinder, Senior Kinder, Grades 1-6, and Grades 7-10; Grade 10 is the last grade and has a null `next_grade_level_id`. JCA does not offer Senior High School, so Grades 11-12 are not seeded. Offerings remain editable and may be inactivated without deleting history.
 
 ### `subjects`
 

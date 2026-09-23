@@ -1,6 +1,7 @@
 @import 'tailwindcss';
 
 @source '../views/**/*.blade.php';
+@source '../js/**/*.js';
 @source '../../app/**/*.php';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -82,6 +83,17 @@
         border-radius: 0.875rem;
         background: var(--color-surface);
         box-shadow: 0 8px 24px rgb(23 22 79 / 6%);
+    }
+
+    /* Announcement composer: reveal the "portal role" picker only when the
+       "One portal role" audience is chosen. Pure CSS so it survives AJAX
+       section swaps and resets naturally on form.reset(). */
+    .audience-toggle .audience-role-field {
+        display: none;
+    }
+
+    .audience-toggle:has(input[name="audiences[0][type]"][value="role"]:checked) .audience-role-field {
+        display: block;
     }
 
     .jca-button,
@@ -454,6 +466,20 @@
         box-shadow:
             0 8px 28px rgba(23, 22, 79, 0.22),
             0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .landing-cta--apply {
+        color: var(--color-brand-navy-900);
+        background: linear-gradient(90deg, var(--color-brand-gold-500), var(--color-brand-orange-500));
+        box-shadow:
+            0 4px 16px rgba(233, 120, 23, 0.35),
+            0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .landing-cta--apply:hover {
+        box-shadow:
+            0 8px 28px rgba(233, 120, 23, 0.45),
+            0 2px 6px rgba(0, 0, 0, 0.15);
     }
 
     .landing-cta--staff {

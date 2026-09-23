@@ -127,16 +127,19 @@ class RegistrarEnrollmentController
             return back()->with('status', 'Existing guardian account connected.');
         }
 
-        $setupUrl = route('identity.invitations.show', ['invitation' => $invitation->invitation->public_id, 'token' => $invitation->token]);
+        $setupUrl = route('identity.invitations.short', ['token' => $invitation->token]);
 
         // Auto-deliver the one-time setup link by SMS whenever the guardian has a mobile number.
         $mobile = ContactNormalizer::mobile($enrollment->fresh('guardian')?->guardian?->mobile);
-        $smsSent = $mobile !== null && $sendInvitationSms->execute($invitation->invitation, $mobile, $setupUrl);
+        $smsSent = $mobile !== null && $sendInvitationSms->execute($invitation->invitation, $mobile, $invitation->token);
 
         $status = $smsSent
-            ? 'Guardian account connected. The one-time setup link was sent by SMS. A copy is shown below as a fallback.'
-            : 'Guardian account connected. Deliver the one-time invitation through the verified channel.';
+            ? 'Guardian account connected. The SMS service accepted the one-time code for delivery; this does not confirm receipt by the phone. A fallback code and link are shown below.'
+            : 'Guardian account connected, but the SMS service did not accept the one-time code. Use the fallback code or link shown below.';
 
-        return back()->with('status', $status)->with('invitation_url', $setupUrl);
+        return back()
+            ->with('status', $status)
+            ->with('invitation_code', $invitation->token)
+            ->with('invitation_url', $setupUrl);
     }
 }

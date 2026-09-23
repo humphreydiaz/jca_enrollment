@@ -57,12 +57,31 @@
         </div>
 
         <section id="student-connections" class="jca-card scroll-mt-24 overflow-hidden" aria-labelledby="student-account-link-title">
-            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-border p-6">
-                <div>
-                    <h2 id="student-account-link-title" class="text-xl font-black text-brand-navy-900">Student profile and login connections</h2>
-                    <p class="mt-2 max-w-4xl text-sm leading-6 text-muted">A login account does not own a grade or enrollment. It only opens the student profile connected here. Verify the profile name and enrollment before connecting; disconnecting a mistake preserves every enrollment record.</p>
+            <div class="border-b border-border p-6">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 id="student-account-link-title" class="text-xl font-black text-brand-navy-900">Student profile and login connections</h2>
+                        <p class="mt-2 max-w-4xl text-sm leading-6 text-muted">A login account does not own a grade or enrollment. It only opens the student profile connected here. Verify the profile name and enrollment before connecting; disconnecting a mistake preserves every enrollment record.</p>
+                    </div>
+                    <span class="shrink-0 rounded-full bg-brand-blue-100 px-3 py-1 text-xs font-bold text-brand-navy-700">{{ $students->total() }} {{ Str::plural('profile', $students->total()) }}</span>
                 </div>
-                <span class="shrink-0 rounded-full bg-brand-blue-100 px-3 py-1 text-xs font-bold text-brand-navy-700">{{ $students->total() }} {{ Str::plural('profile', $students->total()) }}</span>
+
+                <form method="GET" action="{{ route('people.admin.index') }}#student-connections" role="search" class="mt-4 flex flex-wrap items-center gap-2">
+                    <label for="student_search" class="sr-only">Search student profiles</label>
+                    <div class="relative min-w-0 flex-1 sm:max-w-md">
+                        <span class="pointer-events-none absolute inset-y-0 left-3 grid place-items-center text-slate-400"><x-ui.icon name="search" size="size-4" /></span>
+                        <input id="student_search" type="search" name="student_search" value="{{ $studentSearch }}" maxlength="120" autocomplete="off"
+                            placeholder="Search by name, student number, or login"
+                            class="jca-input w-full pl-9">
+                    </div>
+                    <x-ui.button type="submit"><x-ui.icon name="search" size="size-4" /> Search</x-ui.button>
+                    @if($studentSearch !== '')
+                        <a href="{{ route('people.admin.index') }}#student-connections" class="jca-button-secondary">Clear</a>
+                    @endif
+                </form>
+                @if($studentSearch !== '')
+                    <p class="mt-2 text-sm text-muted">{{ $students->total() }} {{ Str::plural('result', $students->total()) }} for &ldquo;{{ $studentSearch }}&rdquo;</p>
+                @endif
             </div>
             <div class="divide-y divide-border">
                 @forelse ($students as $student)
@@ -120,12 +139,13 @@
                                         </details>
                                     </div>
                                 @elseif($eligibleEnrollment)
+                                    @php($loginOptions = $studentLoginOptions[$student->id] ?? collect())
                                     <form method="POST" action="{{ route('people.admin.students.account', $student) }}" class="rounded-xl border border-border p-4">
                                         @csrf @method('PUT')
                                         <label class="jca-label">Login account for {{ $student->full_name }}
                                             <select name="user_public_id" required class="jca-input">
-                                                <option value="">Select a Student login not connected elsewhere</option>
-                                                @foreach ($studentUsers as $user)
+                                                <option value="">Select a matching Student login</option>
+                                                @foreach ($loginOptions as $user)
                                                     <option value="{{ $user->public_id }}">{{ $user->name }} &middot; {{ $user->email ?? $user->mobile }}</option>
                                                 @endforeach
                                             </select>
@@ -134,8 +154,8 @@
                                             <textarea name="exception_reason" minlength="10" maxlength="2000" class="jca-input" placeholder="Required only for approved Grades 1-6; do not enter N/A"></textarea>
                                         </label>
                                         <label class="jca-check mt-3 rounded-lg border border-border p-3"><input type="checkbox" name="identity_confirmed" value="1" required> I verified that the selected login belongs to {{ $student->full_name }}.</label>
-                                        <x-ui.button type="submit" class="mt-3" :disabled="$studentUsers->isEmpty()"><x-ui.icon name="users" /> Connect verified account</x-ui.button>
-                                        @if($studentUsers->isEmpty())<p class="mt-2 text-sm text-warning-800">No available Student login account matches this profile.</p>@endif
+                                        <x-ui.button type="submit" class="mt-3" :disabled="$loginOptions->isEmpty()"><x-ui.icon name="users" /> Connect verified account</x-ui.button>
+                                        @if($loginOptions->isEmpty())<p class="mt-2 text-sm text-warning-800">No unconnected Student login matches this profile's name yet.</p>@endif
                                     </form>
                                 @else
                                     <div class="rounded-xl border border-dashed border-border p-4 text-sm text-muted">Account connection is unavailable until this profile has an approved or enrolled record.</div>
@@ -144,7 +164,11 @@
                         </div>
                     </article>
                 @empty
-                    <x-ui.empty-state icon="users" title="No student profiles" description="Student profiles created through enrollment intake will appear here." />
+                    @if($studentSearch !== '')
+                        <x-ui.empty-state icon="search" title="No matching student profiles" :description="'No student profile matches \''.$studentSearch.'\'. Try a different name, student number, or login.'" />
+                    @else
+                        <x-ui.empty-state icon="users" title="No student profiles" description="Student profiles created through enrollment intake will appear here." />
+                    @endif
                 @endforelse
             </div>
             @if ($students->hasPages())

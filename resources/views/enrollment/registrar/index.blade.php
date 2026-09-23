@@ -20,6 +20,13 @@
             eyebrow="Registrar workspace"
         />
 
+        @if($errors->any())
+            <section class="rounded-xl border border-red-200 bg-red-50 p-4 sm:p-5" role="alert" aria-labelledby="enrollment-action-error-title">
+                <h2 id="enrollment-action-error-title" class="font-black text-brand-red-600">The requested account action could not be completed</h2>
+                <p class="mt-1 text-sm leading-6 text-brand-red-600">{{ $errors->first() }}</p>
+            </section>
+        @endif
+
         {{-- ── Summary stat cards ── --}}
         <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Enrollment review summary">
             @foreach([

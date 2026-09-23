@@ -6,11 +6,6 @@
             eyebrow="Admin workspace"
         />
 
-        <div class="flex gap-3 rounded-xl border border-brand-orange-500 bg-warning-50 p-4 text-warning-800" role="note">
-            <x-ui.icon name="warning" class="mt-0.5" />
-            <div><p class="font-bold">Production approval is still required</p><p class="mt-1 text-sm leading-6">Current development configuration is not official school policy. Replace it only with approved JCA inputs before launch.</p></div>
-        </div>
-
         <div class="grid items-start gap-6 xl:grid-cols-[15rem_minmax(0,1fr)]">
             <nav class="jca-card sticky top-24 hidden p-3 xl:block" aria-label="Configuration sections">
                 @foreach ([

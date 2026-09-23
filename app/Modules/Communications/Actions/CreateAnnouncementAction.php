@@ -6,18 +6,14 @@ use App\Models\User;
 use App\Modules\Communications\Models\Announcement;
 use App\Modules\Communications\Models\AnnouncementAudience;
 use App\Modules\Communications\Models\NotificationTemplate;
-use App\Modules\Enrollment\Models\Enrollment;
-use App\Modules\People\Models\GuardianProfile;
-use App\Modules\People\Models\GuardianStudent;
-use App\Modules\SectionAssignment\Models\SectionAssignment;
+use App\Modules\Communications\Queries\AnnouncementSmsRecipients;
 use App\Modules\Shared\Audit\AuditRecorder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class CreateAnnouncementAction
 {
-    public function __construct(private readonly AuditRecorder $audit, private readonly SafeMessageContent $content, private readonly QueueSmsNotificationAction $sms) {}
+    public function __construct(private readonly AuditRecorder $audit, private readonly SafeMessageContent $content, private readonly QueueSmsNotificationAction $sms, private readonly AnnouncementSmsRecipients $recipients) {}
 
     /** @param list<array<string, mixed>> $audiences */
     public function execute(array $attributes, array $audiences, User $actor): Announcement
@@ -63,7 +59,7 @@ class CreateAnnouncementAction
             }
             $this->audit->record($actor, 'communications.announcement.created', $announcement, ['status' => $announcement->status]);
             if ($template !== null && $announcement->status === 'published') {
-                foreach ($this->guardianRecipients($audiences) as $guardian) {
+                foreach ($this->recipients->forAudiences($audiences) as $guardian) {
                     $this->sms->execute($template, $guardian, 'announcement:'.$announcement->id.':'.$guardian->id, [
                         'school_name' => (string) config('app.name'),
                         'status' => '',
@@ -76,32 +72,5 @@ class CreateAnnouncementAction
 
             return $announcement;
         });
-    }
-
-    /** @param list<array<string, mixed>> $audiences */
-    private function guardianRecipients(array $audiences): Collection
-    {
-        $all = false;
-        $guardianIds = [];
-        $sectionIds = [];
-        foreach ($audiences as $audience) {
-            $all = $all || ($audience['type'] ?? null) === 'all' || (($audience['type'] ?? null) === 'role' && ($audience['role_code'] ?? null) === 'guardian');
-            if (($audience['type'] ?? null) === 'guardian') {
-                $guardianIds[] = (int) $audience['guardian_id'];
-            }
-            if (($audience['type'] ?? null) === 'section') {
-                $sectionIds[] = (int) $audience['section_id'];
-            }
-        }
-        if ($all) {
-            return GuardianProfile::query()->whereNotNull('mobile')->get();
-        }
-        if ($sectionIds !== []) {
-            $enrollmentIds = SectionAssignment::query()->whereIn('section_id', $sectionIds)->where('status', 'confirmed')->whereNull('ended_at')->pluck('enrollment_id');
-            $studentIds = Enrollment::query()->whereIn('id', $enrollmentIds)->pluck('student_id');
-            $guardianIds = array_merge($guardianIds, GuardianStudent::query()->whereIn('student_id', $studentIds)->where('may_receive_sms', true)->whereNotNull('verified_at')->whereNull('ended_at')->pluck('guardian_id')->all());
-        }
-
-        return GuardianProfile::query()->whereIn('id', array_unique($guardianIds))->whereNotNull('mobile')->get();
     }
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 
 class StudentProfile extends Model
@@ -107,6 +108,17 @@ class StudentProfile extends Model
     public function potentialDuplicateEnrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class, 'potential_duplicate_student_id');
+    }
+
+    /**
+     * The most recent application, used by the directory listing to show the
+     * learner's current grade, year, and state without loading every record.
+     *
+     * @return HasOne<Enrollment, $this>
+     */
+    public function latestEnrollment(): HasOne
+    {
+        return $this->hasOne(Enrollment::class, 'student_id')->latestOfMany();
     }
 
     public function getFullNameAttribute(): string

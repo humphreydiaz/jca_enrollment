@@ -28,13 +28,23 @@ class StartEnrollmentAction
             throw ValidationException::withMessages(['application' => 'Only a Student account can own a student application.']);
         }
 
-        if ($studentApplicant !== null) {
-            $grade = GradeLevel::query()->findOrFail($data['grade_level_id']);
-            if (! $grade->allowsStudentAccountByDefault()) {
-                throw ValidationException::withMessages([
-                    'grade_level_id' => 'Pre-elementary and elementary applications must be completed with a parent or guardian. Ask your guardian to start the application.',
-                ]);
-            }
+        $grade = GradeLevel::query()->find($data['grade_level_id']);
+        if ($grade === null || ! $grade->is_active) {
+            throw ValidationException::withMessages([
+                'grade_level_id' => 'Select an available grade level.',
+            ]);
+        }
+
+        if ($studentApplicant !== null && ! $grade->allowsStudentAccountByDefault()) {
+            throw ValidationException::withMessages([
+                'grade_level_id' => 'Pre-elementary and elementary applications must be completed with a parent or guardian. Ask your guardian to start the application.',
+            ]);
+        }
+
+        if ($studentApplicant === null && $grade->allowsStudentAccountByDefault()) {
+            throw ValidationException::withMessages([
+                'grade_level_id' => 'Junior High School applications require an invited Student login.',
+            ]);
         }
 
         $lockIdentity = $studentApplicant === null

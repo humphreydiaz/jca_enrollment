@@ -73,7 +73,6 @@
                                     'Pre-elementary' => 'A. PRE-ELEMENTARY',
                                     'Elementary' => 'B. ELEMENTARY',
                                     'Junior High School' => 'C. JUNIOR HIGH SCHOOL',
-                                    'Senior High School' => 'D. SENIOR HIGH SCHOOL',
                                 ];
                                 $grandMale = 0;
                                 $grandFemale = 0;

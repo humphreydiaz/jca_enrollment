@@ -7,6 +7,7 @@ use App\Modules\Identity\Http\Controllers\InvitationAcceptanceController;
 use App\Modules\Identity\Http\Controllers\PasswordChangeController;
 use App\Modules\Identity\Http\Controllers\UserManagementController;
 use App\Modules\People\Http\Controllers\PeopleManagementController;
+use App\Modules\People\Http\Controllers\StudentDirectoryController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function (): void {
@@ -15,7 +16,19 @@ Route::middleware('guest')->group(function (): void {
     Route::get('/staff/login', [AuthenticatedSessionController::class, 'createStaff'])->name('identity.staff.login');
     Route::post('/staff/login', [AuthenticatedSessionController::class, 'storeStaff'])->name('identity.staff.login.store');
     Route::get('/account-recovery', [AccountRecoveryController::class, 'create'])->name('identity.recovery');
-    Route::get('/invitations/{invitation}/{token}', [InvitationAcceptanceController::class, 'create'])->name('identity.invitations.show');
+    Route::get('/activate-account', [InvitationAcceptanceController::class, 'activation'])->name('identity.invitations.activate');
+    Route::post('/activate-account', [InvitationAcceptanceController::class, 'activate'])
+        ->middleware('throttle:10,1')
+        ->name('identity.invitations.activate.store');
+    Route::get('/i/{token}', [InvitationAcceptanceController::class, 'createShort'])
+        ->middleware('throttle:30,1')
+        ->name('identity.invitations.short');
+    Route::post('/i/{token}', [InvitationAcceptanceController::class, 'storeShort'])
+        ->middleware('throttle:10,1')
+        ->name('identity.invitations.short.store');
+    Route::get('/invitations/{invitation}/{token}', [InvitationAcceptanceController::class, 'create'])
+        ->middleware('throttle:30,1')
+        ->name('identity.invitations.show');
     Route::post('/invitations/{invitation}/{token}', [InvitationAcceptanceController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('identity.invitations.store');
@@ -46,5 +59,12 @@ Route::middleware(['auth', 'password.changed'])->group(function (): void {
         Route::delete('/students/{student}/account', [PeopleManagementController::class, 'disconnectStudentAccount'])->name('people.admin.students.account.disconnect');
         Route::post('/guardian-student-links', [PeopleManagementController::class, 'link'])->name('people.admin.links.store');
         Route::post('/guardians/{guardian}/students/{student}/verify', [PeopleManagementController::class, 'verify'])->name('people.admin.links.verify');
+    });
+
+    Route::prefix('registrar')->middleware('role:admin,registrar')->group(function (): void {
+        // Bare /registrar has no landing page of its own; send staff to the queue.
+        Route::redirect('/', '/registrar/enrollments')->name('registrar.home');
+        Route::get('/students', [StudentDirectoryController::class, 'index'])->name('people.registrar.students.index');
+        Route::get('/students/{student}', [StudentDirectoryController::class, 'show'])->name('people.registrar.students.show');
     });
 });

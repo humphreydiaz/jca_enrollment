@@ -39,22 +39,22 @@ class UserManagementController
             $request->user(),
         );
 
-        $setupUrl = route('identity.invitations.show', [
-            'invitation' => $created->invitation->invitation->public_id,
+        $setupUrl = route('identity.invitations.short', [
             'token' => $created->invitation->token,
         ]);
 
-        // Auto-deliver the one-time setup link by SMS when the admin chose the mobile channel.
+        // Auto-deliver the one-time setup code by SMS when the admin chose the mobile channel.
         $smsSent = $channel === 'mobile'
-            && $sendInvitationSms->execute($created->invitation->invitation, (string) $validated['mobile'], $setupUrl);
+            && $sendInvitationSms->execute($created->invitation->invitation, (string) $validated['mobile'], $created->invitation->token);
 
         $status = $smsSent
-            ? 'Account invitation created. The one-time setup link was sent by SMS. A copy is shown below as a fallback.'
-            : 'Account invitation created. Deliver the one-time link through the verified contact channel.';
+            ? 'Account invitation created. The SMS service accepted the one-time code for delivery; this does not confirm receipt by the phone. A fallback code and link are shown below.'
+            : 'Account invitation created, but the SMS service did not accept the one-time code. Use the fallback code or link shown below.';
 
         return redirect()
             ->route('identity.admin.users.index')
             ->with('status', $status)
+            ->with('invitation_code', $created->invitation->token)
             ->with('invitation_url', $setupUrl);
     }
 
@@ -83,8 +83,7 @@ class UserManagementController
 
         return back()
             ->with('status', 'Account reactivated. Deliver the new one-time setup link through the verified channel.')
-            ->with('invitation_url', route('identity.invitations.show', [
-                'invitation' => $created->invitation->public_id,
+            ->with('invitation_url', route('identity.invitations.short', [
                 'token' => $created->token,
             ]));
     }
@@ -100,8 +99,7 @@ class UserManagementController
 
         return back()
             ->with('status', 'Recovery invitation created. Verify identity before delivering the one-time link.')
-            ->with('invitation_url', route('identity.invitations.show', [
-                'invitation' => $created->invitation->public_id,
+            ->with('invitation_url', route('identity.invitations.short', [
                 'token' => $created->token,
             ]));
     }

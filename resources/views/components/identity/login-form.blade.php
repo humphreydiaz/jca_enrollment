@@ -1,19 +1,21 @@
 @props([
     'action',
     'submitLabel' => 'Sign in',
+    'identifierLabel' => 'Student number, email address, or mobile number',
+    'identifierPlaceholder' => 'e.g. S-2026-2027-0011',
 ])
 
 <form method="POST" action="{{ $action }}" class="mt-7 space-y-5">
     @csrf
 
-    <x-ui.field for="identifier" label="Email address or mobile number">
+    <x-ui.field for="identifier" :label="$identifierLabel">
         <input
             id="identifier"
             name="identifier"
             type="text"
             value="{{ old('identifier') }}"
             autocomplete="username"
-            inputmode="email"
+            @if($identifierPlaceholder) placeholder="{{ $identifierPlaceholder }}" @endif
             required
             autofocus
             class="jca-input mt-0"
@@ -41,7 +43,10 @@
         </div>
     </x-ui.field>
 
-    <div class="flex justify-end">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <a href="{{ route('identity.invitations.activate') }}" class="text-sm font-bold text-brand-navy-700 underline decoration-brand-navy-700/30 underline-offset-4 hover:text-brand-navy-900">
+            Activate account
+        </a>
         <a href="{{ route('identity.recovery') }}" class="text-sm font-bold text-brand-navy-700 underline decoration-brand-navy-700/30 underline-offset-4 hover:text-brand-navy-900">
             Need help signing in?
         </a>

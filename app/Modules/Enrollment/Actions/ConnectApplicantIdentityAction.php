@@ -9,6 +9,7 @@ use App\Modules\Identity\Actions\CreateAccountInvitationAction;
 use App\Modules\Identity\Actions\CreatedInvitation;
 use App\Modules\Identity\Actions\CreateInvitedUserAction;
 use App\Modules\Identity\Enums\AccountStatus;
+use App\Modules\Identity\Models\AccountInvitation;
 use App\Modules\People\Actions\LinkGuardianStudentAction;
 use App\Modules\People\Actions\VerifyGuardianStudentLinkAction;
 use App\Modules\Shared\Audit\AuditRecorder;
@@ -42,7 +43,48 @@ class ConnectApplicantIdentityAction
                 throw ValidationException::withMessages(['application' => 'The applicant has no verified contact channel.']);
             }
 
-            $user = User::query()->where($channel, $sentTo)->first();
+            $sharedMobileEnabled = config('enrollment.allow_shared_contact_accounts', false);
+
+            if ($sharedMobileEnabled) {
+                // Testing mode permits unrelated Student and Guardian accounts
+                // to reuse the same physical phone. A mobile-only application
+                // therefore creates its own Guardian login instead of adopting
+                // the first Guardian found on that number. A guardian profile
+                // that was explicitly linked during duplicate review still
+                // reuses its existing account. Email remains unique.
+                $user = $guardian->user_id !== null
+                    ? User::query()->findOrFail($guardian->user_id)
+                    : ($channel === 'email'
+                        ? User::query()->where('email', $sentTo)->first()
+                        : null);
+            } else {
+                // Production mode checks every supplied contact before inserting
+                // so a secondary collision cannot become a database exception or
+                // an implicit merge of two identities.
+                $contactOwners = collect([
+                    'email' => $email !== null ? User::query()->where('email', $email)->first() : null,
+                    'mobile' => $mobile !== null ? User::query()->where('mobile', $mobile)->first() : null,
+                ])->filter();
+                $user = $contactOwners->get($channel);
+                $otherOwner = $contactOwners->first(
+                    fn (User $owner): bool => $user === null || $owner->id !== $user->id,
+                );
+
+                if ($otherOwner !== null) {
+                    $conflictingChannel = $contactOwners->search(
+                        fn (User $owner): bool => $owner->id === $otherOwner->id,
+                    );
+                    $contactLabel = $conflictingChannel === 'email' ? 'email address' : 'mobile number';
+                    $conflictRoles = $otherOwner->roles->pluck('code')->implode(', ');
+
+                    throw ValidationException::withMessages([
+                        'application' => "This guardian's {$contactLabel} is already registered to another account"
+                            .($conflictRoles !== '' ? " (role: {$conflictRoles})" : '')
+                            .'. The supplied email and mobile cannot be combined automatically. Give the guardian contact details that no other account uses, then connect again. If these records genuinely belong to the same person, an Admin must reconcile the accounts first.',
+                    ]);
+                }
+            }
+
             $invitation = null;
             if ($user === null) {
                 $created = $this->createUser->execute([
@@ -76,6 +118,21 @@ class ConnectApplicantIdentityAction
                 }
 
                 if ($user->status === AccountStatus::Invited) {
+                    $recentInvitationExists = AccountInvitation::query()
+                        ->where('user_id', $user->id)
+                        ->where('purpose', 'account_setup')
+                        ->whereNull('consumed_at')
+                        ->whereNull('revoked_at')
+                        ->where('expires_at', '>', now())
+                        ->where('created_at', '>', now()->subMinutes(3))
+                        ->exists();
+
+                    if ($recentInvitationExists) {
+                        throw ValidationException::withMessages([
+                            'application' => 'A setup code was issued less than 3 minutes ago. Wait for normal mobile-network delivery before replacing it.',
+                        ]);
+                    }
+
                     $invitation = $this->createInvitation->execute($user, $channel, $sentTo, $actor);
                 }
             }

@@ -45,8 +45,13 @@
                         <x-ui.icon name="warning" size="size-5" />
                     </span>
                     <div class="min-w-0 flex-1">
-                        <h2 id="invitation-link-title" class="text-lg font-black text-brand-navy-900">One-time setup link ready</h2>
-                        <p class="mt-1 text-sm leading-6 text-muted">Copy it now and deliver it only through the verified contact channel. It will not be shown again.</p>
+                        <h2 id="invitation-link-title" class="text-lg font-black text-brand-navy-900">One-time account setup fallback</h2>
+                        <p class="mt-1 text-sm leading-6 text-muted">Use this only if the SMS does not arrive. Deliver it through the verified contact channel; it will not be shown again.</p>
+                        @if (session('invitation_code'))
+                            <p class="mt-3 text-sm text-muted">Account code</p>
+                            <input readonly value="{{ session('invitation_code') }}" class="jca-input mt-1 font-mono tracking-wider" aria-label="One-time account code" />
+                        @endif
+                        <p class="mt-3 text-sm text-muted">Direct setup link</p>
                         <input readonly value="{{ session('invitation_url') }}" class="jca-input mt-3 font-mono text-xs" aria-label="One-time invitation link" />
                     </div>
                 </div>

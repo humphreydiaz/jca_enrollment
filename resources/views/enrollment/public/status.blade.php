@@ -11,8 +11,29 @@
             </dl>
             @if($resumeToken !== '')
                 <p class="mt-5 text-sm text-muted">Save this page securely. The resume link contains a private secret and must not be shared.</p>
+                @if(filled($enrollment->student->student_number))
+                    <div class="mt-4 rounded-xl border border-brand-blue-100 bg-brand-blue-50 p-4 sm:p-5">
+                        <p class="text-sm leading-6 text-brand-navy-900">The learner's permanent <strong>student number</strong> is
+                            <span class="font-black tracking-wide">{{ $enrollment->student->student_number }}</span>.
+                            The student signs in with this number and their password once their account is set up.</p>
+                    </div>
+                @endif
             @else
-                <p class="mt-5 text-sm text-muted">This application is securely linked to your signed-in Student account. Your permanent student profile remains separate until approval and Admin connection.</p>
+                <div class="mt-5 rounded-xl border border-brand-blue-100 bg-brand-blue-50 p-4 sm:p-5">
+                    <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-brand-orange-500">Signing in</p>
+                    @if(filled($enrollment->student->student_number))
+                        <p class="mt-2 text-sm leading-6 text-brand-navy-900">
+                            Your student number is
+                            <span class="font-black tracking-wide">{{ $enrollment->student->student_number }}</span>.
+                            Use your <strong>student number and password</strong> to sign in anytime — to check your enrollment progress now, and to open your student portal once you are officially enrolled. You will use this same student number for as long as you study here.
+                        </p>
+                    @else
+                        <p class="mt-2 text-sm leading-6 text-brand-navy-900">
+                            When you submit this application you will be given a permanent <strong>student number</strong>. From then on, sign in with your <strong>student number and password</strong> to track your enrollment — and to open your student portal once you are officially enrolled.
+                        </p>
+                    @endif
+                    <p class="mt-2 text-xs text-muted">This application is securely linked to your signed-in Student account. Your permanent student profile remains separate until approval and Admin connection.</p>
+                </div>
             @endif
         </section>
 
@@ -108,6 +129,11 @@
                         <x-enrollment.requirement-status :requirement="$requirement" />
                     @endforeach
                 </div>
+            </section>
+        @elseif($enrollment->status === 'draft')
+            <section class="jca-card p-6" aria-labelledby="requirements-title">
+                <h2 id="requirements-title" class="text-xl font-black text-brand-navy-900">Requirements</h2>
+                <p class="mt-2 text-sm text-muted">The applicable Birth Certificate and school-record checklist, with its private upload controls, appears after you verify the contact, complete the draft, and select <strong>Submit application</strong>.</p>
             </section>
         @endif
     </div>

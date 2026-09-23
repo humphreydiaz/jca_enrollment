@@ -46,6 +46,10 @@ Route::middleware(['auth', 'password.changed'])->group(function (): void {
         Route::post('/configuration/fee-types', [BillingConfigurationController::class, 'feeType'])->name('billing.configuration.fee-types');
         Route::patch('/configuration/fee-types/{feeType}', [BillingConfigurationController::class, 'updateFeeType'])->name('billing.configuration.fee-types.update');
         Route::post('/configuration/schedules', [BillingConfigurationController::class, 'schedule'])->name('billing.configuration.schedules');
+        Route::put('/configuration/schedules/{schedule}', [BillingConfigurationController::class, 'updateSchedule'])->name('billing.configuration.schedules.update');
+        Route::delete('/configuration/schedules/{schedule}', [BillingConfigurationController::class, 'destroySchedule'])->name('billing.configuration.schedules.destroy');
+        Route::post('/configuration/schedules/{schedule}/archive', [BillingConfigurationController::class, 'archiveSchedule'])->name('billing.configuration.schedules.archive');
+        Route::post('/configuration/schedules/{schedule}/restore', [BillingConfigurationController::class, 'restoreSchedule'])->name('billing.configuration.schedules.restore');
         Route::post('/configuration/schedules/{schedule}/items', [BillingConfigurationController::class, 'scheduleItem'])->name('billing.configuration.schedule-items');
         Route::put('/configuration/schedules/{schedule}/items/{item}', [BillingConfigurationController::class, 'updateScheduleItem'])->name('billing.configuration.schedule-items.update');
         Route::delete('/configuration/schedules/{schedule}/items/{item}', [BillingConfigurationController::class, 'deleteScheduleItem'])->name('billing.configuration.schedule-items.destroy');
