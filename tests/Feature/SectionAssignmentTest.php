@@ -17,7 +17,6 @@ use App\Modules\Identity\Enums\AccountStatus;
 use App\Modules\People\Models\GuardianProfile;
 use App\Modules\People\Models\StaffProfile;
 use App\Modules\People\Models\StudentProfile;
-use App\Modules\Requirements\Actions\PreparePromotedEnrollmentRequirementsAction;
 use App\Modules\Requirements\Models\DocumentType;
 use App\Modules\SectionAssignment\Actions\ConfirmSectionAssignmentAction;
 use App\Modules\SectionAssignment\Actions\CreatePromotionDraftAction;
@@ -58,7 +57,7 @@ class SectionAssignmentTest extends TestCase
     {
         parent::setUp();
         $this->seed(RoleSeeder::class);
-        $this->year = AcademicYear::query()->create(['code' => 'P5-2026', 'name' => 'Fictional 2026', 'starts_on' => '2026-06-01', 'ends_on' => '2027-03-31', 'status' => 'open']);
+        $this->year = AcademicYear::query()->create(['code' => 'P5-2026', 'name' => 'Fictional 2026', 'starts_on' => '2026-06-01', 'ends_on' => '2027-03-31', 'status' => 'open', 'enrollment_is_open' => true]);
         $this->futureYear = AcademicYear::query()->create(['code' => 'P5-2027', 'name' => 'Fictional 2027', 'starts_on' => '2027-06-01', 'ends_on' => '2028-03-31', 'status' => 'planned']);
         $this->nextGrade = GradeLevel::query()->create(['code' => 'P5-G2', 'name' => 'Fictional Grade 2', 'sequence' => 2, 'is_active' => true]);
         $this->grade = GradeLevel::query()->create(['code' => 'P5-G1', 'name' => 'Fictional Grade 1', 'sequence' => 1, 'next_grade_level_id' => $this->nextGrade->id, 'is_active' => true]);
@@ -240,56 +239,17 @@ class SectionAssignmentTest extends TestCase
         $this->get(route('student.enrollment.progress'))->assertRedirect(route('identity.login'));
     }
 
-    public function test_a_verified_soft_copy_carries_into_the_promoted_enrollment(): void
+    public function test_a_soft_copy_only_verification_is_not_carried_into_the_promoted_enrollment(): void
     {
+        // Enrollment requirements are hard copy only (supersedes D-025). An old verified soft copy
+        // without a received hard copy is not proof, so the promoted year asks for the document again.
         $registrar = $this->user(['registrar']);
         $source = $this->enrollment('enrolled');
         $birthCertificate = DocumentType::query()->create(['code' => 'P5-SOFT-BIRTH', 'name' => 'Fictional Birth Certificate']);
-        $sf9 = DocumentType::query()->create(['code' => 'P5-SOFT-SF9', 'name' => 'Fictional School Form 9 (SF9)']);
-
-        // Cleared by soft copy only: the hard copy was never handed in, so the
-        // requirement itself is still "missing" on the source enrollment.
-        foreach ([$birthCertificate, $sf9] as $document) {
-            EnrollmentRequirement::query()->create([
-                'enrollment_id' => $source->id,
-                'document_type_id' => $document->id,
-                'rule_snapshot' => ['is_required' => true, 'is_blocking' => true, 'name' => $document->name],
-                'status' => 'missing',
-                'soft_copy_status' => 'verified',
-                'soft_copy_reviewed_by' => $registrar->id,
-                'soft_copy_reviewed_at' => now()->subMonth(),
-            ]);
-        }
-
-        $recommendation = app(RecommendPromotionAction::class)->execute($source, $registrar, $this->futureYear);
-        $draft = app(CreatePromotionDraftAction::class)->execute($recommendation, $registrar);
-
-        $carried = $draft->requirements()->with('carriedFromRequirement')->get();
-        $this->assertCount(2, $carried);
-
-        foreach ($carried as $requirement) {
-            $this->assertSame('verified', $requirement->soft_copy_status);
-            $this->assertNotNull($requirement->carried_from_requirement_id);
-            $this->assertSame($registrar->id, $requirement->carried_over_by);
-            $this->assertSame($registrar->id, $requirement->soft_copy_reviewed_by);
-        }
-
-        // The family is not asked to upload either document again.
-        $this->actingAs($registrar)
-            ->get(route('enrollment.registrar.index'))
-            ->assertOk()
-            ->assertSee('No resubmission is required.');
-    }
-
-    public function test_a_fresh_submission_on_the_promoted_enrollment_is_not_overwritten_by_a_carried_one(): void
-    {
-        $registrar = $this->user(['registrar']);
-        $source = $this->enrollment('enrolled');
-        $document = DocumentType::query()->create(['code' => 'P5-KEEP', 'name' => 'Fictional Keepable Document']);
         EnrollmentRequirement::query()->create([
             'enrollment_id' => $source->id,
-            'document_type_id' => $document->id,
-            'rule_snapshot' => ['is_required' => true, 'is_blocking' => true, 'name' => $document->name],
+            'document_type_id' => $birthCertificate->id,
+            'rule_snapshot' => ['is_required' => true, 'is_blocking' => true, 'name' => $birthCertificate->name],
             'status' => 'missing',
             'soft_copy_status' => 'verified',
             'soft_copy_reviewed_by' => $registrar->id,
@@ -299,15 +259,8 @@ class SectionAssignmentTest extends TestCase
         $recommendation = app(RecommendPromotionAction::class)->execute($source, $registrar, $this->futureYear);
         $draft = app(CreatePromotionDraftAction::class)->execute($recommendation, $registrar);
 
-        // The family uploads a newer copy for the promoted year, then the same
-        // carry-forward runs again (as the backfill command would).
-        $target = $draft->requirements()->firstOrFail();
-        $target->update(['soft_copy_status' => 'submitted', 'carried_from_requirement_id' => null]);
-        app(PreparePromotedEnrollmentRequirementsAction::class)
-            ->execute($source, $draft, $registrar);
-
-        $this->assertSame('submitted', $target->fresh()->soft_copy_status);
-        $this->assertNull($target->fresh()->carried_from_requirement_id);
+        $this->assertSame(0, $draft->requirements()->whereNotNull('carried_from_requirement_id')->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'requirements.hard_copy.carried_forward']);
     }
 
     public function test_promotion_creates_one_predecessor_linked_draft_without_mutating_history(): void
@@ -362,6 +315,8 @@ class SectionAssignmentTest extends TestCase
             'subject_id' => $carried->id,
         ]);
 
+        // The next school year opens enrollment before promoted drafts are submitted.
+        $this->futureYear->update(['status' => 'open', 'enrollment_is_open' => true]);
         app(TransitionEnrollmentAction::class)->execute($draft, 'submitted', $registrar);
         app(TransitionEnrollmentAction::class)->execute($draft->fresh(), 'under_review', $registrar);
         $this->actingAs($registrar)

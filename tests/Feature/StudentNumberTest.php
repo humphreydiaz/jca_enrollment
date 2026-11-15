@@ -137,9 +137,9 @@ class StudentNumberTest extends TestCase
         $this->submit($enrollment);
         $number = $enrollment->student->fresh()->student_number;
 
-        // Pre-approval: the profile is not yet connected to the login, so the
-        // number resolves through the application that issued it.
-        $this->assertNull($enrollment->student->fresh()->user_id);
+        // D-048: the learner's own login is connected to the record when access is issued, so the
+        // number works before the application is approved.
+        $this->assertSame($account->id, $enrollment->student->fresh()->user_id);
 
         $resolved = app(AuthenticateUserAction::class)->execute($number, 'LearnPass123');
         $this->assertNotNull($resolved);
@@ -197,6 +197,41 @@ class StudentNumberTest extends TestCase
             $guardianAccount->id,
             app(AuthenticateUserAction::class)->execute('JCA-26-555', 'GuardianPass123')?->id,
         );
+
+        // A Grade 7-10 parent has a Parent ID instead; then the Student ID belongs to the learner only.
+        $guardian->forceFill(['parent_login_id' => 'PAR-26-041'])->save();
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('JCA-26-555', 'GuardianPass123'));
+        $this->assertSame(
+            $guardianAccount->id,
+            app(AuthenticateUserAction::class)->execute('par-26-041', 'GuardianPass123')?->id,
+        );
+        $this->assertSame(
+            $studentAccount->id,
+            app(AuthenticateUserAction::class)->execute('JCA-26-555', 'StudentPass123')?->id,
+        );
+    }
+
+    public function test_an_elementary_parent_signs_in_with_the_childs_student_id(): void
+    {
+        $guardianAccount = User::query()->create([
+            'name' => 'Elementary Guardian',
+            'password' => Hash::make('GuardianPass123'),
+            'status' => AccountStatus::Active,
+            'password_changed_at' => now(),
+        ]);
+        $guardianAccount = app(AssignRolesAction::class)->execute($guardianAccount, ['guardian'], null);
+        $student = StudentProfile::query()->create(['first_name' => 'Young', 'last_name' => 'Learner', 'student_number' => 'JCA-26-557']);
+        $guardian = GuardianProfile::query()->create(['user_id' => $guardianAccount->id, 'first_name' => 'Young', 'last_name' => 'Guardian']);
+        GuardianStudent::query()->create([
+            'guardian_id' => $guardian->id,
+            'student_id' => $student->id,
+            'relationship_type' => 'Parent',
+            'may_manage_enrollment' => true,
+            'verified_at' => now(),
+            'effective_from' => today(),
+        ]);
+
+        $this->assertSame($guardianAccount->id, app(AuthenticateUserAction::class)->execute('JCA-26-557', 'GuardianPass123')?->id);
     }
 
     public function test_a_student_id_fails_closed_when_two_linked_accounts_share_a_password(): void
@@ -302,6 +337,8 @@ class StudentNumberTest extends TestCase
         $year ??= $this->year();
         $grade = $this->grade();
         $student = StudentProfile::query()->create([
+            // D-048: a learner-owned application's login is connected to the record when issued.
+            'user_id' => $applicantUser?->id,
             'first_name' => 'Learner',
             'last_name' => Str::random(6),
             'birth_date' => '2013-04-05',
@@ -336,6 +373,7 @@ class StudentNumberTest extends TestCase
             'starts_on' => $starts,
             'ends_on' => $ends,
             'status' => 'open',
+            'enrollment_is_open' => true,
         ]);
 
         $document = DocumentType::query()->firstOrCreate(

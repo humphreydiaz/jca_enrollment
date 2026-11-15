@@ -17,11 +17,11 @@ use App\Modules\Requirements\Models\RequirementRule;
 use Database\Seeders\Identity\RoleSeeder;
 use Database\Seeders\Requirements\RequirementsBaselineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Tests\Concerns\CompletesApplicationForms;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class RequirementsBaselineSeederTest extends TestCase
@@ -82,21 +82,13 @@ class RequirementsBaselineSeederTest extends TestCase
         $this->actingAs($guardian)
             ->get(route('guardian.enrollment.progress'))
             ->assertOk()
-            ->assertSee('type="file"', false)
+            ->assertDontSee('type="file"', false)
             ->assertSee('PSA Birth Certificate')
             ->assertSee('School Form 9 (SF9)')
             ->assertDontSee('Form 138 / Report Card');
-
-        $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->image('birth-certificate.jpg'),
-        ])->assertRedirect();
-
-        $upload = $requirement->fresh()->activeUpload()->firstOrFail();
-        Storage::disk('documents')->assertExists($upload->path);
-        $this->assertSame('submitted', $requirement->fresh()->soft_copy_status);
     }
 
-    public function test_it_repairs_a_past_school_year_and_allows_its_existing_draft_to_submit(): void
+    public function test_it_repairs_a_past_school_year_but_a_closed_years_draft_cannot_be_submitted(): void
     {
         [$enrollment, $guardian] = $this->inFlightEnrollment();
         $year = $enrollment->academicYear;
@@ -112,9 +104,16 @@ class RequirementsBaselineSeederTest extends TestCase
         $this->assertSame(7, RequirementRule::query()->where('academic_year_id', $year->id)->count());
         $this->assertDatabaseCount('enrollment_requirements', 0);
         $this->completeApplicationForm($enrollment);
-        app(TransitionEnrollmentAction::class)->execute($enrollment, 'submitted', $guardian);
-        $this->assertSame('submitted', $enrollment->fresh()->status);
-        $this->assertSame(2, EnrollmentRequirement::query()->where('enrollment_id', $enrollment->id)->count());
+
+        // Submission needs an open school year with enrollment switched on; a closed year's draft stays a draft.
+        try {
+            app(TransitionEnrollmentAction::class)->execute($enrollment, 'submitted', $guardian);
+            $this->fail('A draft in a closed school year must not be submitted.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(['Enrollment is currently closed.'], $exception->errors()['application']);
+        }
+        $this->assertSame('draft', $enrollment->fresh()->status);
+        $this->assertDatabaseCount('enrollment_requirements', 0);
     }
 
     /** @return array{0: Enrollment, 1: User} */
@@ -126,6 +125,7 @@ class RequirementsBaselineSeederTest extends TestCase
             'starts_on' => '2026-06-01',
             'ends_on' => '2027-03-31',
             'status' => 'open',
+            'enrollment_is_open' => true,
         ]);
         $grade = GradeLevel::query()->create([
             'code' => 'G10-T',

@@ -271,8 +271,8 @@ class FeeScheduleAdministrationTest extends TestCase
         // The copy is an ordinary draft: amounts can change and fees can be removed, while the source stays intact.
         $copiedTuition = $copy->items()->where('fee_type_id', $tuition->fee_type_id)->sole();
         $this->actingAs($accounting)->put(route('billing.configuration.schedule-items.update', [$copy, $copiedTuition]), [
-            'description' => 'Tuition', 'amount' => '19500.00', 'is_required' => '1',
-        ])->assertRedirect();
+            'description' => 'Tuition', 'amount' => '19500.00', 'price_status' => 'final', 'is_required' => '1',
+        ])->assertRedirect()->assertSessionHasNoErrors();
         $this->actingAs($accounting)->delete(route('billing.configuration.schedule-items.destroy', [$copy, $copy->items()->where('fee_type_id', $books->fee_type_id)->sole()]))->assertRedirect();
         $this->assertSame(['19500.00'], $copy->items()->pluck('amount')->map(fn ($amount) => (string) $amount)->all());
         $this->assertSame(3, $source->items()->count());

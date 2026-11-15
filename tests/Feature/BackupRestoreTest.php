@@ -132,11 +132,18 @@ class BackupRestoreTest extends TestCase
         $this->actingAs($admin)->get('/admin/backups/..%2F.env/download')->assertNotFound();
     }
 
-    public function test_backups_are_never_made_on_a_schedule(): void
+    public function test_one_automatic_backup_runs_daily_at_two_in_the_morning_manila_time(): void
     {
-        $scheduled = collect(app(Schedule::class)->events())->map(fn ($event) => (string) $event->command);
+        // D-060 amendment: the owner moved from manual-only backups to one automatic daily backup
+        // (the 2026-11-04 Hostinger site runs it from hPanel cron), alongside "Back up now".
+        $backups = collect(app(Schedule::class)->events())
+            ->filter(fn ($event) => str_contains((string) $event->command, 'jca:backup'))
+            ->values();
 
-        $this->assertFalse($scheduled->contains(fn (string $command) => str_contains($command, 'jca:backup')));
+        $this->assertCount(1, $backups);
+        $this->assertStringContainsString('--label=automatic-daily', (string) $backups[0]->command);
+        $this->assertSame('0 2 * * *', $backups[0]->expression);
+        $this->assertSame('Asia/Manila', $backups[0]->timezone);
     }
 
     public function test_old_backups_beyond_the_kept_number_are_removed(): void

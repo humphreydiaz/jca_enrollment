@@ -262,9 +262,9 @@
                 </h2>
 
                 <p class="mt-2 text-sm text-muted">
-                    A verified soft copy or a received hard copy may support
-                    enrollment approval. The physical hard copy remains
-                    separately tracked.
+                    Submit each physical document to the Registrar's office.
+                    Enrollment can be approved once every required hard copy
+                    is received and verified.
                 </p>
 
                 <div class="mt-4 space-y-3">

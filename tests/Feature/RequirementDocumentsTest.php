@@ -17,12 +17,12 @@ use App\Modules\Requirements\Models\DocumentType;
 use App\Modules\Requirements\Models\RequirementRule;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Concerns\CompletesApplicationForms;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class RequirementDocumentsTest extends TestCase
@@ -89,8 +89,8 @@ class RequirementDocumentsTest extends TestCase
         $this->actingAs($guardian)
             ->get(route('guardian.enrollment.progress'))
             ->assertOk()
-            ->assertSee('Hard copies remain required')
-            ->assertSee('type="file"', false);
+            ->assertSee('Submit each physical document to the Registrar')
+            ->assertDontSee('type="file"', false);
     }
 
     public function test_hard_copy_receipt_is_staff_only_and_can_be_corrected_before_review(): void
@@ -238,78 +238,16 @@ class RequirementDocumentsTest extends TestCase
         $this->assertSame($admin->id, $requirement->fresh()->waived_by);
     }
 
-    public function test_soft_copy_review_redirects_to_the_review_list_not_the_previewed_document(): void
+    public function test_new_soft_copy_uploads_are_retired_and_families_are_told_to_bring_hard_copies(): void
     {
-        $registrar = $this->user(['registrar']);
+        // Hard copy only (supersedes D-025): no upload or soft-copy review route exists. Historical
+        // uploads stay private and viewable through the protected preview/download routes.
+        $this->assertFalse(Route::has('requirements.documents.store'));
+        $this->assertFalse(Route::has('requirements.soft-copy.review'));
         [$enrollment, $guardian] = $this->enrollment();
         $requirement = $this->requirement($enrollment);
-        $enrollment->update(['status' => 'under_review', 'contact_verified_at' => now(), 'duplicate_review_status' => 'clear']);
-        $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('birth-certificate.pdf', 120, 'application/pdf'),
-        ])->assertRedirect();
-        $document = $requirement->activeUpload()->firstOrFail();
-
-        // Coming "from" the previewed document (the iframe pollutes the previous URL)
-        // must not strand the reviewer on the raw file, and must keep the toast.
-        $this->actingAs($registrar)
-            ->from(route('requirements.documents.preview', $document))
-            ->post(route('requirements.soft-copy.review', $requirement), ['soft_copy_status' => 'verified'])
-            ->assertRedirect(route('enrollment.registrar.index'))
-            ->assertSessionHas('status', 'Soft-copy review recorded.');
-
-        // The normal case still returns to wherever the reviewer was (with filters).
-        $listUrl = route('enrollment.registrar.index', ['status' => 'under_review']);
-        $this->actingAs($registrar)
-            ->from($listUrl)
-            ->post(route('requirements.soft-copy.review', $requirement), ['soft_copy_status' => 'verified'])
-            ->assertRedirect($listUrl);
-    }
-
-    public function test_verified_soft_copy_allows_approval_while_hard_copy_remains_outstanding(): void
-    {
-        $registrar = $this->user(['registrar']);
-        [$enrollment, $guardian] = $this->enrollment();
-        $requirement = $this->requirement($enrollment);
-        $enrollment->update(['status' => 'under_review', 'contact_verified_at' => now(), 'duplicate_review_status' => 'clear']);
-
-        $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('birth-certificate.pdf', 120, 'application/pdf'),
-        ])->assertRedirect();
-
-        $requirement->refresh();
-        $document = $requirement->activeUpload()->firstOrFail();
-        $this->assertSame('submitted', $requirement->soft_copy_status);
-        $this->assertSame('missing', $requirement->status);
-        Storage::disk('documents')->assertExists($document->path);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'requirements.soft_copy.uploaded', 'actor_user_id' => $guardian->id]);
-
-        $this->actingAs($registrar)
-            ->get(route('requirements.documents.preview', $document))
-            ->assertOk()
-            ->assertHeader('cache-control', 'no-store, private')
-            ->assertHeader('X-Frame-Options', 'SAMEORIGIN')
-            ->assertHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; frame-ancestors 'self'");
-        $this->assertDatabaseHas('document_access_logs', ['document_upload_id' => $document->id, 'actor_user_id' => $registrar->id, 'action' => 'preview']);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'requirements.document.previewed', 'actor_user_id' => $registrar->id]);
-
-        $this->actingAs($registrar)->post(route('requirements.soft-copy.review', $requirement), [
-            'soft_copy_status' => 'verified',
-        ])->assertRedirect();
-
-        $requirement->refresh();
-        $this->assertSame('verified', $requirement->soft_copy_status);
-        $this->assertSame('missing', $requirement->status);
-        $this->assertNull($requirement->received_at);
-
-        app(TransitionEnrollmentAction::class)->execute($enrollment->fresh(), 'approved', $registrar);
-        $this->assertSame('approved', $enrollment->fresh()->status);
-        $this->assertSame('missing', $requirement->fresh()->status);
-
-        $this->actingAs($guardian)
-            ->get(route('guardian.enrollment.progress'))
-            ->assertOk()
-            ->assertSee('Admission evidence complete')
-            ->assertSee('Still required');
+        $this->actingAs($guardian)->post('/requirements/'.$requirement->id.'/documents')->assertNotFound();
+        $this->assertDatabaseCount('document_uploads', 0);
     }
 
     public function test_recorded_hard_copy_receipt_allows_approval_without_a_soft_copy(): void
@@ -328,105 +266,6 @@ class RequirementDocumentsTest extends TestCase
         $this->assertSame('not_uploaded', $requirement->fresh()->soft_copy_status);
         app(TransitionEnrollmentAction::class)->execute($enrollment->fresh(), 'approved', $registrar);
         $this->assertSame('approved', $enrollment->fresh()->status);
-    }
-
-    public function test_soft_copy_submission_alone_does_not_allow_approval_and_rejection_requires_a_reason(): void
-    {
-        $registrar = $this->user(['registrar']);
-        [$enrollment, $guardian] = $this->enrollment();
-        $requirement = $this->requirement($enrollment);
-        $enrollment->update(['status' => 'under_review', 'contact_verified_at' => now(), 'duplicate_review_status' => 'clear']);
-
-        $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->image('report-card.jpg'),
-        ])->assertRedirect();
-
-        try {
-            app(TransitionEnrollmentAction::class)->execute($enrollment->fresh(), 'approved', $registrar);
-            $this->fail('An unreviewed soft copy must not satisfy admission.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('status', $exception->errors());
-        }
-
-        $this->actingAs($registrar)->post(route('requirements.soft-copy.review', $requirement), [
-            'soft_copy_status' => 'rejected',
-        ])->assertSessionHasErrors('reason');
-        $this->assertSame('submitted', $requirement->fresh()->soft_copy_status);
-    }
-
-    public function test_guardian_or_student_owner_can_replace_a_rejected_soft_copy_but_other_roles_and_families_cannot_upload(): void
-    {
-        $registrar = $this->user(['registrar']);
-        $otherGuardianUser = $this->user(['guardian']);
-        $teacher = $this->user(['teacher']);
-        $accounting = $this->user(['accounting']);
-        [$enrollment, $guardian] = $this->enrollment();
-        GuardianProfile::query()->create(['user_id' => $otherGuardianUser->id, 'first_name' => 'Other', 'last_name' => 'Guardian']);
-        $requirement = $this->requirement($enrollment);
-        $enrollment->update(['status' => 'under_review']);
-
-        auth()->logout();
-        $this->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('birth.pdf', 20, 'application/pdf'),
-        ])->assertRedirect(route('identity.login'));
-
-        foreach ([$otherGuardianUser, $teacher, $accounting, $registrar] as $unauthorized) {
-            $this->actingAs($unauthorized)->post(route('requirements.documents.store', $requirement), [
-                'document' => UploadedFile::fake()->create('birth.pdf', 20, 'application/pdf'),
-            ])->assertNotFound();
-        }
-
-        $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('first.pdf', 20, 'application/pdf'),
-        ])->assertRedirect();
-        $first = $requirement->fresh()->activeUpload()->firstOrFail();
-
-        $this->actingAs($registrar)->post(route('requirements.soft-copy.review', $requirement), [
-            'soft_copy_status' => 'rejected',
-            'reason' => 'The first scan is unreadable.',
-        ])->assertRedirect();
-
-        $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('replacement.pdf', 25, 'application/pdf'),
-        ])->assertRedirect();
-
-        $replacement = $requirement->fresh()->activeUpload()->firstOrFail();
-        $this->assertSame(1, $first->version);
-        $this->assertNotNull($first->fresh()->archived_at);
-        $this->assertSame(2, $replacement->version);
-        $this->assertSame('submitted', $requirement->fresh()->soft_copy_status);
-        $this->assertNull($requirement->fresh()->soft_copy_review_reason);
-        $this->actingAs($registrar)->get(route('requirements.documents.preview', $first))->assertNotFound();
-        $this->actingAs($registrar)->get(route('requirements.documents.preview', $replacement))->assertOk();
-    }
-
-    public function test_student_applicant_can_upload_valid_files_and_unsafe_files_are_rejected(): void
-    {
-        $studentUser = $this->user(['student']);
-        [$enrollment] = $this->enrollment();
-        $requirement = $this->requirement($enrollment);
-        $enrollment->update(['status' => 'submitted', 'student_applicant_user_id' => $studentUser->id]);
-
-        $this->actingAs($studentUser)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('payload.exe', 20, 'application/x-msdownload'),
-        ])->assertSessionHasErrors('document');
-        $this->assertDatabaseCount('document_uploads', 0);
-
-        $this->actingAs($studentUser)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('too-large.pdf', 5121, 'application/pdf'),
-        ])->assertSessionHasErrors('document');
-        $this->assertDatabaseCount('document_uploads', 0);
-
-        $this->actingAs($studentUser)->post(route('requirements.documents.store', $requirement), [
-            'document' => UploadedFile::fake()->create('form-137.pdf', 200, 'application/pdf'),
-        ])->assertRedirect();
-        $this->assertDatabaseCount('document_uploads', 1);
-
-        $this->actingAs($studentUser)
-            ->get(route('student.enrollment.progress'))
-            ->assertOk()
-            ->assertSee('Soft copy submitted successfully')
-            ->assertSee('Replace soft copy');
     }
 
     public function test_historical_private_downloads_remain_protected_and_logged(): void
@@ -489,7 +328,7 @@ class RequirementDocumentsTest extends TestCase
 
     private function enrollment(): array
     {
-        $year = AcademicYear::query()->create(['code' => 'TEST', 'name' => 'Test year', 'starts_on' => '2026-06-01', 'ends_on' => '2027-03-31', 'status' => 'open']);
+        $year = AcademicYear::query()->create(['code' => 'TEST', 'name' => 'Test year', 'starts_on' => '2026-06-01', 'ends_on' => '2027-03-31', 'status' => 'open', 'enrollment_is_open' => true]);
         $grade = GradeLevel::query()->create(['code' => 'T1', 'name' => 'Test grade', 'sequence' => 1, 'is_active' => true]);
         $guardianUser = $this->user(['guardian']);
         $guardian = GuardianProfile::query()->create(['user_id' => $guardianUser->id, 'first_name' => 'Fictional', 'last_name' => 'Guardian']);

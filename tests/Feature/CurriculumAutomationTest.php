@@ -151,8 +151,9 @@ class CurriculumAutomationTest extends TestCase
         $this->actingAs($admin)->get(route('academics.admin.curricula.index', ['curriculum' => $draft->public_id]))
             ->assertOk()
             ->assertSee('Hope activity program')
-            ->assertSeeInOrder(['Class hours:', '11:00 – 13:00', '>Activity</th>', '>Time</th>', 'Free play', '11:00 – 11:15', 'Wrap-up', '12:55 – 13:00'], false)
-            ->assertSeeInOrder(['First batch:', '08:00 – 11:00', 'Activities', '08:35 – 09:05'], false)
+            // Same timetable component as the Section page, which shows 12-hour times.
+            ->assertSeeInOrder(['Class hours:', '11:00 AM &ndash; 1:00 PM', '>Activity</th>', '>Time</th>', 'Free play', '11:00 AM', '&ndash; 11:15 AM', 'Wrap-up', '12:55 PM', '&ndash; 1:00 PM'], false)
+            ->assertSeeInOrder(['First batch:', '8:00 AM &ndash; 11:00 AM', 'Activities', '8:35 AM', '&ndash; 9:05 AM'], false)
             ->assertDontSee('Free play 11:00; meeting 11:15')
             ->assertSee('Monday-Thursday: Reading and Math enhancement, 12:40-13:40.');
 

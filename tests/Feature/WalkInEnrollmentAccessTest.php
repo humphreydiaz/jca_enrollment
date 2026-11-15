@@ -39,6 +39,7 @@ class WalkInEnrollmentAccessTest extends TestCase
             'starts_on' => '2026-06-08',
             'ends_on' => '2027-04-08',
             'status' => 'open',
+            'enrollment_is_open' => true,
         ]);
         $type = DocumentType::query()->create(['code' => 'WALK-IN-TEST', 'name' => 'Walk-in test requirement']);
         RequirementRule::query()->create([
@@ -141,16 +142,20 @@ class WalkInEnrollmentAccessTest extends TestCase
         $registrar = $this->userWithRole('registrar');
 
         $response = $this->actingAs($registrar)
-            ->post(route('enrollment.registrar.issue-access.store'), $this->issuePayload('G7', 'student.guardian@example.test', '09170000002'))
+            ->post(route('enrollment.registrar.issue-access.store'), $this->juniorHighPayload('G7', 'student.guardian@example.test', '09170000002'))
             ->assertSessionHas('issued_access');
 
         $credentials = $response->getSession()->get('issued_access');
-        $enrollment = Enrollment::query()->with(['accessOwner.roles', 'guardian'])->sole();
+        $enrollment = Enrollment::query()->with(['accessOwner.roles', 'guardian.user.roles'])->sole();
 
+        // Grade 7-10: the learner owns the application, and the parent gets a separate, linked account.
         $this->assertTrue($enrollment->accessOwner->hasRole('student'));
         $this->assertSame($enrollment->accessOwner->id, $enrollment->student_applicant_user_id);
-        $this->assertNull($enrollment->guardian->user_id);
         $this->assertSame('Student', $credentials['account_owner_type']);
+        $this->assertNotNull($enrollment->guardian->user_id);
+        $this->assertNotSame($enrollment->accessOwner->id, $enrollment->guardian->user_id);
+        $this->assertTrue($enrollment->guardian->user->hasRole('guardian'));
+        $this->assertNotNull(GuardianStudent::query()->where('guardian_id', $enrollment->guardian->id)->sole()->verified_at);
     }
 
     public function test_junior_high_parent_signs_in_with_the_parent_id_printed_on_the_slip(): void
@@ -357,18 +362,21 @@ class WalkInEnrollmentAccessTest extends TestCase
         $this->assertNotNull($enrollment->fresh()->submitted_at);
     }
 
-    public function test_junior_high_walk_in_skips_the_guardian_section_and_the_learner_completes_it(): void
+    public function test_junior_high_walk_in_needs_parent_details_at_the_counter_and_the_learner_completes_it(): void
     {
         $registrar = $this->userWithRole('registrar');
         $this->actingAs($registrar)->get(route('enrollment.registrar.issue-access.create'))->assertOk()
-            ->assertSee('account owner for Nursery–Grade 6')->assertSee('x-show="guardianOwned"', false);
+            ->assertSee('Grade 7–10: Student and Parent/Guardian accounts are issued together')->assertSee('x-show="guardianOwned"', false);
 
-        $payload = collect($this->issuePayload('G7'))->reject(fn ($value, $key) => str_starts_with($key, 'guardian_'))->all();
-        $this->actingAs($registrar)->post(route('enrollment.registrar.issue-access.store'), $payload)->assertSessionHas('issued_access');
+        // Both accounts are issued at the counter, so the parent's details and an identity check are required.
+        $withoutParent = collect($this->issuePayload('G7'))->reject(fn ($value, $key) => str_starts_with($key, 'guardian_'))->all();
+        $this->actingAs($registrar)->post(route('enrollment.registrar.issue-access.store'), $withoutParent)
+            ->assertSessionHasErrors(['guardian_first_name', 'guardian_mobile', 'identity_confirmed']);
+        $this->assertSame(0, Enrollment::query()->count());
+
+        $this->actingAs($registrar)->post(route('enrollment.registrar.issue-access.store'), $this->juniorHighPayload('G7'))->assertSessionHas('issued_access');
         $enrollment = Enrollment::query()->with(['student', 'guardian', 'accessOwner'])->sole();
         $this->assertNull($enrollment->guardian_relationship);
-        $this->assertSame('Parent/Guardian', $enrollment->guardian->first_name);
-        $this->assertNull($enrollment->guardian->user_id);
         $this->assertNull($enrollment->accessOwner->email);
         $this->assertNotNull(GuardianStudent::query()->sole()->verified_at);
 
@@ -383,7 +391,7 @@ class WalkInEnrollmentAccessTest extends TestCase
 
         $complete = [...$this->completionPayload($enrollment), 'guardian_first_name' => 'Lorna', 'guardian_middle_name' => null, 'guardian_last_name' => 'Santos', 'guardian_extension_name' => null, 'guardian_relationship' => 'mother', 'guardian_mobile' => null, 'guardian_email' => null];
         $this->actingAs($owner)->put(route('enrollment.public.update', $enrollment), $complete)
-            ->assertSessionHasErrors(['guardian_mobile', 'guardian_email']);
+            ->assertSessionHasErrors('guardian_mobile');
         $this->actingAs($owner)->put(route('enrollment.public.update', $enrollment), [...$complete, 'guardian_mobile' => '09170000009'])
             ->assertRedirect(route('enrollment.public.status', $enrollment));
 
@@ -400,8 +408,7 @@ class WalkInEnrollmentAccessTest extends TestCase
     public function test_an_unfilled_walk_in_draft_is_shown_as_unfinished_and_cannot_be_submitted_by_the_registrar(): void
     {
         $registrar = $this->userWithRole('registrar');
-        $payload = collect($this->issuePayload('G7'))->reject(fn ($value, $key) => str_starts_with($key, 'guardian_'))->all();
-        $this->actingAs($registrar)->post(route('enrollment.registrar.issue-access.store'), $payload);
+        $this->actingAs($registrar)->post(route('enrollment.registrar.issue-access.store'), $this->juniorHighPayload('G7'));
         $enrollment = Enrollment::query()->with(['student', 'accessOwner'])->sole();
         $student = $enrollment->accessOwner;
         $student->update(['must_change_password' => false, 'password_changed_at' => now(), 'temporary_access_expires_at' => null]);
@@ -441,7 +448,7 @@ class WalkInEnrollmentAccessTest extends TestCase
         $owner->update(['must_change_password' => false, 'password_changed_at' => now(), 'temporary_access_expires_at' => null]);
 
         $this->actingAs($owner)->get(route('enrollment.public.start'))->assertOk()
-            ->assertSee("Learner's mobile number (optional)")->assertSee('Text school announcements to this number');
+            ->assertSee("Learner's mobile number")->assertSee('Text school announcements to this number');
 
         $payload = [...$this->completionPayload($enrollment), 'guardian_mobile' => '09171230000', 'student_mobile' => '0917 123 0001', 'guardian_sms_opt_in' => '1', 'student_sms_opt_in' => '1'];
         $this->actingAs($owner)->put(route('enrollment.public.update', $enrollment), [...$payload, 'student_mobile' => '12345'])->assertSessionHasErrors('student_mobile');
@@ -452,10 +459,11 @@ class WalkInEnrollmentAccessTest extends TestCase
         $this->assertTrue(UpdateSmsConsentAction::granted($enrollment->student->fresh()));
         $this->assertDatabaseHas('sms_consents', ['student_id' => $enrollment->student_id, 'source' => 'enrollment_application', 'status' => 'granted']);
 
-        // Unticking withdraws; leaving the learner number blank keeps the learner without SMS.
-        $this->actingAs($owner)->put(route('enrollment.public.update', $enrollment), [...$payload, 'student_mobile' => '', 'guardian_sms_opt_in' => '0'])->assertSessionHasNoErrors();
-        $this->assertNull($enrollment->student->fresh()->mobile);
+        // The learner's number is required; unticking withdraws the opt-in.
+        $this->actingAs($owner)->put(route('enrollment.public.update', $enrollment), [...$payload, 'student_mobile' => ''])->assertSessionHasErrors('student_mobile');
+        $this->actingAs($owner)->put(route('enrollment.public.update', $enrollment), [...$payload, 'student_mobile' => '09171230001', 'guardian_sms_opt_in' => '0', 'student_sms_opt_in' => '0'])->assertSessionHasNoErrors();
         $this->assertFalse(UpdateSmsConsentAction::granted($enrollment->guardian->fresh()));
+        $this->assertFalse(UpdateSmsConsentAction::granted($enrollment->student->fresh()));
     }
 
     public function test_application_asks_whether_the_learner_is_indigenous_and_records_the_listed_or_typed_group(): void
@@ -523,7 +531,8 @@ class WalkInEnrollmentAccessTest extends TestCase
         $this->assertSame(['mobile'], $guardianChange->metadata['fields']);
         $this->assertEquals(['old' => '+63917•••0001', 'new' => '+63918•••4321'], $guardianChange->metadata['changes']['mobile']);
         $learnerChange = AuditLog::query()->where('action', 'people.student.application_details_saved')->latest('id')->firstOrFail();
-        $this->assertEquals(['old' => null, 'new' => '+63917•••0001'], $learnerChange->metadata['changes']['mobile']);
+        // The learner mobile is required, so the first save already recorded one (the payload default).
+        $this->assertEquals(['old' => '+63918•••0098', 'new' => '+63917•••0001'], $learnerChange->metadata['changes']['mobile']);
         $this->assertStringNotContainsString('7654321', json_encode(AuditLog::query()->pluck('metadata')->all()));
 
         // The Registrar sees it on the learner's record: masked numbers, the status move, the person, and the time.
@@ -602,6 +611,12 @@ class WalkInEnrollmentAccessTest extends TestCase
     }
 
     /** @return array<string, mixed> */
+    /** Grade 7-10: both accounts are issued at the counter after an in-person identity check. */
+    private function juniorHighPayload(string $gradeCode, string $email = 'guardian@example.test', string $mobile = '09170000001'): array
+    {
+        return [...$this->issuePayload($gradeCode, $email, $mobile), 'birth_date' => '2013-04-12', 'identity_confirmed' => '1'];
+    }
+
     private function issuePayload(string $gradeCode, string $email = 'guardian@example.test', string $mobile = '09170000001'): array
     {
         return [
@@ -650,8 +665,10 @@ class WalkInEnrollmentAccessTest extends TestCase
             'guardian_last_name' => $enrollment->guardian->last_name,
             'guardian_extension_name' => $enrollment->guardian->extension_name,
             'guardian_relationship' => $enrollment->guardian_relationship,
-            'guardian_mobile' => $enrollment->guardian->mobile,
+            'guardian_mobile' => $enrollment->guardian->mobile ?? '09180000099',
             'guardian_email' => $enrollment->guardian->email,
+            // The application now requires the learner's mobile number.
+            'student_mobile' => $enrollment->student->mobile ?? '09180000098',
             'academic_year_id' => $enrollment->academic_year_id,
             'grade_level_id' => $enrollment->grade_level_id,
             'student_category' => 'regular',

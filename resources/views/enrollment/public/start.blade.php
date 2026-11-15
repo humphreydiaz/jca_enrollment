@@ -232,9 +232,9 @@
                             <span>Permanent address is the same as the current address</span>
                         </label>
                     </div>
-                    {{-- D-052: optional; lets the school text the learner when they agree. --}}
+                    {{-- Required (D-062); the school texts the learner only when they agree. --}}
                     <div>
-                        <x-ui.field for="guardian_mobile" label="Guardian mobile number" hint="Use 09XXXXXXXXX or +639XXXXXXXXX. Required if no email is given.">
+                        <x-ui.field for="student_mobile" label="Learner's mobile number" hint="Required. Use 09XXXXXXXXX or +639XXXXXXXXX.">
                             <input type="tel" id="student_mobile" name="student_mobile" value="{{ $fieldValue('student_mobile') }}" maxlength="30" inputmode="tel" class="jca-input">
                         </x-ui.field>
                         <input type="hidden" name="student_sms_opt_in" value="0">
@@ -302,7 +302,7 @@
                         </select>
                     </x-ui.field>
                     <div>
-                        <x-ui.field for="guardian_mobile" label="Guardian mobile number" hint="Use 09XXXXXXXXX or +639XXXXXXXXX. Required if no email is given.">
+                        <x-ui.field for="guardian_mobile" label="Guardian mobile number" hint="Required. Use 09XXXXXXXXX or +639XXXXXXXXX.">
                             <input type="tel" id="guardian_mobile" name="guardian_mobile" value="{{ $fieldValue('guardian_mobile') }}" maxlength="30" inputmode="tel" autocomplete="tel" class="jca-input">
                         </x-ui.field>
                         <input type="hidden" name="guardian_sms_opt_in" value="0">

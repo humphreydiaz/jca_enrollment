@@ -1,0 +1,93 @@
+
+$path = ".\app\Modules\Enrollment\Actions\SaveEnrollmentDraftAction.php"
+
+if (-not (Test-Path $path)) {
+    throw "Hindi makita ang SaveEnrollmentDraftAction.php. Siguraduhing nasa JCA-ESIS project folder ka."
+}
+
+$fullPath = (Resolve-Path $path).Path
+$source = [System.IO.File]::ReadAllText($fullPath)
+
+if ($source.Contains("JCA_ENROLLMENT_DEADLINE_GUARD")) {
+    Write-Host "Enrollment deadline validation is already installed."
+} else {
+
+    $pattern = '(?s)public\s+function\s+execute\s*\([^)]*\)\s*(?::\s*[\w\\|?]+\s*)?\{'
+    $match = [regex]::Match($source, $pattern)
+
+    if (-not $match.Success) {
+        throw "Hindi nakita ang execute() function. Walang file na binago."
+    }
+
+    $guard = @'
+
+        // JCA_ENROLLMENT_DEADLINE_GUARD
+        // Prevent saving enrollment drafts outside the allowed dates.
+
+        $schoolYear = $enrollment->academicYear;
+        $today = now('Asia/Manila')->toDateString();
+
+        if (! $schoolYear || $schoolYear->status !== 'open') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'application' => 'Enrollment is Closed. Please contact the Registrar for late enrollment assistance.',
+            ]);
+        }
+
+        if (filled($schoolYear->enrollment_opens_on)) {
+            $openingDate = \Illuminate\Support\Carbon::parse(
+                $schoolYear->enrollment_opens_on
+            )->toDateString();
+
+            if ($today < $openingDate) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'application' => 'Enrollment is not yet open. Please contact the Registrar for assistance.',
+                ]);
+            }
+        }
+
+        if (filled($schoolYear->enrollment_closes_on)) {
+            $closingDate = \Illuminate\Support\Carbon::parse(
+                $schoolYear->enrollment_closes_on
+            );
+
+            if ($today > $closingDate->toDateString()) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'application' => 'Enrollment is Closed. The enrollment deadline was '
+                        . $closingDate->format('F j, Y')
+                        . '. Please contact the Registrar for late enrollment assistance.',
+                ]);
+            }
+        }
+
+'@
+
+    $position = $match.Index + $match.Length
+
+    $updated = $source.Substring(0, $position) +
+        "`r`n" +
+        $guard +
+        $source.Substring($position)
+
+    $encoding = [System.Text.UTF8Encoding]::new($false)
+
+    [System.IO.File]::WriteAllText(
+        $fullPath,
+        $updated,
+        $encoding
+    )
+
+    php -l $path
+
+    if ($LASTEXITCODE -ne 0) {
+        [System.IO.File]::WriteAllText(
+            $fullPath,
+            $source,
+            $encoding
+        )
+        throw "Syntax validation failed. Original file restored."
+    }
+
+    php artisan optimize:clear
+
+    Write-Host "Enrollment deadline restriction installed successfully."
+}

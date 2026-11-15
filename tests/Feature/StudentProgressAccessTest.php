@@ -58,7 +58,7 @@ class StudentProgressAccessTest extends TestCase
                 'identity_confirmed' => '1',
             ])
             ->assertRedirect()
-            ->assertSessionHas('status', 'Student account connected. The student portal is now available for this profile.');
+            ->assertSessionHas('status', 'Student account connected. The student portal is now available.');
 
         $this->assertDatabaseHas('student_profiles', [
             'id' => $student->id,
@@ -132,9 +132,9 @@ class StudentProgressAccessTest extends TestCase
             ->assertSee('Submitted')
             ->assertSee('Application timeline')
             ->assertSee('Birth Certificate')
-            ->assertSee('Not Received')
+            ->assertSee('Not yet received')
             ->assertSee('School Form 9 (SF9)')
-            ->assertSee('Hard Copy Received')
+            ->assertSee('This requirement has been recorded by the Registrar.')
             ->assertSee('View application status')
             ->assertDontSee('Start enrollment application')
             ->assertDontSee('Resume draft');
@@ -474,6 +474,7 @@ class StudentProgressAccessTest extends TestCase
             'starts_on' => '2026-06-01',
             'ends_on' => '2027-03-31',
             'status' => 'open',
+            'enrollment_is_open' => true,
         ]);
         $grade = GradeLevel::query()->create([
             'code' => 'PORTAL-G'.$gradeSequence.'-'.$suffix,
@@ -510,6 +511,7 @@ class StudentProgressAccessTest extends TestCase
             'starts_on' => '2026-06-01',
             'ends_on' => '2027-03-31',
             'status' => 'open',
+            'enrollment_is_open' => true,
         ]);
         $grade = GradeLevel::query()->create([
             'code' => 'APPLICATION-G8-'.$suffix,

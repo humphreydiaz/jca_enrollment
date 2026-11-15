@@ -75,7 +75,7 @@
                     @if($enrollment->requirements->isNotEmpty())
                         <section class="mt-5 border-t border-border pt-5" aria-labelledby="guardian-requirements-{{ $enrollment->public_id }}">
                             <h3 id="guardian-requirements-{{ $enrollment->public_id }}" class="text-lg font-black text-brand-navy-900">Enrollment requirements</h3>
-                            <p class="mt-1 text-sm text-muted">Upload a readable soft copy for review or submit the physical document to the Registrar. Hard copies remain required even when a soft copy is accepted.</p>
+                            <p class="mt-1 text-sm text-muted">Submit each physical document to the Registrar's office. The Registrar records when it is received and reviews it.</p>
                             <div class="mt-4 space-y-3">
                                 @foreach($enrollment->requirements as $requirement)
                                     <x-enrollment.requirement-status :requirement="$requirement" />

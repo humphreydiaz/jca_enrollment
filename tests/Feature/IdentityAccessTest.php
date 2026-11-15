@@ -96,11 +96,12 @@ class IdentityAccessTest extends TestCase
     {
         $dashboardLabelByRole = [
             'admin' => 'Enrollment review',
-            'registrar' => 'Applications',
-            'accounting' => 'Billing work',
-            'teacher' => 'My students',
+            'registrar' => 'Enrollment pipeline',
+            'accounting' => 'Collections summary',
+            // Zero-count cards are hidden, so roles without work yet are recognised by their sidebar group.
+            'teacher' => 'My teaching',
             'guardian' => 'My children',
-            'student' => 'My enrollment',
+            'student' => 'My school records',
         ];
 
         foreach ($dashboardLabelByRole as $role => $dashboardLabel) {
@@ -536,7 +537,7 @@ class IdentityAccessTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_reactivate_a_disabled_account_with_reason_and_new_setup_link(): void
+    public function test_admin_can_reactivate_a_disabled_parent_account_with_reason_and_temporary_password(): void
     {
         $admin = $this->activeUser(['admin']);
         $guardian = $this->activeUser(['guardian']);
@@ -561,9 +562,12 @@ class IdentityAccessTest extends TestCase
                 'reason' => $reason,
             ])
             ->assertRedirect()
-            ->assertSessionHas('invitation_url');
+            ->assertSessionMissing('invitation_url');
 
-        $this->assertSame(AccountStatus::Invited, $guardian->fresh()->status);
+        // Parent and student accounts are reactivated with a one-time temporary password
+        // (shown once to the Admin), not a staff-style setup link.
+        $this->assertStringContainsString('Temporary Password:', (string) session('status'));
+        $this->assertSame(AccountStatus::Active, $guardian->fresh()->status);
         $this->assertNull($guardian->fresh()->disabled_at);
         $this->assertNotNull($oldInvitation->invitation->fresh()->revoked_at);
         $this->assertDatabaseHas('audit_logs', [
@@ -578,14 +582,11 @@ class IdentityAccessTest extends TestCase
             ->first();
         $this->assertSame($reason, json_decode($audit->metadata, true)['reason']);
 
-        $invitationUrl = $response->getSession()->get('invitation_url');
-        $this->post(route('identity.logout'));
-        $this->post($invitationUrl, [
-            'password' => 'ReactivatedPassword123',
-            'password_confirmation' => 'ReactivatedPassword123',
-        ])->assertRedirect(route('identity.dashboard'));
-
-        $this->assertSame(AccountStatus::Active, $guardian->fresh()->status);
+        // The one-time password shown to the Admin opens the account and must be replaced at first sign-in.
+        preg_match('/Temporary Password: (\S+) \|/', (string) $response->getSession()->get('status'), $match);
+        $this->assertNotEmpty($match[1] ?? null);
+        $this->assertTrue(Hash::check($match[1], $guardian->fresh()->password));
+        $this->assertTrue((bool) $guardian->fresh()->must_change_password);
     }
 
     public function test_non_admin_cannot_reactivate_a_disabled_account(): void

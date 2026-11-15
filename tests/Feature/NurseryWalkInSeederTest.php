@@ -119,11 +119,11 @@ class NurseryWalkInSeederTest extends TestCase
 
         $year = app(SaveAcademicCatalogAction::class)->execute(new AcademicYear, [
             'code' => '2026-2027', 'name' => 'School Year 2026-2027', 'starts_on' => '2026-06-08', 'ends_on' => '2027-04-08',
-            'enrollment_opens_on' => '2026-05-04', 'enrollment_closes_on' => '2026-08-20', 'status' => 'planned',
+            'enrollment_opens_on' => '2026-05-04', 'enrollment_closes_on' => '2026-10-31', 'status' => 'planned',
         ], $admin, 'academics.academic_year.created');
         $curriculum = app(CreateCurriculumDraftAction::class)->execute($year, 'JCA 2026-2027 class program', null, $admin, useOfficialDefault: true);
         app(PublishCurriculumAction::class)->execute($curriculum, $admin);
-        app(SaveAcademicCatalogAction::class)->execute($year, ['status' => 'open'], $admin, 'academics.academic_year.updated');
+        app(SaveAcademicCatalogAction::class)->execute($year, ['status' => 'open', 'enrollment_is_open' => true], $admin, 'academics.academic_year.updated');
     }
 
     private function staff(string $name, string $role): User

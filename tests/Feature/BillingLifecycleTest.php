@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Billing\Actions\AllocateStudentCreditAction;
+use App\Modules\Billing\Actions\ApproveAdjustmentAction;
 use App\Modules\Billing\Actions\ApprovePermitOverrideAction;
 use App\Modules\Billing\Actions\AwardDiscountAction;
 use App\Modules\Billing\Actions\CancelDraftFinancialRecordAction;
@@ -15,6 +16,7 @@ use App\Modules\Billing\Actions\DecideDiscountCancellationAction;
 use App\Modules\Billing\Actions\FinalizeAssessmentAction;
 use App\Modules\Billing\Actions\IssueExamPermitAction;
 use App\Modules\Billing\Actions\PostPaymentAction;
+use App\Modules\Billing\Actions\RequestAdjustmentAction;
 use App\Modules\Billing\Actions\RevokeExamPermitAction;
 use App\Modules\Billing\Actions\RevokePermitOverrideAction;
 use App\Modules\Billing\Actions\SelectPaymentPlanAction;
@@ -96,7 +98,8 @@ class BillingLifecycleTest extends TestCase
         [$enrollment, $schedule] = $this->fixture();
         $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
         app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
-        $data = ['received_on' => '2026-08-10', 'amount' => '20000.00', 'method' => 'cash', 'payer_name' => 'Fictional Uncle'];
+        // Both the posted payment and its repeat fit within the remaining balance.
+        $data = ['received_on' => '2026-08-10', 'amount' => '5000.00', 'method' => 'cash', 'payer_name' => 'Fictional Uncle'];
         $posted = app(PostPaymentAction::class)->execute(app(CreateDraftPaymentAction::class)->execute($assessment->fresh(), $data, $accounting), $accounting);
         $repeat = app(CreateDraftPaymentAction::class)->execute($assessment->fresh(), $data, $accounting);
 
@@ -167,9 +170,12 @@ class BillingLifecycleTest extends TestCase
         [$enrollment, $schedule] = $this->fixture();
         $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
         app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
-        $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => today(), 'amount' => '30000.00', 'method' => 'cash', 'payer_name' => 'Fictional Guardian', 'status' => 'draft', 'created_by' => $accounting->id]);
-        PaymentAllocation::query()->create(['payment_id' => $payment->id, 'amount' => '30000.00']);
+        // Payments may not exceed the balance; credit arises from an approved correction after full payment.
+        $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => today(), 'amount' => '28500.00', 'method' => 'cash', 'payer_name' => 'Fictional Guardian', 'status' => 'draft', 'created_by' => $accounting->id]);
+        PaymentAllocation::query()->create(['payment_id' => $payment->id, 'amount' => '28500.00']);
         app(PostPaymentAction::class)->execute($payment, $accounting);
+        $correction = app(RequestAdjustmentAction::class)->execute($assessment, ['adjustment_type' => 'credit', 'amount' => '1500.00', 'reason' => 'Fictional approved correction'], $accounting);
+        app(ApproveAdjustmentAction::class)->execute($correction, $this->user(['admin']), true);
         $target = $assessment->items()->where('fee_code', 'TUI')->firstOrFail();
         $credit = app(AllocateStudentCreditAction::class)->execute($payment, $target, '500.00', 'Fictional same-student allocation', $accounting);
         $this->assertSame('500.00', (string) $credit->amount);

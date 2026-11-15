@@ -185,7 +185,7 @@ class CommunicationsPhaseSevenTest extends TestCase
         $teacher = $this->user(['teacher']);
         $guardian = $this->user(['guardian']);
         $student = $this->user(['student']);
-        foreach ([[$admin, 'Enrollment review'], [$registrar, 'Applications'], [$accounting, 'Billing work'], [$teacher, 'My students'], [$guardian, 'My children'], [$student, 'My enrollment']] as [$user, $card]) {
+        foreach ([[$admin, 'Enrollment review'], [$registrar, 'Enrollment pipeline'], [$accounting, 'Collections summary'], [$teacher, 'My teaching'], [$guardian, 'My children'], [$student, 'My school records']] as [$user, $card]) {
             $this->actingAs($user)->get(route('identity.dashboard'))->assertOk()->assertSee($card);
         }
 
@@ -206,7 +206,7 @@ class CommunicationsPhaseSevenTest extends TestCase
         $guardian = $this->user(['guardian']);
         $this->actingAs($admin)->get(route('communications.admin'))->assertOk()
             ->assertSee('New announcement')->assertSee('Message people')->assertSee('Sent history')
-            ->assertSee('Parents/Guardians')->assertSee('Accounting')->assertSee('Portal + SMS')
+            ->assertSee('Parent/Guardian')->assertSee('Accounting')->assertSee('Portal + SMS')
             ->assertDontSee('SMS template')->assertDontSee('Template code');
         foreach (['registrar', 'accounting', 'teacher', 'guardian', 'student'] as $role) {
             $this->actingAs($this->user([$role]))->get(route('communications.admin'))->assertForbidden();
@@ -308,7 +308,7 @@ class CommunicationsPhaseSevenTest extends TestCase
 
         $summary = $this->actingAs($admin)->postJson(route('communications.audience'), ['everyone' => '1', 'sms_body' => 'JCSGO: Foundation Day on Friday.'])->assertOk()->json();
         $groups = collect($summary['groups'])->keyBy('label');
-        $this->assertSame(['members' => 1, 'with_number' => 1, 'opted_in' => 0], collect($groups['Parents/Guardians'])->only(['members', 'with_number', 'opted_in'])->all());
+        $this->assertSame(['members' => 1, 'with_number' => 1, 'opted_in' => 0], collect($groups['Parent/Guardian'])->only(['members', 'with_number', 'opted_in'])->all());
         $this->assertSame(['members' => 1, 'with_number' => 1, 'opted_in' => 1], collect($groups['Students'])->only(['members', 'with_number', 'opted_in'])->all());
         $this->assertSame(['members' => 2, 'with_number' => 1, 'opted_in' => 1], collect($groups['Teachers'])->only(['members', 'with_number', 'opted_in'])->all());
         $this->assertSame(1, $groups['Accounting']['members']);

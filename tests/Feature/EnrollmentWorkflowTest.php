@@ -39,7 +39,7 @@ class EnrollmentWorkflowTest extends TestCase
         $this->seed(RoleSeeder::class);
         $this->year = AcademicYear::query()->create([
             'code' => '2026-T', 'name' => 'Fictional 2026', 'starts_on' => '2026-06-01',
-            'ends_on' => '2027-03-31', 'status' => 'open',
+            'ends_on' => '2027-03-31', 'status' => 'open', 'enrollment_is_open' => true,
         ]);
         $this->grade = GradeLevel::query()->create([
             'code' => 'T-G1', 'name' => 'Fictional Grade', 'sequence' => 1,
@@ -161,6 +161,8 @@ class EnrollmentWorkflowTest extends TestCase
             'document_type_id' => $type->id,
             'rule_snapshot' => ['is_required' => true, 'is_blocking' => true],
             'status' => 'verified',
+            // Hard copy only: a verified requirement has a recorded physical receipt.
+            'received_at' => now()->subDay(),
         ]);
     }
 

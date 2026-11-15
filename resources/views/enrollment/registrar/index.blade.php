@@ -597,7 +597,7 @@
                                                     <x-ui.icon name="enrollment" size="size-4" />
                                                     Enrollment requirement evidence
                                                 </h3>
-                                                <p class="mt-1 text-xs text-muted">A verified soft copy or a recorded hard-copy receipt may clear admission. Continue tracking the physical document separately until received.</p>
+                                                <p class="mt-1 text-xs text-muted">Admission needs a recorded hard-copy receipt (or an Admin waiver). Older soft copies stay viewable for reference only.</p>
                                             </div>
                                             @if($reqTotal)
                                                 <div class="flex items-center gap-2 text-sm">

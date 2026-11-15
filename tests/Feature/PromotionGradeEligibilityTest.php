@@ -54,8 +54,8 @@ class PromotionGradeEligibilityTest extends TestCase
         $this->registrar = $this->user('registrar');
         $this->teacherUser = $this->user('teacher');
         $staff = StaffProfile::query()->create(['user_id' => $this->teacherUser->id, 'active_from' => today()->subDay()]);
-        $this->year = AcademicYear::query()->create(['code' => '2025-2026', 'name' => 'School Year 2025-2026', 'starts_on' => '2025-06-09', 'ends_on' => '2026-04-08', 'status' => 'open']);
-        $this->futureYear = AcademicYear::query()->create(['code' => '2026-2027', 'name' => 'School Year 2026-2027', 'starts_on' => '2026-06-08', 'ends_on' => '2027-04-08', 'status' => 'planned']);
+        $this->year = AcademicYear::query()->create(['code' => '2025-2026', 'name' => 'School Year 2025-2026', 'starts_on' => '2025-06-09', 'ends_on' => '2026-04-08', 'status' => 'open', 'enrollment_is_open' => true]);
+        $this->futureYear = AcademicYear::query()->create(['code' => '2026-2027', 'name' => 'School Year 2026-2027', 'starts_on' => '2026-06-08', 'ends_on' => '2027-04-08', 'status' => 'open', 'enrollment_is_open' => true]);
         $grade7 = GradeLevel::query()->create(['code' => 'G7', 'name' => 'Grade 7', 'sequence' => 10, 'school_stage' => 'Junior High School', 'is_active' => true]);
         $this->grade6 = GradeLevel::query()->create(['code' => 'G6', 'name' => 'Grade 6', 'sequence' => 9, 'school_stage' => 'Elementary', 'next_grade_level_id' => $grade7->id, 'is_active' => true]);
         $this->section = Section::query()->create(['academic_year_id' => $this->year->id, 'grade_level_id' => $this->grade6->id, 'name' => 'Matthew', 'capacity' => 15, 'status' => 'active']);

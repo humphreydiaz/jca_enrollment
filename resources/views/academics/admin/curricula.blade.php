@@ -355,7 +355,8 @@
                                                     @if ($gradeMappings->isEmpty())
                                                         {{-- Preschool has activity programs, not numeric subjects. --}}
                                                         @if ($template->activity_schedule)
-                                                            <p class="whitespace-pre-line break-words leading-7 font-bold text-brand-navy-900">{{ $template->activity_schedule }}</p>
+                                                            {{-- Same timetable component as the Section page. --}}
+                                                            <x-academics.activity-program-table :schedule="$template->activity_schedule" :name="$template->name" />
                                                         @else
                                                             <span class="text-brand-navy-900">No activity program recorded yet.</span>
                                                         @endif

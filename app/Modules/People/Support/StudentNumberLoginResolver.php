@@ -62,21 +62,21 @@ class StudentNumberLoginResolver
 
         $student = $students->first();
 
-        // Grade 7-10: Student-owned login.
-        if ($student->user_id !== null) {
-            return $this->usersWithRole(
-                collect([$student->user_id]),
-                'student'
-            );
-        }
+        // The learner's own account, when one is connected (always for Grade 7-10; for
+        // Nursery-Grade 6 only after the Registrar grants one on Family links).
+        $studentAccounts = $student->user_id !== null
+            ? $this->usersWithRole(collect([$student->user_id]), 'student')
+            : collect();
 
-        // Nursery-Grade 6: Guardian-owned login.
-        // Do not use a separate PAR login for this Student ID.
+        // Nursery-Grade 6: the managing parent signs in with the child's Student ID and their own
+        // password, and keeps doing so after the child is granted an account. Parents who hold a
+        // Grade 7-10 Parent ID (PAR-YY-NNN) use that instead. AuthenticateUserAction picks the one
+        // candidate whose password matches and fails closed when two do.
         if (
             ! Schema::hasTable('guardian_student')
             || ! Schema::hasTable('guardian_profiles')
         ) {
-            return collect();
+            return $studentAccounts;
         }
 
         $guardianIds = DB::table('guardian_student as gs')
@@ -97,7 +97,7 @@ class StudentNumberLoginResolver
             ->distinct()
             ->pluck('gp.user_id');
 
-        return $this->usersWithRole($guardianIds, 'guardian');
+        return $studentAccounts->merge($this->usersWithRole($guardianIds, 'guardian'))->unique('id')->values();
     }
 
     private function usersWithRole(

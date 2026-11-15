@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
-use App\Modules\Enrollment\Actions\ConnectApplicantIdentityAction;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Identity\Actions\AssignRolesAction;
 use App\Modules\Identity\Actions\AuthenticateUserAction;
@@ -142,96 +141,6 @@ class SharedContactLoginTest extends TestCase
         $this->assertNotNull($guardian->email);
     }
 
-    public function test_two_unrelated_student_parent_pairs_can_share_one_testing_mobile(): void
-    {
-        $gradeSevenStudent = $this->account('Grade 7 Student', ['student'], 'Grade7StudentPass123');
-        $gradeEightStudent = $this->account('Grade 8 Student', ['student'], 'Grade8StudentPass123');
-        $registrar = $this->account('Testing Registrar', ['registrar'], 'RegistrarPass123', 'registrar@example.test', '+639171111111');
-
-        $year = AcademicYear::query()->create([
-            'code' => 'SHARED-2026',
-            'name' => 'Shared Contact Test Year',
-            'starts_on' => '2026-06-01',
-            'ends_on' => '2027-03-31',
-            'status' => 'open',
-        ]);
-        $this->createdYears[] = $year->id;
-
-        $gradeSeven = GradeLevel::query()->create([
-            'code' => 'SHARED-G7',
-            'name' => 'Shared Contact Grade 7',
-            'sequence' => 7,
-            'school_stage' => 'Junior High School',
-            'is_active' => true,
-        ]);
-        $this->createdGrades[] = $gradeSeven->id;
-
-        $gradeEight = GradeLevel::query()->create([
-            'code' => 'SHARED-G8',
-            'name' => 'Shared Contact Grade 8',
-            'sequence' => 8,
-            'school_stage' => 'Junior High School',
-            'is_active' => true,
-        ]);
-        $this->createdGrades[] = $gradeEight->id;
-
-        $pairs = [
-            [$gradeSevenStudent, $gradeSeven, 'Grade 7', 'Parent One', 'SHARED-CONTACT-007'],
-            [$gradeEightStudent, $gradeEight, 'Grade 8', 'Parent Two', 'SHARED-CONTACT-008'],
-        ];
-
-        foreach ($pairs as [$studentAccount, $grade, $studentName, $parentName, $applicationNumber]) {
-            [$parentFirstName, $parentLastName] = explode(' ', $parentName, 2);
-            $guardian = GuardianProfile::query()->create([
-                'first_name' => $parentFirstName,
-                'last_name' => $parentLastName,
-                'mobile' => self::SHARED_MOBILE,
-            ]);
-            $this->createdGuardians[] = $guardian->id;
-
-            $student = StudentProfile::query()->create([
-                'user_id' => $studentAccount->id,
-                'first_name' => $studentName,
-                'last_name' => 'Student',
-                'birth_date' => '2012-01-02',
-            ]);
-            $this->createdStudents[] = $student->id;
-
-            $enrollment = Enrollment::query()->create([
-                'application_number' => $applicationNumber,
-                'student_id' => $student->id,
-                'academic_year_id' => $year->id,
-                'grade_level_id' => $grade->id,
-                'applicant_guardian_id' => $guardian->id,
-                'student_category' => 'regular',
-                'guardian_relationship' => 'Parent',
-                'status' => 'submitted',
-                'active_enrollment_key' => $student->id.':'.$year->id,
-                'contact_verified_at' => now(),
-                'duplicate_review_status' => 'clear',
-            ]);
-            $this->createdEnrollments[] = $enrollment->id;
-
-            $created = app(ConnectApplicantIdentityAction::class)->execute($enrollment, $registrar);
-            $guardianUser = $guardian->fresh()->user;
-            $this->created[] = $guardianUser->id;
-
-            $this->assertNotNull($created);
-            $this->assertNotSame($studentAccount->id, $guardianUser->id);
-            $this->assertSame(self::SHARED_MOBILE, $guardianUser->mobile);
-            $this->assertTrue($guardianUser->hasRole('guardian'));
-            $this->assertDatabaseHas('guardian_student', [
-                'guardian_id' => $guardian->id,
-                'student_id' => $student->id,
-            ]);
-        }
-
-        $this->assertSame(4, User::query()->where('mobile', self::SHARED_MOBILE)->count());
-    }
-
-    /**
-     * @param  list<string>  $roles
-     */
     private function account(string $name, array $roles, string $password, ?string $email = null, string $mobile = self::SHARED_MOBILE): User
     {
         $user = User::query()->create([

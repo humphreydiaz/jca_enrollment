@@ -111,7 +111,7 @@ class FamilyLinksTest extends TestCase
             ->assertSee('Application being prepared')->assertDontSee('Complete application')->assertDontSee('Section placement is pending');
         $this->actingAs($account)->get(route('enrollment.public.status', $enrollment))->assertOk()->assertDontSee('Submit for Registrar review');
         $this->actingAs($account)->get(route('identity.dashboard'))->assertDontSee('Finish the enrollment application');
-        $this->actingAs($parent)->get(route('identity.dashboard'))->assertSee('Finish the enrollment application');
+        $this->actingAs($parent)->get(route('identity.dashboard'))->assertSee('Draft Enrollment');
 
         // A second grant is refused.
         $this->actingAs($this->registrar)->post(route('people.family.grant-account', $student), ['reason' => 'Requested again by the mother in person', 'requested_in_person' => '1'])

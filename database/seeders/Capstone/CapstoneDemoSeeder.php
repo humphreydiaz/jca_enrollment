@@ -102,7 +102,8 @@ class CapstoneDemoSeeder extends Seeder
         'starts_on' => '2026-06-08',
         'ends_on' => '2027-04-08',
         'enrollment_opens_on' => '2026-05-04',
-        'enrollment_closes_on' => '2026-08-20',
+        // Open through October so the late (October) walk-ins in the roster are still inside the window.
+        'enrollment_closes_on' => '2026-10-31',
     ];
 
     private const EXAM_PERIODS = [
@@ -298,7 +299,8 @@ class CapstoneDemoSeeder extends Seeder
             ->keyBy(fn (Section $section) => $section->gradeLevel->code.'.'.$section->name);
 
         $this->travel('2026-05-04 07:45');
-        app(SaveAcademicCatalogAction::class)->execute($this->year, ['status' => 'open'], $this->admin, 'academics.academic_year.updated');
+        // Enrollment needs both the year opened and its enrollment switch on (2026_11_01 migration).
+        app(SaveAcademicCatalogAction::class)->execute($this->year, ['status' => 'open', 'enrollment_is_open' => true], $this->admin, 'academics.academic_year.updated');
     }
 
     /** @param array<string, mixed>|null $snapshot */
