@@ -30,7 +30,7 @@ class ListUsersAction
             'per_page' => (int) ($filters['per_page'] ?? 15),
         ];
 
-        $query = User::query()->with(['roles', 'staffProfile']);
+        $query = User::query()->with(['roles', 'staffProfile', 'guardianProfile']);
 
         if ($normalized['search'] !== null) {
             $search = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $normalized['search']);
@@ -39,7 +39,8 @@ class ListUsersAction
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
                     ->orWhere('mobile', 'like', "%{$search}%")
-                    ->orWhereHas('staffProfile', fn (Builder $staff): Builder => $staff->where('employee_number', 'like', "%{$search}%"));
+                    ->orWhereHas('staffProfile', fn (Builder $staff): Builder => $staff->where('employee_number', 'like', "%{$search}%"))
+                    ->orWhereHas('guardianProfile', fn (Builder $guardian): Builder => $guardian->where('parent_login_id', 'like', "%{$search}%"));
             });
         }
 

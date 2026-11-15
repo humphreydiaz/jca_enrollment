@@ -23,7 +23,7 @@
             </p>
 
             <p>
-                <strong>Parent Login ID:</strong>
+                <strong>Parent ID (sign-in ID):</strong>
                 {{ $both['parent_login'] ?? 'N/A' }}
             </p>
 
@@ -88,7 +88,7 @@
                         <dd class="font-bold text-ink">{{ $both['verified'] ? 'Verified and automatically linked' : 'Pending verification' }}</dd>
                     </div>
                     <div>
-                        <dt class="text-sm font-semibold text-muted">Parent account contact</dt>
+                        <dt class="text-sm font-semibold text-muted">Parent ID (sign-in ID)</dt>
                         <dd class="select-all font-mono text-xl font-black tracking-wide text-brand-navy-900">{{ $both['parent_login'] }}</dd>
                     </div>
                     <div>
@@ -100,7 +100,7 @@
                         <dd class="font-bold text-ink">{{ $both['parent_expires_at'] }}</dd>
                     </div>
                 </dl>
-                <p class="mt-5 text-sm leading-6 text-ink">Parent/Guardian has a separate account and temporary password. The family relationship is automatically linked during issuance. Give this access information only to the verified parent/guardian. Confirm which login identifier the sign-in form accepts.</p>
+                <p class="mt-5 text-sm leading-6 text-ink">Parent/Guardian has a separate account and temporary password. The family relationship is automatically linked during issuance. Give this access information only to the verified parent/guardian. The parent signs in at {{ route('identity.login') }} with the Parent ID above, not the Student ID.</p>
                 
             </section>
             @else

@@ -8,6 +8,7 @@
         'roles' => $user->roles->pluck('code')->values()->all(),
         'roleNames' => $user->roles->map(fn ($role) => $role->code === 'guardian' ? 'Parent/Guardian' : $role->name)->values()->all(),
         'staffNumber' => $user->staffProfile?->employee_number,
+        'parentLoginId' => $user->guardianProfile?->parent_login_id,
         'roleAction' => route('identity.admin.users.roles', $user),
         'recoveryAction' => route('identity.admin.users.recovery', $user),
         'disableAction' => route('identity.admin.users.disable', $user),
@@ -369,12 +370,12 @@
                     </div>
 
 
-                    <template x-if="(selectedUser?.roles ?? []).includes('guardian') && /^PAR-\d{2}-\d{3}$/.test(selectedUser?.publicId ?? '')">
+                    <template x-if="(selectedUser?.roles ?? []).includes('guardian') && selectedUser?.parentLoginId">
                         <section class="rounded-xl border border-border p-4 sm:p-5">
                             <h3 class="font-black text-brand-navy-900">Parent ID</h3>
                             <p
                                 class="mt-2 font-mono text-xl font-black text-brand-navy-900"
-                                x-text="selectedUser?.publicId"
+                                x-text="selectedUser?.parentLoginId"
                             ></p>
                             <p class="mt-1 text-xs text-muted">
                                 Grade 7–10 Parent/Guardian login identifier.

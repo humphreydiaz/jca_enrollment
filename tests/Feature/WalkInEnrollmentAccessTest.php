@@ -153,6 +153,57 @@ class WalkInEnrollmentAccessTest extends TestCase
         $this->assertSame('Student', $credentials['account_owner_type']);
     }
 
+    public function test_junior_high_parent_signs_in_with_the_parent_id_printed_on_the_slip(): void
+    {
+        $registrar = $this->userWithRole('registrar');
+
+        $response = $this->actingAs($registrar)
+            ->post(route('enrollment.registrar.issue-access.store'), [
+                ...$this->issuePayload('G7', 'parent.jhs@example.test', '09170000009'),
+                'identity_confirmed' => '1',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('issued_both');
+
+        $both = $response->getSession()->get('issued_both');
+        $guardian = GuardianProfile::query()->sole();
+
+        $this->assertMatchesRegularExpression('/^PAR-\d{2}-(?!000)\d{3}$/', $both['parent_login']);
+        $this->assertSame($both['parent_login'], $guardian->parent_login_id);
+        // The opaque public reference is never replaced by the guessable Parent ID.
+        $this->assertDoesNotMatchRegularExpression('/^PAR-/', User::query()->findOrFail($guardian->user_id)->public_id);
+
+        auth()->logout();
+        $this->post(route('identity.login.store'), [
+            'identifier' => strtolower($both['parent_login']),
+            'password' => $both['parent_temporary_password'],
+        ])->assertRedirect(route('identity.password.edit'));
+        $this->assertAuthenticatedAs(User::query()->findOrFail($guardian->user_id));
+    }
+
+    public function test_a_second_junior_high_parent_gets_the_next_parent_id(): void
+    {
+        $registrar = $this->userWithRole('registrar');
+
+        $first = $this->actingAs($registrar)->post(route('enrollment.registrar.issue-access.store'), [
+            ...$this->issuePayload('G7', 'first.parent@example.test', '09170000011'),
+            'identity_confirmed' => '1',
+        ])->getSession()->get('issued_both');
+
+        $second = $this->actingAs($registrar)->post(route('enrollment.registrar.issue-access.store'), [
+            ...$this->issuePayload('G8', 'second.parent@example.test', '09170000012'),
+            'student_first_name' => 'Jose',
+            'student_last_name' => 'Ramos',
+            'birth_date' => '2013-02-01',
+            'guardian_last_name' => 'Ramos',
+            'identity_confirmed' => '1',
+        ])->assertSessionHasNoErrors()->getSession()->get('issued_both');
+
+        $year = now('Asia/Manila')->format('y');
+        $this->assertSame("PAR-{$year}-001", $first['parent_login']);
+        $this->assertSame("PAR-{$year}-002", $second['parent_login']);
+    }
+
     public function test_possible_duplicate_is_rejected_before_any_access_is_issued(): void
     {
         $registrar = $this->userWithRole('registrar');

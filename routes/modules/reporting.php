@@ -46,6 +46,9 @@ Route::middleware([
     Route::get('/', [AuditLogController::class, 'index'])
         ->name('reporting.audit.index');
 
+    Route::get('/information-updates', [AuditLogController::class, 'informationUpdates'])
+        ->name('reporting.information-updates.index');
+
     Route::get('/{auditLog}', [AuditLogController::class, 'show'])
         ->name('reporting.audit.show');
 });

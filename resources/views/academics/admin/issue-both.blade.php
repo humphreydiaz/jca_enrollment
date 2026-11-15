@@ -67,15 +67,20 @@
                         {{ $access['parent_status'] }}
                     </p>
 
-                    @if (!empty($access['parent_setup_url']))
+                    @if (!empty($access['parent_login']) && !empty($access['parent_temporary_password']))
                         <p>
-                            Parent Account Setup Link:
+                            Parent ID (sign-in ID):
+                            <strong class="font-mono">{{ $access['parent_login'] }}</strong>
                         </p>
 
-                        <a href="{{ $access['parent_setup_url'] }}"
-                           class="break-all underline">
-                            {{ $access['parent_setup_url'] }}
-                        </a>
+                        <p>
+                            Temporary Password:
+                            <strong class="font-mono">{{ $access['parent_temporary_password'] }}</strong>
+                        </p>
+
+                        @if (!empty($access['parent_expires_at']))
+                            <p>Valid until: {{ $access['parent_expires_at'] }}</p>
+                        @endif
                     @endif
                 </div>
 
@@ -87,8 +92,8 @@
                 </p>
 
                 <p class="text-sm">
-                    Give the Student credentials and Parent setup
-                    details separately to their verified owners.
+                    Give the Student and Parent credentials
+                    separately to their verified owners.
                     Do not leave this page unattended.
                 </p>
             </div>

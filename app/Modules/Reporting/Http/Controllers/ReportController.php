@@ -24,10 +24,14 @@ class ReportController
     public function index(Request $request, ReportCatalog $reports): View
     {
         $visible = $reports->visibleTo($request->user());
+        $exports = ExportJob::query()->where('requested_by', $request->user()->id)->whereIn('report_code', array_keys($visible))->latest()->limit(20)->get();
 
         return view('reporting.index', [
             'reports' => $visible,
-            'exports' => ExportJob::query()->where('requested_by', $request->user()->id)->whereIn('report_code', array_keys($visible))->latest()->limit(20)->get(),
+            'exports' => $exports,
+            // A completed row can outlive its file (a database copied to another server, or a
+            // cleared storage folder). Offer the download only when the private file is really there.
+            'availableExportIds' => $exports->filter(fn (ExportJob $export): bool => $this->fileAvailable($export))->pluck('id')->all(),
         ]);
     }
 
@@ -92,18 +96,32 @@ class ReportController
         return to_route('reporting.index')->with('success', 'Private CSV export queued.');
     }
 
-    public function download(ExportJob $export, Request $request, AuditRecorder $audit): StreamedResponse
+    public function download(ExportJob $export, Request $request, AuditRecorder $audit): StreamedResponse|RedirectResponse
     {
         if (! Gate::allows('view', $export)) {
             abort(404);
         }
         abort_if($export->expires_at->isPast() || $export->deleted_at !== null, 410, 'This export is no longer available.');
-        abort_unless($export->status === 'completed' && $export->storage_path !== null && Storage::disk($export->disk)->exists($export->storage_path), 404);
+        if ($export->status !== 'completed') {
+            return to_route('reporting.index')->withErrors(['export' => 'This export is not ready yet. Refresh the page in a minute.']);
+        }
+        if (! $this->fileAvailable($export)) {
+            return to_route('reporting.index')->withErrors(['export' => 'This export file is no longer on the server. Open the report and request a new CSV export.']);
+        }
         $export->increment('download_count');
         $export->update(['last_downloaded_at' => now()]);
         $audit->record($request->user(), 'reporting.export.downloaded', $export, ['report_code' => $export->report_code]);
 
         return Storage::disk($export->disk)->download($export->storage_path, $export->download_name, ['Content-Type' => 'text/csv; charset=UTF-8', 'X-Content-Type-Options' => 'nosniff', 'Cache-Control' => 'private, no-store']);
+    }
+
+    private function fileAvailable(ExportJob $export): bool
+    {
+        return $export->status === 'completed'
+            && $export->deleted_at === null
+            && ! $export->expires_at->isPast()
+            && $export->storage_path !== null
+            && Storage::disk($export->disk)->exists($export->storage_path);
     }
 
     public function destroy(ExportJob $export, Request $request, DeleteReportExportAction $action): RedirectResponse

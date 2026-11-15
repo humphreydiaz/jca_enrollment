@@ -139,13 +139,7 @@
                                     }
                                 }
 
-                                $activity = ucwords(
-                                    str_replace(
-                                        ['.', '_', '-'],
-                                        ' ',
-                                        $log->action
-                                    )
-                                );
+                                $activity = \App\Modules\Shared\Audit\AuditChangeSummary::actionLabel($log->action);
                             @endphp
 
                             <tr class="border-b border-border hover:bg-brand-blue-50">
@@ -185,6 +179,7 @@
                                     <span class="font-semibold text-brand-navy-900">
                                         {{ $activity }}
                                     </span>
+                                    <div class="mt-1 font-mono text-xs text-muted">{{ $log->action }}</div>
                                 </td>
 
                                 <td class="p-4 text-muted">

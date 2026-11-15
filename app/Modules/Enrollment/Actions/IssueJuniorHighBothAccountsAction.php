@@ -202,13 +202,12 @@ class IssueJuniorHighBothAccountsAction
                     ]);
                 }
 
-                // Assign the Parent login ID.
-                $parentUser->forceFill([
-                    'public_id' => $parentId,
-                ])->save();
-
+                // The PAR-YY-NNN sign-in ID lives on the guardian profile, which is
+                // what StudentNumberLoginResolver reads. users.public_id stays the
+                // opaque ULID used in URLs.
                 $guardian->forceFill([
                     'user_id' => $parentUser->id,
+                    'parent_login_id' => $parentId,
                 ])->save();
 
                 $parentPassword = $created->temporaryPassword;
@@ -256,7 +255,7 @@ class IssueJuniorHighBothAccountsAction
                 'student' => $student,
                 'guardian' => $guardian,
                 'parent_user' => $parentUser,
-                'parent_login' => $parentUser->public_id,
+                'parent_login' => $guardian->parent_login_id,
                 'parent_temporary_password' => $parentPassword,
                 'parent_expires_at' => $parentExpiresAt,
                 'parent_status' => $parentStatus,
@@ -270,20 +269,19 @@ class IssueJuniorHighBothAccountsAction
     {
         $year = now('Asia/Manila')->format('y');
 
-        // PAR-YY-XXX supports 1,000 IDs per year.
-        for ($attempt = 0; $attempt < 1000; $attempt++) {
-            $number = str_pad(
-                (string) $attempt,
-                3,
-                '0',
-                STR_PAD_LEFT
-            );
+        // PAR-YY-001 to PAR-YY-999 (000 is never issued, matching the
+        // 2026_11_02 backfill). Lock the year's rows so two Registrar desks
+        // cannot issue the same ID at once; the unique index is the backstop.
+        $used = DB::table('guardian_profiles')
+            ->where('parent_login_id', 'like', "PAR-{$year}-%")
+            ->lockForUpdate()
+            ->pluck('parent_login_id')
+            ->flip();
 
-            $parentId = "PAR-{$year}-{$number}";
+        for ($attempt = 1; $attempt <= 999; $attempt++) {
+            $parentId = sprintf('PAR-%s-%03d', $year, $attempt);
 
-            if (! User::query()
-                ->where('public_id', $parentId)
-                ->exists()) {
+            if (! $used->has($parentId)) {
                 return $parentId;
             }
         }

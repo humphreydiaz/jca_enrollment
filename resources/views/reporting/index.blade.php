@@ -45,6 +45,10 @@
                                     && $export->status === 'completed'
                                         ? 'expired'
                                         : $export->status;
+
+                                $fileMissing = $displayStatus === 'completed'
+                                    && $export->deleted_at === null
+                                    && ! in_array($export->id, $availableExportIds, true);
                             @endphp
 
                             <tr class="border-b border-border">
@@ -56,6 +60,10 @@
                                     @if($displayStatus === 'expired')
                                         <span class="inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
                                             Expired
+                                        </span>
+                                    @elseif($fileMissing)
+                                        <span class="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800">
+                                            File missing — request a new export
                                         </span>
                                     @else
                                         <x-ui.status-badge :status="$displayStatus" />
@@ -74,11 +82,7 @@
 
                                 <td class="p-3">
                                     <div class="flex flex-wrap gap-2">
-                                        @if(
-                                            $export->status === 'completed'
-                                            && $export->deleted_at === null
-                                            && !$isExpired
-                                        )
+                                        @if(in_array($export->id, $availableExportIds, true))
                                             <a class="font-bold text-brand-navy-700 underline"
                                                href="{{ route('reporting.exports.download', $export) }}">
                                                 Download CSV

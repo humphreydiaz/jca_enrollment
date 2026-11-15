@@ -20,7 +20,7 @@ class IssueJuniorHighBothAccountsController
             403
         );
 
-        return view('people.admin.issue-both', [
+        return view('academics.admin.issue-both', [
             'years' => AcademicYear::query()->orderByDesc('id')->get(),
             'grades' => GradeLevel::query()
                 ->whereIn('code', ['G7', 'G8', 'G9', 'G10'])
@@ -74,7 +74,9 @@ class IssueJuniorHighBothAccountsController
                 'temporary_password' => $result['issued']->temporaryPassword,
                 'parent_name' => $result['guardian']->full_name,
                 'parent_status' => $result['parent_status'],
-                'parent_setup_url' => $result['parent_setup_url'],
+                'parent_login' => $result['parent_login'],
+                'parent_temporary_password' => $result['parent_temporary_password'],
+                'parent_expires_at' => $result['parent_expires_at']?->copy()->timezone('Asia/Manila')->format('d M Y, g:i A'),
                 'verified' => $result['relationship_verified'],
             ]);
     }

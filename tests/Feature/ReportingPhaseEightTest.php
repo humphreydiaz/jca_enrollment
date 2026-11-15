@@ -135,6 +135,32 @@ class ReportingPhaseEightTest extends TestCase
         $this->actingAs($registrar->fresh())->get(route('reporting.exports.download', $revoked))->assertNotFound();
     }
 
+    public function test_completed_export_whose_file_is_gone_is_not_offered_and_explains_instead_of_404(): void
+    {
+        Storage::fake('reports');
+        Queue::fake();
+        $admin = $this->user(['admin']);
+        [$year, $grade, $section] = $this->catalogFixture();
+        $this->enrollmentFixture($year, $grade, $section, $admin, 'Fictional', 'Learner');
+        $export = app(RequestReportExportAction::class)->execute('enrollments', [], $admin);
+        (new GenerateReportExport($export->id))->handle(app(ReportCatalog::class), app(AuditRecorder::class));
+        $export->refresh();
+
+        $this->actingAs($admin)->get(route('reporting.index'))->assertOk()->assertSee('Download CSV');
+
+        // e.g. the database was copied to a new server without storage/app/private/reports.
+        Storage::disk('reports')->delete($export->storage_path);
+
+        $this->actingAs($admin)->get(route('reporting.index'))
+            ->assertOk()
+            ->assertDontSee('Download CSV')
+            ->assertSee('File missing');
+        $this->actingAs($admin)->get(route('reporting.exports.download', $export))
+            ->assertRedirect(route('reporting.index'))
+            ->assertSessionHasErrors('export');
+        $this->assertSame(0, $export->fresh()->download_count);
+    }
+
     public function test_audit_search_is_admin_only_and_omits_sensitive_context(): void
     {
         $admin = $this->user(['admin']);
@@ -149,6 +175,38 @@ class ReportingPhaseEightTest extends TestCase
         $detail->assertOk()->assertSee('fictional.sensitive.action')->assertDontSee('DO-NOT-EXPOSE')->assertDontSee('192.0.2.10')->assertDontSee('PRIVATE-USER-AGENT');
         $this->actingAs($registrar)->get(route('reporting.audit.index'))->assertForbidden();
         $this->actingAs($admin)->get(route('reporting.audit.index', ['metadata' => 'private_reason']))->assertRedirect()->assertSessionHasErrors('filters');
+    }
+
+    public function test_information_updates_lists_only_self_profile_changes_for_registrar_and_admin(): void
+    {
+        $admin = $this->user(['admin']);
+        $registrar = $this->user(['registrar']);
+        $teacher = $this->user(['teacher']);
+        $learner = $this->user(['student']);
+        $learner->update(['name' => 'Selfupdate Learner']);
+        $subject = StudentProfile::query()->create(['first_name' => 'Audit', 'last_name' => 'Subject']);
+        $recorder = app(AuditRecorder::class);
+        $recorder->record($learner, 'people.student.self_profile_updated', $subject, ['fields' => ['mobile']]);
+        $recorder->record($admin, 'billing.payment.posted', $subject, ['private_reason' => 'NOT-A-PROFILE-UPDATE']);
+
+        $this->get(route('reporting.information-updates.index'))->assertRedirect(route('identity.login'));
+        $this->actingAs($teacher)->get(route('reporting.information-updates.index'))->assertForbidden();
+
+        foreach ([$registrar, $admin] as $viewer) {
+            $this->actingAs($viewer)->get(route('reporting.information-updates.index'))
+                ->assertOk()
+                ->assertSee('Information updates')
+                ->assertDontSee('All Users Activity Log')
+                ->assertSee('Selfupdate Learner')
+                ->assertSee('Mobile number')
+                ->assertDontSee('NOT-A-PROFILE-UPDATE')
+                ->assertDontSee('billing.payment.posted');
+        }
+
+        $this->actingAs($registrar)->get(route('reporting.information-updates.index', ['account' => 'guardian']))
+            ->assertOk()->assertDontSee('Selfupdate Learner');
+        $this->actingAs($registrar)->get(route('reporting.information-updates.index', ['action' => 'billing']))
+            ->assertRedirect()->assertSessionHasErrors('filters');
     }
 
     public function test_phase_eight_schema_and_private_disk_contract(): void

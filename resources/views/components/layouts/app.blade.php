@@ -179,9 +179,7 @@
                     $navItem('Section assignment', 'section-assignment.index', 'sections', ['section-assignment.*', 'promotion.*'], ['notification' => $sectionNeedsReview, 'notificationKey' => 'section_assignment']),
                 ];
 
-                if ($user->hasRole('registrar') && ! $user->hasRole('admin')) {
-                    $studentItems[] = $navItem('Information updates', 'reporting.audit.index', 'audit', ['reporting.audit.*'], ['params' => ['action' => 'self_profile_updated'], 'notification' => $profileUpdatesNeedReview, 'notificationKey' => 'profile_updates']);
-                }
+                $studentItems[] = $navItem('Information updates', 'reporting.information-updates.index', 'audit', ['reporting.information-updates.*'], ['notification' => $profileUpdatesNeedReview, 'notificationKey' => 'profile_updates']);
 
                 $navGroups[] = ['label' => 'School records', 'items' => $studentItems];
                 $navGroups[] = ['label' => 'Academics & support', 'items' => [
@@ -216,7 +214,7 @@
                 $navGroups[] = ['label' => 'Administration', 'items' => [
                     $navItem('Communications', 'communications.admin', 'communications', ['communications.admin']),
                     $navItem('Users', 'identity.admin.users.index', 'users', ['identity.admin.users.*']),
-                    $navItem('Audit trail', 'reporting.audit.index', 'audit', ['reporting.audit.*'], ['notification' => $profileUpdatesNeedReview, 'notificationKey' => 'profile_updates']),
+                    $navItem('Audit trail', 'reporting.audit.index', 'audit', ['reporting.audit.*']),
                     $navItem('Backups', 'operations.backups.index', 'settings', ['operations.backups.*']),
                 ]];
             }

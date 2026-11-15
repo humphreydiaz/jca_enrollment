@@ -79,6 +79,7 @@ class BreadcrumbTrail
         'billing.teacher.status' => 'Exam authorization',
         'billing.portal.show' => 'Financial summary',
         'reporting.audit.index' => 'Audit trail',
+        'reporting.information-updates.index' => 'Information updates',
         'reporting.audit.show' => 'Audit entry',
         'operations.backups.restore.confirm' => 'Restore backup',
         'identity.users.reissue.index' => 'Reissue temporary password',
