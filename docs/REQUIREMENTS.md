@@ -14,7 +14,7 @@ This remains the requirements baseline; the short phase-status note below preven
 - **Pending:** information JCA still needs to provide.
 - **Out of scope:** intentionally excluded from this product.
 
-**Implementation status (2026-07-13):** Phases 1-9 are complete for development and engineering launch readiness. Phase 9 adds secure response headers, fail-closed production configuration/runtime probes, database-queue and scheduler operations, private export pruning, verified backup/restore tooling, and deployment, rollback, incident, UAT, and launch runbooks. This does not close school-owned policy: live Semaphore remains disabled pending P-005, official reports remain pending P-006, hosting/recovery remains pending P-007, and role-owner/UAT launch sign-off remains pending P-008.
+**Implementation status (2026-10-05):** Phases 1-9 are complete for the original development and engineering launch-readiness baseline. Phases 10-15 cover the post-baseline design, identifier/correction foundation, unified login, walk-in Registrar access, curriculum automation, and four-quarter grading. Public application start and enrollment SMS/contact verification are retired. The 2026-2027 class program remains a reviewable draft. Grade-based promotion and integrated release verification remain pending.
 
 ## 3. Confirmed requirements
 
@@ -41,13 +41,26 @@ This remains the requirements baseline; the short phase-status note below preven
 | IAM-006 | Therapy/support information, uploaded documents, personal information, and payment data shall be restricted to authorized users. |
 | IAM-007 | Admin reactivation of a disabled account shall require a reason, return the account to invited state, revoke sessions, issue a new single-use setup link, and create audit evidence. |
 | IAM-008 | Disabling an account shall require a reason and revoke every outstanding invitation; enrollment workflows shall not issue setup links for disabled or locked accounts. |
-| IAM-009 | Guardian/Parent and Student accounts shall sign in through the parent/student portal entry point, while Admin, Registrar, Accounting, and Teacher accounts shall use a separate staff entry point; each endpoint shall reject the other role group without disclosing account or role state. |
+| IAM-009 | Guardian/Parent, Student, Admin, Registrar, Accounting, and Teacher accounts shall use one login form and authentication endpoint. Role-based destination is selected only after successful authentication, and failures shall not disclose account existence or role. |
+| IAM-010 | Registrar-issued temporary access shall be expiring, one-time, stored only as a hash, attributable to one natural-person account owner, and require private password setup before ordinary access. |
+| IAM-011 | Ordinary login shall accept only the school-issued Student ID or Staff ID plus a password. Email and mobile remain contact data. A verified guardian may use a linked learner's Student ID, but the guardian's own password shall authenticate the guardian-owned account; multiple password matches fail closed. |
+
+### 3.2.1 People records and corrections
+
+| ID | Requirement |
+|---|---|
+| PPL-001 | Guardian and parent names shall use structured first, optional middle, last/maiden-last, and optional suffix components rather than a single full-name field. |
+| PPL-002 | Registrar may correct the approved student demographic and prior-school fields after enrollment only with a meaningful reason and an audit record containing actor, time, before value, and after value. |
+| PPL-003 | Student ID, LRN, guardian identity/contact/authority, and guardian-student relationships shall use dedicated validated correction workflows rather than generic profile editing. |
+| PPL-004 | Profile correction shall not overwrite enrollment, section, promotion, requirement, support, financial, grading, communication, or audit history. |
+| PPL-005 | Student IDs shall use `JCA-YY-NNN`, based on the entry academic year's start year, and Staff IDs shall use `YY-JCA-NNN`, based on the employment-start year; the random three-digit suffix shall be collision-safe and unique. |
+| PPL-006 | Existing Student and Staff IDs shall be retained idempotently; a Student ID or LRN replacement requires the dedicated authorized, reasoned correction workflow. |
 
 ### 3.3 Enrollment
 
 | ID | Requirement |
 |---|---|
-| ENR-001 | Pre-elementary and Grades 1-6 shall use guardian-assisted enrollment. The guardian-assisted public form shall neither display nor accept Junior High School grades. Grades 7-10 shall submit through an invited Student login while retaining a linked guardian. |
+| ENR-001 | New applicants shall first appear at the school. Registrar shall perform offline identity/duplicate review and issue temporary access to the approved account owner before the authenticated enrollment application can be completed. Nursery through Grade 6 remain guardian-assisted; Grades 7-10 may use a Student-owned application while retaining a linked guardian. |
 | ENR-002 | The system shall collect a validated online enrollment form and required documents. |
 | ENR-003 | Registrar shall be able to verify, reject, waive when authorized, or request replacement of individual requirements. |
 | ENR-004 | The system shall track enrollment state and its history rather than overwrite the latest outcome without evidence. |
@@ -57,21 +70,24 @@ This remains the requirements baseline; the short phase-status note below preven
 | ENR-008 | Status changes shall support targeted SMS notifications and notification history. |
 | ENR-009 | The system shall prevent duplicate active enrollment for the same student, school year, and grade level. |
 | ENR-010 | Enrollment actions and overrides shall be auditable. |
-| ENR-011 | A Student-role account shall be connected one-to-one to a student profile only after enrollment approval; Grades 1-6 require an audited Admin exception while Grades 7-12 are eligible by default. |
+| ENR-011 | A Student-role account shall be connected one-to-one to a student profile and shall never gain access to another student's records. Pre-approval access, when enabled for Grades 7-10, is limited to the owned application until the account/profile connection gates are satisfied. |
 | ENR-012 | A manual mistaken student profile may be deleted only when it has no login, enrollment, guardian-relationship, or communication history; the reason and any pending duplicate-candidate cleanup shall be audited. |
+| ENR-013 | The enrollment application shall record the learner's religion as Christianity. The displayed field is read-only, and the server shall enforce the value independently of browser input. |
+| ENR-014 | There shall be no unrestricted public enrollment start after the walk-in replacement is implemented; creating or resuming an application requires the Registrar-issued authenticated account. |
 
 ### 3.4 Requirement rules
 
 | ID | Requirement |
 |---|---|
 | REQ-001 | Requirement rules shall be data-driven by student/enrollment category and school year. |
-| REQ-002 | Non-therapy students require at least a Birth Certificate and Form 138/Report Card, subject to the active school policy. |
+| REQ-002 | Non-therapy students require at least a Birth Certificate and School Form 9 (SF9), subject to the active school policy. |
 | REQ-003 | Transferees require at least a Birth Certificate, Report Card, and Form 137/school-to-school requirement. |
 | REQ-004 | Students requiring therapy/special-support review require at least a Birth Certificate and therapist Certificate of LOV, plus school observation/review. |
 | REQ-005 | Authorized Student applicants and Guardians may privately upload PDF/JPG/PNG soft copies of configured requirements. A verified soft copy or a recorded hard-copy receipt may satisfy a blocking item for academic approval. |
 | REQ-006 | The system shall retain each checklist snapshot, separate soft-copy and hard-copy states, uploader/version metadata, receipt state, receiving staff member, receipt timestamp and notes, review outcomes, reviewers, timestamps, and rejection/waiver reasons. |
 | REQ-007 | Hard copies remain required and visibly outstanding after soft-copy verification unless an Admin records an authorized reasoned waiver. Private file preview/download shall be authorized, audited, and unavailable by public URL. |
 | REQ-008 | A promoted enrollment shall carry forward accepted hard-copy requirement evidence from the linked prior enrollment so the student is not required to resubmit the same physical document every school year. The source evidence and its provenance shall remain auditable; rejected, waived, or merely uploaded evidence shall not be carried as accepted hard-copy proof. |
+| REQ-009 | The confirmed baseline requirement sets shall be installed automatically for every newly created school year and idempotently backfilled for existing years, regardless of year status. Existing year-specific rule values and historical enrollment checklist snapshots shall be preserved. |
 
 ### 3.5 Support assessment
 
@@ -95,6 +111,23 @@ This remains the requirements baseline; the short phase-status note below preven
 | ACA-006 | Section transfer history shall be retained. |
 | ACA-007 | Promotion shall create a new next-school-year enrollment and shall not alter historical enrollment records. |
 | ACA-008 | Subjects shall be configurable rather than embedded in application code. |
+| ACA-009 | Curricula shall be versioned by effective school year and shall define approved grade-to-subject mappings without rewriting prior school years. |
+| ACA-010 | Applying an approved curriculum shall supply the subject set used for applicable grades/sections; teaching assignments remain explicit authorized actions and are not guessed by the system. |
+
+### 3.6.1 Four-quarter grading
+
+| ID | Requirement |
+|---|---|
+| GRD-001 | Each gradable student/subject result shall support first-, second-, third-, and fourth-quarter grades. |
+| GRD-002 | After all four quarter values exist, the server shall calculate the final subject grade as `(Q1 + Q2 + Q3 + Q4) / 4`. |
+| GRD-003 | A missing quarter shall produce an incomplete result and shall never be silently interpreted as zero. |
+| GRD-004 | Teachers may read or enter grades only for students and subjects covered by their current authorized assignments. |
+| GRD-005 | Quarter grades may be edited while draft; submitting/finalizing or reopening grades shall use explicit authorized transitions with audit evidence. |
+| GRD-006 | A calculated final grade shall not be directly editable. Corrections shall revise authorized source-quarter values and recalculate the final grade. |
+| GRD-007 | Promotion review shall use only complete, finalized grade results and shall preserve the prior school year's grades. |
+| GRD-008 | Curriculum changes shall not retroactively alter the subject identity, calculation inputs, or finalized grades of historical records. |
+| GRD-009 | JCA-approved Grades 1–10 quarter entries are whole numbers 0–100; final average rounds to the nearest whole number. Teacher requests and Registrar/Admin-approved reopening apply. Promotion eligibility requires a Registrar-approved final grade in every current subject (D-043); a passing mark and Nursery/Kinder assessment treatment remain pending under P-010. |
+| GRD-010 | Registrar student-profile correction shall not grant grade-edit permission. |
 
 ### 3.7 Payment tracking and permits
 
@@ -132,7 +165,7 @@ The following resolve ambiguities in the outline:
 |---|---|---|
 | DR-001 | Guardian accounts are individual and use many-to-many guardian/student links. | D-003 |
 | DR-002 | Public account registration is closed; a verified applicant receives a school invitation. | D-002 |
-| DR-003 | Student accounts are defaulted to Grades 7-12 after approval; Grades 1-6 normally use Guardian access, with an audited Admin exception. | D-004 |
+| DR-003 | Student accounts are defaulted to Grades 7-10 after approval; Grades 1-6 normally use Guardian access, with an audited Admin exception. | D-004 |
 | DR-004 | Staff may have multiple staff roles, but staff and portal identities are not combined. | D-005 |
 | DR-005 | Teacher access excludes raw support, document, and payment records. | D-006 |
 | DR-006 | Academic and financial states are independent. | D-007 |
@@ -141,16 +174,21 @@ The following resolve ambiguities in the outline:
 | DR-009 | Section placement is system-recommended and staff-confirmed. | D-010 |
 | DR-010 | Sensitive retention is configurable and requires school approval before production automation. | D-014 |
 | DR-011 | Account recovery is staff-assisted through an audited, expiring recovery invitation after offline identity verification. | D-018 |
+| DR-012 | Grading uses four quarter inputs and a server-calculated final subject grade; missing quarters remain incomplete. | D-028 |
+| DR-013 | Registrar student corrections use a bounded field allowlist and preserve before/after audit history. | D-029 |
+| DR-014 | One login surface authenticates first and resolves role destination afterward. | D-031 |
+| DR-015 | Enrollment begins with offline Registrar verification and issued temporary access rather than an unrestricted public application. | D-032 |
+| DR-016 | Development and fictional capstone data may be rebuilt after exact-target and backup verification; this is not production deletion authority. | D-033 |
 
 ## 5. Workflow definitions
 
 ### 5.1 Standard enrollment
 
-1. Guardian or eligible student starts an unauthenticated minimal application and verifies the designated contact channel.
-2. System creates a draft enrollment reference without creating an active login.
-3. Applicant completes the form and may upload private soft copies. Hard copies may be presented at application time or later; staff records each physical receipt separately.
-4. Registrar validates identity/duplicates and sends the guardian invitation when the submission is legitimate.
-5. Registrar previews and reviews current soft copies and records hard-copy receipts. A verified soft copy or received hard copy can clear admission, while an outstanding hard-copy obligation remains visible.
+1. Guardian or eligible Grade 7-10 student appears at the school and Registrar performs offline identity and duplicate review.
+2. Registrar creates or connects the appropriate people records and issues expiring one-time access to the approved account owner.
+3. The account owner signs in through the unified login, establishes a private password, and starts or resumes the authenticated application.
+4. Applicant completes the form and may upload private soft copies. Hard copies may be presented at application time or later; staff records each physical receipt separately.
+5. Registrar reviews the application, current soft copies, and hard-copy receipts. A verified soft copy or received hard copy can clear admission, while an outstanding hard-copy obligation remains visible.
 6. If support assessment is required, authorized staff complete the assessment and record the decision.
 7. Registrar approves or rejects the application. Approval may atomically award a discount campaign rank.
 8. System recommends a section; Registrar/Admin confirms it. Support cases require manual suitability confirmation.
@@ -217,7 +255,7 @@ Hard-copy states are `missing`, `submitted`, `verified`, `rejected`, and `waived
 
 ## 7. Assumptions requiring validation
 
-- The owner-authorized development baseline covers Grades 1-12; the official production catalog is still pending, and preschool is excluded unless confirmed later.
+- JCA offers Nursery, Junior Kinder, Senior Kinder, Grades 1-6, and Grades 7-10. The later 35-page official class program covers these grades, while printed timetable discrepancies and staff matching require review before publication.
 - MySQL 8.0 or newer is available in the eventual hosting environment.
 - One Registrar, one Accounting staff member, and at least one Admin operate enrollment, while staff-role multiplicity supports absences and future staffing.
 - Mobile number is the primary invitation/SMS contact; email may be optional until JCA confirms recovery policy.
@@ -228,6 +266,8 @@ Hard-copy states are `missing`, `submitted`, `verified`, `rejected`, and `waived
 
 - Final school-approved retention schedule and deletion approvers.
 - Current school-year catalog: grade offerings, sections, subjects, schedules, advisers, and capacities.
+- ~~Guardian account identifier/account-ownership confirmation for Registrar-issued walk-in access.~~ Resolved by D-034 and Phase 13.
+- Grade range, precision, rounding, passing/promotion rules, grade-reopening authority, and Nursery/Kinder assessment policy.
 - Production-approved fee amounts, class/exam/holiday dates, discount campaign, receipt/invoice series, methods, financial signatories, exception procedures, permit wording, and thresholds. Phase 6 development assumptions remain configurable and are not official fees.
 - Official support-assessment form, decision vocabulary, and authorized reviewer roster. The generic restricted Phase 4 workflow is complete and does not treat these pending inputs as school policy.
 - Official Semaphore sender name, SMS templates, consent language, and live credentials.
@@ -238,7 +278,7 @@ Hard-copy states are `missing`, `submitted`, `verified`, `rejected`, and `waived
 ## 9. Out of scope
 
 - Online payment collection or gateway integration.
-- Grades, attendance, learning management, online examinations, library, payroll, HR, inventory, clinic/medical records, and therapy case management.
+- Attendance, learning management, online examinations, library, payroll, HR, inventory, clinic/medical records, and therapy case management. Four-quarter numeric grading for Grades 1–10 is implemented in Phase 15; promotion and preschool assessment remain separate pending work.
 - Automatic diagnosis or algorithmic acceptance/placement decisions.
 - Native Android/iOS applications.
 - Public third-party API, social login, biometric authentication, chat, or real-time WebSocket features.

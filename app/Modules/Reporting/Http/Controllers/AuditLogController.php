@@ -15,6 +15,14 @@ class AuditLogController
     {
         Gate::authorize('viewAny', AuditLog::class);
         $query = AuditLog::query()->with('actor')->latest('occurred_at');
+
+        if ($request->user()->hasRole('registrar')
+            && ! $request->user()->hasRole('admin')) {
+            $query->whereIn('action', [
+                'people.student.self_profile_updated',
+                'people.guardian.self_profile_updated',
+            ]);
+        }
         if ($request->filled('action')) {
             $query->where('action', 'like', '%'.addcslashes($request->string('action')->toString(), '%_').'%');
         }
@@ -32,7 +40,7 @@ class AuditLogController
             $query->whereDate('occurred_at', '<=', $request->date('date_to'));
         }
         $logs = $query->paginate(30)->withQueryString();
-        $audit->record($request->user(), 'reporting.audit.index_viewed');
+
 
         return view('reporting.audit.index', ['logs' => $logs]);
     }
@@ -46,3 +54,4 @@ class AuditLogController
         return view('reporting.audit.show', ['log' => $auditLog]);
     }
 }
+

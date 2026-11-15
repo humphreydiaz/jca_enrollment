@@ -10,17 +10,25 @@ use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Identity\Actions\AssignRolesAction;
 use App\Modules\Identity\Actions\AuthenticateUserAction;
 use App\Modules\Identity\Enums\AccountStatus;
+use App\Modules\People\Actions\IssueStaffNumberAction;
 use App\Modules\People\Actions\IssueStudentNumberAction;
+use App\Modules\People\Models\GuardianProfile;
+use App\Modules\People\Models\GuardianStudent;
+use App\Modules\People\Models\StaffProfile;
 use App\Modules\People\Models\StudentProfile;
+use App\Modules\People\Support\RandomThreeDigitSuffix;
+use App\Modules\Requirements\Models\DocumentType;
+use App\Modules\Requirements\Models\RequirementRule;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Tests\Concerns\CompletesApplicationForms;
 use Tests\TestCase;
 
 class StudentNumberTest extends TestCase
 {
-    use RefreshDatabase;
+    use CompletesApplicationForms, RefreshDatabase;
 
     private static int $gradeSequence = 0;
 
@@ -30,6 +38,15 @@ class StudentNumberTest extends TestCase
 
         $this->seed(RoleSeeder::class);
         self::$gradeSequence = 0;
+        app()->instance(RandomThreeDigitSuffix::class, new class extends RandomThreeDigitSuffix
+        {
+            private int $next = 100;
+
+            public function generate(): string
+            {
+                return (string) $this->next++;
+            }
+        });
     }
 
     public function test_submitting_an_application_issues_a_student_number_in_the_school_format(): void
@@ -39,10 +56,10 @@ class StudentNumberTest extends TestCase
         $this->submit($enrollment);
 
         $number = $enrollment->student->fresh()->student_number;
-        $this->assertSame('S-2026-2027-0001', $number);
+        $this->assertSame('JCA-26-100', $number);
     }
 
-    public function test_numbers_are_sequential_within_a_year_and_independent_across_years(): void
+    public function test_numbers_use_the_entry_year_and_a_three_digit_random_suffix(): void
     {
         $year2026 = $this->year('2026-2027', '2026-06-01', '2027-03-31');
         $year2027 = $this->year('2027-2028', '2027-06-01', '2028-03-31');
@@ -55,16 +72,16 @@ class StudentNumberTest extends TestCase
         $this->submit($second);
         $this->submit($otherYear);
 
-        $this->assertSame('S-2026-2027-0001', $first->student->fresh()->student_number);
-        $this->assertSame('S-2026-2027-0002', $second->student->fresh()->student_number);
-        $this->assertSame('S-2027-2028-0001', $otherYear->student->fresh()->student_number);
+        $this->assertSame('JCA-26-100', $first->student->fresh()->student_number);
+        $this->assertSame('JCA-26-101', $second->student->fresh()->student_number);
+        $this->assertSame('JCA-27-102', $otherYear->student->fresh()->student_number);
     }
 
     public function test_a_number_is_never_reused_after_the_application_is_cancelled(): void
     {
         $first = $this->draftEnrollment();
         $this->submit($first);
-        $this->assertSame('S-2026-2027-0001', $first->student->fresh()->student_number);
+        $this->assertSame('JCA-26-100', $first->student->fresh()->student_number);
 
         // Cancel the first application, then submit a fresh one.
         app(TransitionEnrollmentAction::class)->execute($first->fresh(), 'cancelled', null, 'Withdrawn by family');
@@ -72,24 +89,23 @@ class StudentNumberTest extends TestCase
         $second = $this->draftEnrollment();
         $this->submit($second);
 
-        // The cancelled 0001 is retired; the next learner gets 0002, not 0001.
-        $this->assertSame('S-2026-2027-0002', $second->student->fresh()->student_number);
+        $this->assertSame('JCA-26-101', $second->student->fresh()->student_number);
     }
 
-    public function test_issuance_skips_past_numbers_already_present_without_a_counter_row(): void
+    public function test_issuance_retries_when_the_random_candidate_already_exists(): void
     {
         // Seed / re-imported data: a profile already holds a number for the year
         // but the counter table has no row for it. Issuance must clear the gap.
         StudentProfile::query()->create([
             'first_name' => 'Seed',
             'last_name' => 'Data',
-            'student_number' => 'S-2026-2027-0041',
+            'student_number' => 'JCA-26-100',
         ]);
 
         $enrollment = $this->draftEnrollment();
         $this->submit($enrollment);
 
-        $this->assertSame('S-2026-2027-0042', $enrollment->student->fresh()->student_number);
+        $this->assertSame('JCA-26-101', $enrollment->student->fresh()->student_number);
     }
 
     public function test_the_number_does_not_change_on_a_later_transition(): void
@@ -106,12 +122,12 @@ class StudentNumberTest extends TestCase
 
     public function test_an_already_numbered_learner_is_not_issued_a_second_number(): void
     {
-        $student = StudentProfile::query()->create(['first_name' => 'Prom', 'last_name' => 'Oted', 'student_number' => 'S-2025-2026-0007']);
+        $student = StudentProfile::query()->create(['first_name' => 'Prom', 'last_name' => 'Oted', 'student_number' => 'JCA-25-107']);
 
         $number = app(IssueStudentNumberAction::class)->execute($student, $this->year());
 
-        $this->assertSame('S-2025-2026-0007', $number);
-        $this->assertSame('S-2025-2026-0007', $student->fresh()->student_number);
+        $this->assertSame('JCA-25-107', $number);
+        $this->assertSame('JCA-25-107', $student->fresh()->student_number);
     }
 
     public function test_a_student_can_sign_in_with_their_number_before_approval(): void
@@ -125,7 +141,7 @@ class StudentNumberTest extends TestCase
         // number resolves through the application that issued it.
         $this->assertNull($enrollment->student->fresh()->user_id);
 
-        $resolved = app(AuthenticateUserAction::class)->execute($number, 'LearnPass123', ['student']);
+        $resolved = app(AuthenticateUserAction::class)->execute($number, 'LearnPass123');
         $this->assertNotNull($resolved);
         $this->assertSame($account->id, $resolved->id);
     }
@@ -138,9 +154,82 @@ class StudentNumberTest extends TestCase
         $student = $enrollment->student->fresh();
         $student->update(['user_id' => $account->id]);
 
-        $resolved = app(AuthenticateUserAction::class)->execute($student->student_number, 'LearnPass123', ['student']);
+        $resolved = app(AuthenticateUserAction::class)->execute($student->student_number, 'LearnPass123');
         $this->assertNotNull($resolved);
         $this->assertSame($account->id, $resolved->id);
+    }
+
+    public function test_a_verified_guardian_uses_the_childs_student_id_with_their_own_password(): void
+    {
+        $studentAccount = $this->studentAccount('StudentPass123');
+        $guardianAccount = User::query()->create([
+            'name' => 'Guardian Account',
+            'password' => Hash::make('GuardianPass123'),
+            'status' => AccountStatus::Active,
+            'password_changed_at' => now(),
+        ]);
+        $guardianAccount = app(AssignRolesAction::class)->execute($guardianAccount, ['guardian'], null);
+        $student = StudentProfile::query()->create([
+            'user_id' => $studentAccount->id,
+            'first_name' => 'Linked',
+            'last_name' => 'Learner',
+            'student_number' => 'JCA-26-555',
+        ]);
+        $guardian = GuardianProfile::query()->create([
+            'user_id' => $guardianAccount->id,
+            'first_name' => 'Linked',
+            'last_name' => 'Guardian',
+        ]);
+        GuardianStudent::query()->create([
+            'guardian_id' => $guardian->id,
+            'student_id' => $student->id,
+            'relationship_type' => 'Parent',
+            'may_manage_enrollment' => true,
+            'verified_at' => now(),
+            'effective_from' => today(),
+        ]);
+
+        $this->assertSame(
+            $studentAccount->id,
+            app(AuthenticateUserAction::class)->execute('JCA-26-555', 'StudentPass123')?->id,
+        );
+        $this->assertSame(
+            $guardianAccount->id,
+            app(AuthenticateUserAction::class)->execute('JCA-26-555', 'GuardianPass123')?->id,
+        );
+    }
+
+    public function test_a_student_id_fails_closed_when_two_linked_accounts_share_a_password(): void
+    {
+        $studentAccount = $this->studentAccount('SharedPass123');
+        $guardianAccount = User::query()->create([
+            'name' => 'Guardian Account',
+            'password' => Hash::make('SharedPass123'),
+            'status' => AccountStatus::Active,
+            'password_changed_at' => now(),
+        ]);
+        $guardianAccount = app(AssignRolesAction::class)->execute($guardianAccount, ['guardian'], null);
+        $student = StudentProfile::query()->create([
+            'user_id' => $studentAccount->id,
+            'first_name' => 'Shared',
+            'last_name' => 'Password',
+            'student_number' => 'JCA-26-556',
+        ]);
+        $guardian = GuardianProfile::query()->create([
+            'user_id' => $guardianAccount->id,
+            'first_name' => 'Shared',
+            'last_name' => 'Guardian',
+        ]);
+        GuardianStudent::query()->create([
+            'guardian_id' => $guardian->id,
+            'student_id' => $student->id,
+            'relationship_type' => 'Parent',
+            'may_manage_enrollment' => true,
+            'verified_at' => now(),
+            'effective_from' => today(),
+        ]);
+
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('JCA-26-556', 'SharedPass123'));
     }
 
     public function test_student_number_login_works_end_to_end_over_http(): void
@@ -155,20 +244,17 @@ class StudentNumberTest extends TestCase
         $this->assertAuthenticatedAs($account);
     }
 
-    public function test_a_wrong_password_or_unknown_number_is_rejected_and_email_login_still_works(): void
+    public function test_wrong_password_unknown_number_and_email_identifier_are_rejected(): void
     {
         $account = $this->studentAccount('LearnPass123', 'known@example.test');
         $enrollment = $this->draftEnrollment(applicantUser: $account);
         $this->submit($enrollment);
         $number = $enrollment->student->fresh()->student_number;
 
-        $this->assertNull(app(AuthenticateUserAction::class)->execute($number, 'WrongPass999', ['student']));
-        $this->assertNull(app(AuthenticateUserAction::class)->execute('S-2026-2027-9999', 'LearnPass123', ['student']));
+        $this->assertNull(app(AuthenticateUserAction::class)->execute($number, 'WrongPass999'));
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('JCA-26-999', 'LearnPass123'));
 
-        // The pre-existing email path is untouched.
-        $viaEmail = app(AuthenticateUserAction::class)->execute('known@example.test', 'LearnPass123', ['student']);
-        $this->assertNotNull($viaEmail);
-        $this->assertSame($account->id, $viaEmail->id);
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('known@example.test', 'LearnPass123'));
     }
 
     public function test_backfill_issues_numbers_to_submitted_learners_and_skips_drafts_and_terminals(): void
@@ -183,9 +269,30 @@ class StudentNumberTest extends TestCase
 
         $this->artisan('students:backfill-numbers')->assertSuccessful();
 
-        $this->assertSame('S-2026-2027-0001', $submitted->student->fresh()->student_number);
+        $this->assertSame('JCA-26-100', $submitted->student->fresh()->student_number);
         $this->assertNull($draftOnly->student->fresh()->student_number);
         $this->assertNull($cancelled->student->fresh()->student_number);
+    }
+
+    public function test_staff_number_uses_employment_year_and_retries_a_collision(): void
+    {
+        $existingUser = User::factory()->create();
+        StaffProfile::query()->create([
+            'user_id' => $existingUser->id,
+            'employee_number' => '26-JCA-100',
+            'active_from' => '2026-01-15',
+        ]);
+        $newUser = User::factory()->create();
+        $staff = StaffProfile::query()->create(['user_id' => $newUser->id]);
+
+        $number = app(IssueStaffNumberAction::class)->execute($staff, now()->setDate(2026, 6, 1));
+
+        $this->assertSame('26-JCA-101', $number);
+        $this->assertDatabaseHas('staff_profiles', [
+            'id' => $staff->id,
+            'employee_number' => '26-JCA-101',
+            'active_from' => '2026-06-01',
+        ]);
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────
@@ -217,18 +324,33 @@ class StudentNumberTest extends TestCase
 
     private function submit(Enrollment $enrollment): void
     {
+        $this->completeApplicationForm($enrollment);
         app(TransitionEnrollmentAction::class)->execute($enrollment, 'submitted', null);
     }
 
     private function year(string $prefix = '2026-2027', string $starts = '2026-06-01', string $ends = '2027-03-31'): AcademicYear
     {
-        return AcademicYear::query()->create([
+        $year = AcademicYear::query()->create([
             'code' => $prefix.'-'.Str::random(4),
             'name' => 'School Year '.$prefix,
             'starts_on' => $starts,
             'ends_on' => $ends,
             'status' => 'open',
         ]);
+
+        $document = DocumentType::query()->firstOrCreate(
+            ['code' => 'SN-BIRTH'],
+            ['name' => 'Student number test birth certificate'],
+        );
+        RequirementRule::query()->create([
+            'academic_year_id' => $year->id,
+            'student_category' => 'regular',
+            'document_type_id' => $document->id,
+            'is_required' => true,
+            'is_blocking' => true,
+        ]);
+
+        return $year;
     }
 
     private function grade(): GradeLevel

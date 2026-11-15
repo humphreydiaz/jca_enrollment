@@ -55,7 +55,7 @@ class HostingerSampleDataSeederTest extends TestCase
 
         $this->assertSame(6, User::query()->whereHas('roles', fn ($query) => $query->where('code', 'teacher'))->count());
         $this->assertSame(6, DB::table('teaching_assignments')->count());
-        $this->assertSame(50, StudentProfile::query()->where('student_number', 'like', 'SIM-2026-%')->count());
+        $this->assertSame(50, StudentProfile::query()->where('student_number', 'like', 'JCA-26-%')->count());
         $this->assertSame(48, GuardianProfile::query()->where('email', 'like', 'family%@example.com')->count());
         $this->assertSame(50, DB::table('enrollments')->where('application_number', 'like', 'SIM-2026-%')->count());
         $this->assertSame(50, DB::table('section_assignments')->count());
@@ -93,7 +93,7 @@ class HostingerSampleDataSeederTest extends TestCase
 
         $this->runSeeder('A-Different-Temporary-Password-456');
 
-        $this->assertSame(50, StudentProfile::query()->where('student_number', 'like', 'SIM-2026-%')->count());
+        $this->assertSame(50, StudentProfile::query()->where('student_number', 'like', 'JCA-26-%')->count());
         $this->assertSame(48, GuardianProfile::query()->where('email', 'like', 'family%@example.com')->count());
         $this->assertSame(6, DB::table('sections')->count());
         $this->assertSame(6, DB::table('fee_schedules')->count());

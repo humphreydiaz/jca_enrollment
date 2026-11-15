@@ -5,9 +5,16 @@ namespace App\Modules\People\Http\Controllers;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Enrollment\Models\Enrollment;
+use App\Modules\People\Actions\CorrectStudentIdentifiersAction;
+use App\Modules\People\Actions\UpdateStudentProfileAction;
+use App\Modules\People\Http\Requests\CorrectStudentIdentifiersRequest;
+use App\Modules\People\Http\Requests\UpdateStudentProfileRequest;
 use App\Modules\People\Models\StudentProfile;
+use App\Modules\People\Queries\StudentChangeHistoryQuery;
 use App\Modules\People\Queries\StudentDirectoryQuery;
+use App\Modules\People\Support\StudentExitOptions;
 use App\Modules\Shared\Audit\AuditRecorder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -38,6 +45,8 @@ class StudentDirectoryController
 
         $students = $directory->paginate([
             'search' => $request->string('search')->toString(),
+            'archive' => $request->boolean('archive'),
+            'exit' => $request->string('exit')->toString(),
             'year' => $yearId,
             'grade' => $gradeId,
             'status' => in_array($request->string('status')->toString(), self::STATUSES, true) ? $request->string('status')->toString() : null,
@@ -52,6 +61,7 @@ class StudentDirectoryController
             'filterGrades' => GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(),
             'filterStatuses' => self::STATUSES,
             'filterFlags' => StudentDirectoryQuery::FLAGS,
+            'filterExitStatuses' => StudentExitOptions::EXIT_STATUSES,
             'sortOptions' => array_keys(StudentDirectoryQuery::SORTS),
         ]);
     }
@@ -60,7 +70,7 @@ class StudentDirectoryController
      * The learner record itself. Requested over fetch for the directory modal,
      * and as a standalone page when opened directly or without JavaScript.
      */
-    public function show(Request $request, StudentProfile $student, AuditRecorder $audit): View
+    public function show(Request $request, StudentProfile $student, AuditRecorder $audit, StudentChangeHistoryQuery $changeHistoryQuery): View
     {
         Gate::authorize('view', $student);
 
@@ -71,6 +81,8 @@ class StudentDirectoryController
             'enrollments.academicYear',
             'enrollments.guardian',
             'enrollments.requirements.documentType',
+            'enrollments.corrections.actor',
+            'corrections.actor',
         ]);
 
         // Learner profiles carry demographic and household data, so each read is
@@ -82,11 +94,32 @@ class StudentDirectoryController
         $enrollments = $student->enrollments->sortByDesc(
             fn (Enrollment $enrollment) => $enrollment->submitted_at ?? $enrollment->created_at,
         )->values();
+        $changeHistory = $changeHistoryQuery->for($student);
 
         if ($request->ajax()) {
-            return view('people.registrar.students.partials.record', compact('student', 'enrollments'));
+            return view('people.registrar.students.partials.record', compact('student', 'enrollments', 'changeHistory'));
         }
 
-        return view('people.registrar.students.show', compact('student', 'enrollments'));
+        return view('people.registrar.students.show', compact('student', 'enrollments', 'changeHistory'));
+    }
+
+    public function update(UpdateStudentProfileRequest $request, StudentProfile $student, UpdateStudentProfileAction $update): RedirectResponse
+    {
+        $validated = $request->validated();
+        $reason = $validated['reason'];
+        unset($validated['reason']);
+        $update->execute($student, $validated, $reason, $request->user());
+
+        return back()->with('status', 'Learner information corrected and added to the audit history.');
+    }
+
+    public function correctIdentifiers(CorrectStudentIdentifiersRequest $request, StudentProfile $student, CorrectStudentIdentifiersAction $correct): RedirectResponse
+    {
+        $validated = $request->validated();
+        $reason = $validated['reason'];
+        unset($validated['reason']);
+        $correct->execute($student, $validated, $reason, $request->user());
+
+        return back()->with('status', 'Learner identifiers corrected and added to the audit history.');
     }
 }

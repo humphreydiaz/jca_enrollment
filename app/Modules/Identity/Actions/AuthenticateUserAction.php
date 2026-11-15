@@ -3,6 +3,8 @@
 namespace App\Modules\Identity\Actions;
 
 use App\Models\User;
+use App\Modules\People\Support\StaffNumber;
+use App\Modules\People\Support\StaffNumberLoginResolver;
 use App\Modules\People\Support\StudentNumber;
 use App\Modules\People\Support\StudentNumberLoginResolver;
 use Illuminate\Support\Collection;
@@ -10,23 +12,49 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthenticateUserAction
 {
-    /**
-     * Upper bound on accounts examined for one identifier, so a heavily shared
-     * contact number can never turn a sign-in into an expensive hash loop.
-     */
     private const MAX_CANDIDATES = 10;
 
-    public function __construct(private StudentNumberLoginResolver $studentNumberLogin) {}
+    public function __construct(
+        private StudentNumberLoginResolver $studentNumberLogin,
+        private StaffNumberLoginResolver $staffNumberLogin,
+    ) {}
 
-    /** @param list<string> $allowedRoles */
-    public function execute(string $identifier, string $password, array $allowedRoles = []): ?User
-    {
-        // A household may share one mobile number between a parent and a child,
-        // so an identifier can match several accounts. The password decides
-        // which of them is signing in; stopping at the first match would lock
-        // everyone but that account out.
-        foreach ($this->candidates($identifier) as $user) {
-            if ($user->password === null || ! $user->isActive()) {
+    public function execute(
+        string $identifier,
+        string $password
+    ): ?User {
+        $candidates = $this->candidates($identifier);
+
+        // Reject missing or ambiguous account identifiers.
+        if (
+            $candidates->isEmpty()
+            || $candidates->count() > self::MAX_CANDIDATES
+        ) {
+            return null;
+        }
+
+        $authenticatedUser = null;
+
+        foreach ($candidates as $user) {
+            if (
+                $user->password === null
+                || ! $user->isActive()
+            ) {
+                continue;
+            }
+
+            if (
+                $user->must_change_password
+                && $user->temporary_access_expires_at !== null
+                && $user->temporary_access_expires_at->isPast()
+            ) {
+                continue;
+            }
+
+            if (
+                $user->must_change_password
+                && $user->temporary_access_used_at !== null
+            ) {
                 continue;
             }
 
@@ -34,52 +62,74 @@ class AuthenticateUserAction
                 continue;
             }
 
-            if ($allowedRoles !== [] && ! $user->hasAnyRole($allowedRoles)) {
-                continue;
+            if ($authenticatedUser !== null) {
+                return null;
             }
 
-            $user->forceFill(['last_login_at' => now()])->save();
-
-            return $user;
+            $authenticatedUser = $user;
         }
 
-        return null;
+        if ($authenticatedUser === null) {
+            return null;
+        }
+
+        if (
+            $authenticatedUser->must_change_password
+            && $authenticatedUser->temporary_access_expires_at !== null
+        ) {
+            $usedAt = now();
+
+            $claimed = User::query()
+                ->whereKey($authenticatedUser->id)
+                ->whereNull('temporary_access_used_at')
+                ->update([
+                    'temporary_access_used_at' => $usedAt,
+                    'last_login_at' => $usedAt,
+                ]);
+
+            if ($claimed !== 1) {
+                return null;
+            }
+
+            $authenticatedUser->temporary_access_used_at = $usedAt;
+            $authenticatedUser->last_login_at = $usedAt;
+        } else {
+            $authenticatedUser->forceFill([
+                'last_login_at' => now(),
+            ])->save();
+        }
+
+        return $authenticatedUser;
     }
 
     /**
-     * Accounts that could be behind this identifier. A learner may sign in with
-     * their student number; parents, students, and staff may still use the
-     * email address or mobile number on their account.
+     * Resolve Student, Parent/Guardian, and Staff login IDs.
      *
      * @return Collection<int, User>
      */
     private function candidates(string $identifier): Collection
     {
-        if (StudentNumber::looksLike($identifier)) {
-            $user = $this->studentNumberLogin->resolve($identifier);
+        $identifier = strtoupper(trim($identifier));
 
-            return $user === null ? collect() : collect([$user]);
+        // Student and Parent/Guardian IDs.
+        if (
+            StudentNumber::looksLike($identifier)
+            || preg_match('/^PAR-\d{2}-\d{3}$/', $identifier)
+        ) {
+            return $this->studentNumberLogin
+                ->candidates($identifier);
         }
 
-        $email = ContactNormalizer::email($identifier);
-        $mobile = ContactNormalizer::mobile($identifier);
+        // Staff IDs.
+        if (StaffNumber::looksLike($identifier)) {
+            $user = $this->staffNumberLogin
+                ->resolve($identifier);
 
-        if ($email === null && $mobile === null) {
-            return collect();
+            return $user === null
+                ? collect()
+                : collect([$user]);
         }
 
-        return User::query()
-            ->where(function ($query) use ($email, $mobile): void {
-                if ($email !== null) {
-                    $query->where('email', $email);
-                }
-
-                if ($mobile !== null) {
-                    $query->orWhere('mobile', $mobile);
-                }
-            })
-            ->orderBy('id')
-            ->limit(self::MAX_CANDIDATES)
-            ->get();
+        return collect();
     }
 }

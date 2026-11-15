@@ -9,11 +9,19 @@ class AuditLogPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasAnyRole(['admin', 'registrar']);
     }
 
     public function view(User $user, AuditLog $auditLog): bool
     {
-        return $user->hasRole('admin');
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
+        return $user->hasRole('registrar')
+            && in_array($auditLog->action, [
+                'people.student.self_profile_updated',
+                'people.guardian.self_profile_updated',
+            ], true);
     }
 }

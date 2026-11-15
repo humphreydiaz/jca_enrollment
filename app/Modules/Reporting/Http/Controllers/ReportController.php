@@ -31,7 +31,7 @@ class ReportController
         ]);
     }
 
-    public function show(ReportFilterRequest $request, string $report, ReportCatalog $reports): View
+    public function show(ReportFilterRequest $request, string $report, ReportCatalog $reports, AuditRecorder $audit): View
     {
         $filters = $request->filters();
 
@@ -46,6 +46,9 @@ class ReportController
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(),
             'sections' => $this->sectionsFor($request),
         ];
+        if ($report === 'grades') {
+            $audit->record($request->user(), 'grading.report.viewed');
+        }
 
         if ($report === 'enrollments') {
             $viewData['enrollmentSummary'] = $reports->enrollmentSummary($filters);

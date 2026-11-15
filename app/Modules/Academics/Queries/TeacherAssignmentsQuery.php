@@ -18,6 +18,7 @@ class TeacherAssignmentsQuery
                 'section.academicYear',
                 'section.gradeLevel',
                 'section.sectionSubjects.subject',
+                'section.teachingAssignments' => fn ($query) => $query->active()->with('staffProfile.user'),
                 'sectionSubject.subject',
             ])
             ->orderBy('section_id')

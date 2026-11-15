@@ -14,7 +14,8 @@ class VisibleAnnouncementsQuery
     /** @return Builder<Announcement> */
     public function forUser(User $user): Builder
     {
-        $query = Announcement::query()->with('audiences')->where('status', 'published')
+        // D-052: an SMS-only announcement is a text message, not a portal post.
+        $query = Announcement::query()->with('audiences')->where('status', 'published')->where('delivery', '!=', 'sms')
             ->where(fn (Builder $dates) => $dates->whereNull('published_at')->orWhere('published_at', '<=', now()))
             ->where(fn (Builder $dates) => $dates->whereNull('publish_until')->orWhere('publish_until', '>=', now()));
         if ($user->hasRole('admin')) {

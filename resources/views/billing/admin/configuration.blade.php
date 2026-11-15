@@ -3,7 +3,7 @@
         <x-ui.page-header
             title="Financial configuration"
             description="Manage school-year fee rules, schedules, payment options, examination periods, discounts, and controlled print wording."
-            eyebrow="Admin workspace"
+            eyebrow="Finance workspace"
         />
 
         <div class="grid items-start gap-6 xl:grid-cols-[15rem_minmax(0,1fr)]">

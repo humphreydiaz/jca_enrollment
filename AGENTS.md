@@ -4,7 +4,7 @@ These instructions apply to the entire repository.
 
 ## Project state
 
-Phases 1 through 9 are implemented for development and engineering launch readiness. Phase 9 adds fail-closed production checks, hardened response/session/queue defaults, supervised scheduler contracts, private export cleanup, backup/restore tooling, and deployment, incident, UAT, and launch runbooks. Production launch is still blocked until JCA signs P-001 through P-008 and replaces all development policy/configuration with approved production inputs. Live SMS remains disabled; grades and attendance remain out of scope.
+Phases 1 through 9 are implemented for development and engineering launch readiness. Phase 10 records the owner-approved post-baseline design, Phase 11 implements the identifier/structured-name/audited-correction foundation, Phase 12 implements unified login, Phase 13 implements walk-in Registrar-issued enrollment access, Phase 14 implements versioned curriculum automation, and Phase 15 implements numeric four-quarter grading for Grades 1-10. Phase 16 promotion eligibility based on Registrar-approved final grades is implemented (D-043; the passing mark remains pending under P-010), and Phase 17 remains planned for a new capstone release. The official 2026-2027 class program is a reviewable curriculum draft until JCA confirms schedules and real teacher assignments. Production launch is still blocked until JCA closes the remaining pending inputs and replaces all development policy/configuration with approved production inputs. Live SMS remains disabled; attendance and preschool numeric grading remain out of scope.
 
 ## Source of truth
 

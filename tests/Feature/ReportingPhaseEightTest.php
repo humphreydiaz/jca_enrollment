@@ -25,6 +25,7 @@ use App\Modules\SectionAssignment\Models\SectionAssignment;
 use App\Modules\Shared\Audit\AuditRecorder;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -50,7 +51,7 @@ class ReportingPhaseEightTest extends TestCase
         $teacher = $this->user(['teacher']);
         $guardian = $this->user(['guardian']);
         $student = $this->user(['student']);
-        $this->assertCount(9, app(ReportCatalog::class)->definitions());
+        $this->assertCount(10, app(ReportCatalog::class)->definitions());
         $this->actingAs($admin)->get(route('reporting.index'))->assertOk()->assertSee('Enrollment')->assertSee('Communications');
         $this->actingAs($registrar)->get(route('reporting.show', 'enrollments'))->assertOk();
         $this->actingAs($registrar)->get(route('reporting.show', 'payments'))->assertForbidden();
@@ -79,7 +80,7 @@ class ReportingPhaseEightTest extends TestCase
         $this->actingAs($teacher)->get(route('reporting.show', 'students'))->assertOk()->assertSee('Student, Assigned')->assertDontSee('Student, Unrelated')->assertSee($firstSection->name)->assertDontSee($secondSection->name);
         $this->actingAs($teacher)->get(route('reporting.show', 'sections'))->assertOk()->assertSee($firstSection->name)->assertSee('1')->assertDontSee($secondSection->name);
         $print = $this->actingAs($admin)->get(route('reporting.print', ['enrollments'] + $filters));
-        $print->assertOk()->assertSee('Development operational layout')->assertSee('images/reporting/jca-reports-header.png')->assertSee($first->application_number)->assertDontSee('Primary navigation')->assertDontSee('support_observations')->assertDontSee('payment_evidence');
+        $print->assertOk()->assertSee('JCSGO CHRISTIAN ACADEMY R1 INC.')->assertSee('Enrolment Data')->assertSee('GRAND TOTAL')->assertDontSee('Primary navigation')->assertDontSee('support_observations')->assertDontSee('payment_evidence');
         $this->assertDatabaseHas('audit_logs', ['action' => 'reporting.report.printed']);
     }
 
@@ -140,7 +141,8 @@ class ReportingPhaseEightTest extends TestCase
         $registrar = $this->user(['registrar']);
         $subject = StudentProfile::query()->create(['first_name' => 'Audit', 'last_name' => 'Subject']);
         $log = app(AuditRecorder::class)->record($admin, 'fictional.sensitive.action', $subject, ['private_reason' => 'DO-NOT-EXPOSE']);
-        $log->update(['ip_address' => '192.0.2.10', 'user_agent' => 'PRIVATE-USER-AGENT']);
+        // Entries are append-only through the model (D-059); set the request context directly for this fixture.
+        DB::table('audit_logs')->where('id', $log->id)->update(['ip_address' => '192.0.2.10', 'user_agent' => 'PRIVATE-USER-AGENT']);
         $index = $this->actingAs($admin)->get(route('reporting.audit.index', ['action' => 'fictional.sensitive']));
         $index->assertOk()->assertSee('fictional.sensitive.action')->assertSee($subject->public_id)->assertDontSee('DO-NOT-EXPOSE')->assertDontSee('192.0.2.10')->assertDontSee('PRIVATE-USER-AGENT');
         $detail = $this->actingAs($admin)->get(route('reporting.audit.show', $log));

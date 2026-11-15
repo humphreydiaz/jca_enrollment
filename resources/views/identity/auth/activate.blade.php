@@ -1,9 +1,10 @@
-<x-layouts.public title="Activate account">
+<x-layouts.public title="Staff account setup">
     <div class="mx-auto max-w-md">
         <section class="jca-card p-6 sm:p-8" aria-labelledby="activation-title">
-            <p class="text-sm font-bold uppercase tracking-[0.18em] text-brand-orange-500">Account invitation</p>
+            <p class="text-sm font-bold uppercase tracking-[0.18em] text-brand-orange-500">Staff account setup</p>
             <h1 id="activation-title" class="mt-2 text-3xl font-black text-brand-navy-900">Enter your account code</h1>
-            <p class="mt-3 text-sm leading-6 text-muted">Use the one-time code sent by JCSGOCA. Spaces and dashes are accepted.</p>
+            <p class="mt-3 text-sm leading-6 text-muted">For school staff setting up a new account or recovering one: enter the one-time code from the school administrator. Spaces and dashes are accepted.</p>
+            <p class="mt-3 rounded-lg bg-canvas p-3 text-sm leading-6 text-muted">Parents, guardians, and students don’t need a code. Sign in with the Student ID and the temporary password given by the Registrar.</p>
 
             <form method="POST" action="{{ route('identity.invitations.activate.store') }}" class="mt-6 space-y-5">
                 @csrf

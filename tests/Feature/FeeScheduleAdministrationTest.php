@@ -6,6 +6,9 @@ use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Billing\Actions\CreateAssessmentAction;
+use App\Modules\Billing\Actions\FinalizeAssessmentAction;
+use App\Modules\Billing\Actions\SelectPaymentPlanAction;
+use App\Modules\Billing\Models\ExamPeriod;
 use App\Modules\Billing\Models\FeeSchedule;
 use App\Modules\Billing\Models\FeeScheduleItem;
 use App\Modules\Billing\Models\FeeType;
@@ -14,10 +17,12 @@ use App\Modules\Identity\Actions\AssignRolesAction;
 use App\Modules\Identity\Enums\AccountStatus;
 use App\Modules\People\Models\GuardianProfile;
 use App\Modules\People\Models\StudentProfile;
+use Database\Seeders\Billing\SchoolCalendarExamPeriodsSeeder;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class FeeScheduleAdministrationTest extends TestCase
@@ -235,11 +240,119 @@ class FeeScheduleAdministrationTest extends TestCase
             ->assertSee('PHP 2,500.50');
     }
 
-    public function test_only_an_admin_may_manage_fee_schedule_versions(): void
+    public function test_a_new_draft_can_start_from_another_years_published_fees_and_be_adjusted(): void
+    {
+        $accounting = $this->staff('accounting');
+        $lastYear = $this->year();
+        $nextYear = $this->year();
+        $grade7 = $this->grade('Grade 7');
+        $grade8 = $this->grade('Grade 8');
+        $source = $this->schedule($lastYear, $grade7, 'draft');
+        $tuition = $this->item($source, '18500.00');
+        $books = $this->item($source, '3423.00');
+        $retired = $this->item($source, '150.00');
+        $retired->feeType->update(['is_active' => false]);
+        $source->update(['status' => 'published', 'published_at' => now()]);
+
+        $this->actingAs($accounting)->get(route('billing.configuration.index'))->assertOk()
+            ->assertSee('Start from')->assertSee('Use as template')->assertSee('value="'.$source->public_id.'"', false);
+
+        $this->actingAs($accounting)->post(route('billing.configuration.schedules'), [
+            'academic_year_id' => $nextYear->id, 'grade_level_id' => $grade8->id, 'name' => 'Grade 8 SY 2027-2028', 'copy_from' => $source->public_id,
+        ])->assertRedirect()->assertSessionHas('status', fn (string $message) => str_contains($message, 'with 2 fees copied from Fee schedule (version 1)') && str_contains($message, '1 inactive fee left out'));
+
+        $copy = FeeSchedule::query()->where('name', 'Grade 8 SY 2027-2028')->sole();
+        $this->assertSame('draft', $copy->status);
+        $this->assertSame([$nextYear->id, $grade8->id, 1], [$copy->academic_year_id, $copy->grade_level_id, $copy->version]);
+        $this->assertEqualsCanonicalizing([$tuition->fee_type_id, $books->fee_type_id], $copy->items()->pluck('fee_type_id')->all());
+        $this->assertSame('18500.00', (string) $copy->items()->where('fee_type_id', $tuition->fee_type_id)->value('amount'));
+        $this->assertDatabaseHas('audit_logs', ['action' => 'billing.fee_schedule.created', 'subject_id' => $copy->id]);
+
+        // The copy is an ordinary draft: amounts can change and fees can be removed, while the source stays intact.
+        $copiedTuition = $copy->items()->where('fee_type_id', $tuition->fee_type_id)->sole();
+        $this->actingAs($accounting)->put(route('billing.configuration.schedule-items.update', [$copy, $copiedTuition]), [
+            'description' => 'Tuition', 'amount' => '19500.00', 'is_required' => '1',
+        ])->assertRedirect();
+        $this->actingAs($accounting)->delete(route('billing.configuration.schedule-items.destroy', [$copy, $copy->items()->where('fee_type_id', $books->fee_type_id)->sole()]))->assertRedirect();
+        $this->assertSame(['19500.00'], $copy->items()->pluck('amount')->map(fn ($amount) => (string) $amount)->all());
+        $this->assertSame(3, $source->items()->count());
+        $this->assertSame('18500.00', (string) $tuition->fresh()->amount);
+
+        // A blank start still works, and an unknown source is rejected.
+        $this->actingAs($accounting)->post(route('billing.configuration.schedules'), ['academic_year_id' => $nextYear->id, 'grade_level_id' => $grade7->id, 'name' => 'Blank', 'copy_from' => ''])->assertRedirect();
+        $this->assertSame(0, FeeSchedule::query()->where('name', 'Blank')->sole()->items()->count());
+        $this->actingAs($accounting)->post(route('billing.configuration.schedules'), ['academic_year_id' => $nextYear->id, 'name' => 'Bad', 'copy_from' => '01J0000000000000000000BAD0'])->assertSessionHasErrors('copy_from');
+        $this->actingAs($this->staff('registrar'))->post(route('billing.configuration.schedules'), ['academic_year_id' => $nextYear->id, 'name' => 'Nope', 'copy_from' => $source->public_id])->assertForbidden();
+    }
+
+    public function test_school_calendar_exam_periods_enable_the_quarterly_plan(): void
+    {
+        $accounting = $this->staff('accounting');
+        [$enrollment, $schedule] = $this->assessableFixture();
+        $enrollment->academicYear->update(['code' => '2026-2027', 'starts_on' => '2026-06-08', 'ends_on' => '2027-04-08']);
+        $previousYear = AcademicYear::query()->create(['code' => '2025-2026', 'name' => 'School Year 2025-2026', 'starts_on' => '2025-06-09', 'ends_on' => '2026-04-08', 'status' => 'closed']);
+        $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
+        app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
+
+        $this->expectValidationMessage(fn () => app(SelectPaymentPlanAction::class)->execute($assessment->fresh(), 'quarterly', $accounting), 'require configured examination periods');
+
+        $this->seed(SchoolCalendarExamPeriodsSeeder::class);
+        $this->seed(SchoolCalendarExamPeriodsSeeder::class);
+
+        // SY 2026-2027: exactly the JCSGO School Calendar 2026-2027 quarterly examinations.
+        $current = ExamPeriod::query()->where('academic_year_id', $enrollment->academic_year_id)->orderBy('starts_on')->get();
+        $this->assertSame(['Q1', 'Q2', 'Q3', 'Q4'], $current->pluck('code')->all(), 'Four periods, and a second run adds nothing.');
+        $this->assertSame(
+            [['2026-08-19', '2026-08-20'], ['2026-10-19', '2026-10-20'], ['2027-01-21', '2027-01-22'], ['2027-03-15', '2027-03-16']],
+            $current->map(fn (ExamPeriod $period) => [$period->starts_on->toDateString(), $period->ends_on->toDateString()])->all(),
+        );
+        $this->assertSame('2026-08-09', $current->first()->eligibility_cutoff_on->toDateString());
+        $this->assertSame('2026-07-20', $current->first()->issue_opens_on->toDateString());
+        $this->assertSame('Fourth Quarterly Examination', $current->last()->name);
+
+        // SY 2025-2026 follows the same pattern, and every period falls on school days.
+        $previous = ExamPeriod::query()->where('academic_year_id', $previousYear->id)->orderBy('starts_on')->get();
+        $this->assertSame(['2025-08-19', '2025-10-20', '2026-01-22', '2026-03-16'], $previous->map(fn (ExamPeriod $period) => $period->starts_on->toDateString())->all());
+        $this->assertTrue($previous->every(fn (ExamPeriod $period) => $period->status === 'closed' && $period->starts_on->isWeekday() && $period->ends_on->isWeekday()));
+
+        $plan = app(SelectPaymentPlanAction::class)->execute($assessment->fresh(), 'quarterly', $accounting);
+        $this->assertSame('quarterly', $plan->plan_type);
+        $this->assertNotEmpty($plan->scheduleItems);
+    }
+
+    public function test_examination_periods_are_grouped_by_school_year_with_plan_readiness(): void
+    {
+        $accounting = $this->staff('accounting');
+        $current = AcademicYear::query()->create(['code' => '2026-2027', 'name' => 'School Year 2026-2027', 'starts_on' => today()->subMonths(4), 'ends_on' => today()->addMonths(6), 'status' => 'open']);
+        $past = AcademicYear::query()->create(['code' => '2024-2025', 'name' => 'School Year 2024-2025', 'starts_on' => today()->subMonths(16), 'ends_on' => today()->subMonths(6), 'status' => 'closed']);
+        $this->seed(SchoolCalendarExamPeriodsSeeder::class);
+        ExamPeriod::query()->create(['academic_year_id' => $past->id, 'code' => 'OLD1', 'name' => 'Only Old Exam', 'starts_on' => today()->subMonths(10), 'ends_on' => today()->subMonths(10), 'eligibility_cutoff_on' => today()->subMonths(10)->subDays(10), 'status' => 'closed']);
+
+        $response = $this->actingAs($accounting)->get(route('billing.configuration.index'))->assertOk();
+        $response->assertSee('id="exam-tab-'.$current->id.'"', false)->assertSee('id="exam-tab-'.$past->id.'"', false)
+            ->assertSee('Current')->assertSee('Only Old Exam')
+            ->assertSee('Quarterly needs 3 more · Semiannual needs 2 more')
+            ->assertSee('Add an examination period');
+        // The current year opens first; the past year's panel starts hidden.
+        $this->assertMatchesRegularExpression('/id="exam-panel-'.$past->id.'"[^>]*x-cloak/', $response->getContent());
+        $this->assertDoesNotMatchRegularExpression('/id="exam-panel-'.$current->id.'"[^>]*x-cloak/', $response->getContent());
+    }
+
+    private function expectValidationMessage(callable $callback, string $fragment): void
+    {
+        try {
+            $callback();
+            $this->fail('Expected a validation error.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString($fragment, collect($exception->errors())->flatten()->implode(' '));
+        }
+    }
+
+    public function test_only_admin_and_accounting_may_manage_fee_schedule_versions(): void
     {
         $schedule = $this->schedule($this->year(), $this->grade('Grade 3'), 'draft');
 
-        foreach (['accounting', 'registrar', 'teacher'] as $role) {
+        foreach (['registrar', 'teacher'] as $role) {
             $actor = $this->staff($role);
 
             $this->actingAs($actor)->put(route('billing.configuration.schedules.update', $schedule), [
@@ -252,6 +365,18 @@ class FeeScheduleAdministrationTest extends TestCase
         }
 
         $this->assertDatabaseHas('fee_schedules', ['id' => $schedule->id, 'name' => 'Fee schedule']);
+
+        // Accounting maintains financial configuration alongside the Admin (D-046).
+        $accounting = $this->staff('accounting');
+        $this->actingAs($accounting)->get(route('billing.configuration.index'))->assertOk()->assertSee('Finance workspace');
+        $this->actingAs($accounting)->put(route('billing.configuration.schedules.update', $schedule), [
+            'academic_year_id' => $schedule->academic_year_id,
+            'name' => 'Accounting rename',
+        ])->assertRedirect();
+        $this->assertDatabaseHas('fee_schedules', ['id' => $schedule->id, 'name' => 'Accounting rename']);
+        $this->assertDatabaseHas('audit_logs', ['actor_user_id' => $accounting->id]);
+        $this->actingAs($accounting)->get(route('identity.dashboard'))->assertSee(route('billing.configuration.index'), false);
+        $this->actingAs($this->staff('registrar'))->get(route('identity.dashboard'))->assertDontSee(route('billing.configuration.index'), false);
     }
 
     // ── Fixtures ────────────────────────────────────────────────────────────

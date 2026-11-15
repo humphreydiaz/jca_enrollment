@@ -24,7 +24,7 @@ P-002 and P6-01 through P6-21 are **Assumed – Owner-authorized for development
 
 ## Development fixtures
 
-`Database\Seeders\Billing\BillingDevelopmentSeeder` is opt-in and is not called by `DatabaseSeeder`. It labels its school year, schedules, exam dates, and campaign as development-only; it provides Grades 1-12, the seven development fee types, four plan options, four fictional exam periods, and the inactive fictional First-100 campaign. It must not be used as production policy.
+`Database\Seeders\Billing\BillingDevelopmentSeeder` is opt-in and is not called by `DatabaseSeeder`. It labels its school year, schedules, exam dates, and campaign as development-only; it covers the configured offered grades, the seven development fee types, four plan options, four fictional exam periods, and the inactive fictional First-100 campaign. It must not be used as production policy.
 
 `Database\Seeders\Billing\CurrentSchoolYearJuniorHighBillingTestSeeder` is also opt-in. It populates only the active Junior High School grade levels already configured for School Year 2026-2027, uses the same fictional JHS amounts and plan behavior, leaves the development discount campaign inactive, adds fictional exam/non-business dates, and records Admin-attributed audit evidence. It never creates a missing grade offering and must be replaced with approved JCA fee, calendar, discount, and print inputs before production.
 

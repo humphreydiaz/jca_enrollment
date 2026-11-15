@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Academics\Actions\SaveAcademicCatalogAction;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Academics\Models\Section;
@@ -12,12 +13,15 @@ use App\Modules\Academics\Models\TeachingAssignment;
 use App\Modules\Identity\Actions\AssignRolesAction;
 use App\Modules\Identity\Enums\AccountStatus;
 use App\Modules\People\Models\StaffProfile;
+use App\Modules\Requirements\Models\DocumentType;
+use App\Modules\Requirements\Models\RequirementRule;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use RuntimeException;
 use Tests\TestCase;
 
 class AcademicCatalogTest extends TestCase
@@ -39,13 +43,44 @@ class AcademicCatalogTest extends TestCase
         $guardian = $this->activeUser(['guardian']);
 
         $this->get(route('academics.admin.index'))->assertRedirect(route('identity.login'));
+        $this->get(route('academics.admin.setup'))->assertRedirect(route('identity.login'));
         $this->actingAs($guardian)->get(route('academics.admin.index'))->assertForbidden();
         $this->actingAs($teacher)->get(route('academics.admin.index'))->assertForbidden();
         $this->actingAs($admin)->get(route('academics.admin.index'))
             ->assertOk()
-            ->assertSee('Academic catalog and teaching assignments')
-            ->assertSee('xl:grid-cols-2');
+            ->assertSee('Academics')
+            ->assertSee('Class schedules')
+            ->assertSee('Start with the first school year');
         $this->actingAs($registrar)->get(route('academics.admin.index'))->assertOk();
+        $this->actingAs($teacher)->get(route('academics.admin.setup'))->assertForbidden();
+        $this->actingAs($guardian)->get(route('academics.admin.setup'))->assertForbidden();
+        $this->actingAs($admin)->get(route('academics.admin.setup'))->assertOk()->assertSee('School years')->assertSee('Subject catalog');
+        $this->actingAs($registrar)->get(route('academics.admin.setup'))->assertOk();
+    }
+
+    public function test_subject_description_is_not_shown_or_accepted_from_catalog_forms(): void
+    {
+        $admin = $this->activeUser(['admin']);
+
+        $this->actingAs($admin)->get(route('academics.admin.setup'))
+            ->assertOk()
+            ->assertDontSee('name="description"', false);
+
+        $this->actingAs($admin)->post(route('academics.admin.subjects.store'), [
+            'code' => 'ENG', 'name' => 'English', 'description' => 'Ignore this input', 'is_active' => true,
+        ])->assertRedirect();
+        $subject = Subject::query()->firstOrFail();
+        $this->assertNull($subject->description);
+
+        $subject->update(['description' => 'Existing historical note']);
+        $this->actingAs($admin)->patch(route('academics.admin.subjects.update', $subject), [
+            'code' => 'ENG', 'name' => 'English', 'description' => 'Do not replace historical note', 'is_active' => true,
+        ])->assertRedirect();
+        $this->assertSame('Existing historical note', $subject->fresh()->description);
+
+        $this->actingAs($admin)->post(route('academics.admin.subjects.store'), [
+            'code' => 'MATH', 'description' => 'Not a substitute for name', 'is_active' => true,
+        ])->assertSessionHasErrors('name');
     }
 
     public function test_admin_can_create_and_update_catalog_records_with_default_section_capacity(): void
@@ -54,6 +89,13 @@ class AcademicCatalogTest extends TestCase
         $this->actingAs($admin)->post(route('academics.admin.academic-years.store'), $this->yearPayload())
             ->assertRedirect();
         $year = AcademicYear::query()->firstOrFail();
+        $this->assertSame(7, RequirementRule::query()->where('academic_year_id', $year->id)->count());
+        $this->assertSame(4, DocumentType::query()->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'requirements.rules.baseline_installed',
+            'actor_user_id' => $admin->id,
+            'subject_id' => $year->id,
+        ]);
 
         $this->actingAs($admin)->post(route('academics.admin.grade-levels.store'), [
             'code' => 'G1', 'name' => 'Grade 1', 'sequence' => 1, 'school_stage' => 'Elementary', 'is_active' => true,
@@ -84,7 +126,44 @@ class AcademicCatalogTest extends TestCase
         $this->actingAs($admin)->patch(route('academics.admin.academic-years.update', $year), array_merge($this->yearPayload(), ['status' => 'open']))
             ->assertRedirect();
         $this->assertSame('open', $year->fresh()->status);
+        $this->assertSame(7, RequirementRule::query()->where('academic_year_id', $year->id)->count());
         $this->assertDatabaseHas('audit_logs', ['action' => 'academics.section_subject.updated']);
+    }
+
+    public function test_new_school_year_requirement_installation_is_authorized_and_preserves_custom_rules(): void
+    {
+        $admin = $this->activeUser(['admin']);
+        $teacher = $this->activeUser(['teacher']);
+        $payload = $this->yearPayload();
+        $this->post(route('academics.admin.academic-years.store'), $payload)->assertRedirect(route('identity.login'));
+        $this->actingAs($teacher)->post(route('academics.admin.academic-years.store'), $payload)->assertForbidden();
+        $this->actingAs($admin)->post(route('academics.admin.academic-years.store'), array_merge($payload, ['ends_on' => $payload['starts_on']]))->assertSessionHasErrors('ends_on');
+        $this->assertDatabaseCount('academic_years', 0);
+
+        $this->actingAs($admin)->post(route('academics.admin.academic-years.store'), $payload)->assertRedirect();
+        $year = AcademicYear::query()->firstOrFail();
+        $rule = RequirementRule::query()->where('academic_year_id', $year->id)->firstOrFail();
+        $rule->update(['is_blocking' => false, 'notes' => 'JCA-approved local exception.']);
+
+        $this->actingAs($admin)->patch(route('academics.admin.academic-years.update', $year), array_merge($payload, ['status' => 'open']))->assertRedirect();
+        $this->assertSame(7, RequirementRule::query()->where('academic_year_id', $year->id)->count());
+        $this->assertFalse($rule->fresh()->is_blocking);
+        $this->assertSame('JCA-approved local exception.', $rule->fresh()->notes);
+    }
+
+    public function test_school_year_creation_rolls_back_if_the_confirmed_requirement_catalog_is_unavailable(): void
+    {
+        $admin = $this->activeUser(['admin']);
+        config()->set('jca_requirements.categories', []);
+
+        try {
+            app(SaveAcademicCatalogAction::class)->execute(new AcademicYear, $this->yearPayload(), $admin, 'academics.academic_year.created');
+            $this->fail('An academic year cannot be saved without its confirmed requirement rules.');
+        } catch (RuntimeException) {
+            $this->assertDatabaseCount('academic_years', 0);
+            $this->assertDatabaseCount('document_types', 0);
+            $this->assertDatabaseCount('requirement_rules', 0);
+        }
     }
 
     public function test_mysql_unique_and_foreign_key_constraints_protect_catalog_history(): void
@@ -116,7 +195,7 @@ class AcademicCatalogTest extends TestCase
             'academic_year_id' => $year->id, 'grade_level_id' => $grade->id, 'name' => 'Hope', 'capacity' => 15, 'status' => 'active',
         ])->assertSessionHasErrors('grade_level_id');
 
-        $this->actingAs($admin)->get(route('academics.admin.index'))
+        $this->actingAs($admin)->get(route('academics.admin.setup'))
             ->assertOk()
             ->assertSee('Inactive');
         $this->assertDatabaseHas('grade_levels', ['id' => $grade->id, 'is_active' => false]);

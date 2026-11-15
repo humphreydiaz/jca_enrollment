@@ -17,16 +17,24 @@ class FoundationTest extends TestCase
 
     public function test_public_shell_renders_the_jca_foundation_page(): void
     {
-        $this->get('/')
+        $response = $this->get('/')
             ->assertOk()
             ->assertSee('JCSGO Christian')
             ->assertSee('Academy R1-Inc.')
             ->assertSee(asset('images/logo/jca_logo.png'), false)
-            ->assertSee('Enrollment made clearer for families and school staff.')
+            ->assertSee('making enrollment clearer, records safer, and communication easier.')
             ->assertSee('Skip to main content')
             ->assertSee('jca-shell flex min-h-screen flex-col', false)
-            ->assertSee('max-w-7xl flex-1', false)
-            ->assertSee('max-w-7xl px-4 py-4 text-sm', false);
+            ->assertSee('landing-header', false)
+            ->assertSee('landing-hero', false)
+            ->assertSee('Walk-in enrollment at the Registrar')
+            ->assertSee('id="cta-login"', false)
+            ->assertDontSee('landing-header__link', false)
+            ->assertDontSee('Apply for Enrollment')
+            ->assertDontSee('Guardian / Student Sign In')
+            ->assertDontSee('Admin / Staff Sign In');
+
+        $this->assertSame(1, substr_count($response->getContent(), 'id="cta-login"'));
     }
 
     public function test_shared_module_smoke_route_uses_the_authenticated_shell_without_authentication_logic(): void

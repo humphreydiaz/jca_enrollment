@@ -1,4 +1,5 @@
-@if (session('status'))
+@php $flashMessage = session('status') ?? session('success'); @endphp
+@if ($flashMessage)
     {{-- Transient success toast: fixed to the viewport corner so it never scrolls
          the page or shifts layout. Auto-dismisses; also closable. Vanilla JS so it
          works in every layout regardless of whether Alpine is loaded. --}}
@@ -8,8 +9,8 @@
         role="status"
         aria-live="polite"
     >
-        <x-ui.icon name="support" size="size-5" class="mt-0.5 shrink-0 text-success-700" />
-        <p class="text-sm font-bold text-success-700">{{ session('status') }}</p>
+        <x-ui.icon name="check" size="size-5" class="mt-0.5 shrink-0 text-success-700" />
+        <p class="text-sm font-bold text-success-700">{{ $flashMessage }}</p>
         <button type="button" data-toast-close class="-mr-1 -mt-1 ml-1 shrink-0 rounded p-1 text-muted hover:bg-slate-100 hover:text-ink" aria-label="Dismiss notification">
             <x-ui.icon name="close" size="size-4" />
         </button>
@@ -26,7 +27,7 @@
                 setTimeout(function () { toast.remove(); }, 300);
             };
             toast.querySelector('[data-toast-close]').addEventListener('click', dismiss);
-            setTimeout(dismiss, 4500);
+            setTimeout(dismiss, 6000);
         })();
     </script>
 @endif

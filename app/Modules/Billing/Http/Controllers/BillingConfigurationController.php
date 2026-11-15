@@ -51,10 +51,25 @@ class BillingConfigurationController
 
     public function schedule(Request $request, ManageFeeScheduleAction $manage): RedirectResponse|JsonResponse
     {
-        $data = $request->validate(['academic_year_id' => ['required', 'exists:academic_years,id'], 'grade_level_id' => ['nullable', 'exists:grade_levels,id'], 'name' => ['required', 'string', 'max:255'], 'effective_on' => ['nullable', 'date']]);
-        $schedule = $manage->create($data, $request->user());
+        $data = $request->validate([
+            'academic_year_id' => ['required', 'exists:academic_years,id'], 'grade_level_id' => ['nullable', 'exists:grade_levels,id'],
+            'name' => ['required', 'string', 'max:255'], 'effective_on' => ['nullable', 'date'],
+            'copy_from' => ['nullable', 'string', 'exists:fee_schedules,public_id'],
+        ]);
+        $source = filled($data['copy_from'] ?? null) ? FeeSchedule::query()->where('public_id', $data['copy_from'])->firstOrFail() : null;
+        unset($data['copy_from']);
+        $result = $manage->createFrom($data, $request->user(), $source);
+        $schedule = $result['schedule'];
 
-        return $this->sectionResponse($request, 'fee-schedules', "Draft fee schedule created as version {$schedule->version}.");
+        $message = "Draft fee schedule created as version {$schedule->version}.";
+        if ($source !== null) {
+            $message = "Draft fee schedule created as version {$schedule->version} with {$result['copied']} ".str('fee')->plural($result['copied'])." copied from {$source->name} (version {$source->version}). Adjust amounts, add or remove fees, then publish.";
+            if ($result['skipped'] > 0) {
+                $message .= " {$result['skipped']} inactive ".str('fee')->plural($result['skipped']).' left out.';
+            }
+        }
+
+        return $this->sectionResponse($request, 'fee-schedules', $message);
     }
 
     public function updateSchedule(FeeSchedule $schedule, Request $request, ManageFeeScheduleAction $manage): RedirectResponse|JsonResponse
@@ -89,7 +104,7 @@ class BillingConfigurationController
     public function scheduleItem(FeeSchedule $schedule, Request $request, SaveBillingConfigurationAction $save): RedirectResponse|JsonResponse
     {
         abort_unless($schedule->status === 'draft', 422);
-        $data = $request->validate(['fee_type_id' => ['required', 'exists:fee_types,id', Rule::unique('fee_schedule_items')->where('fee_schedule_id', $schedule->id)], 'description' => ['required', 'string', 'max:255'], 'amount' => ['required', 'decimal:0,2', 'gte:0'], 'is_required' => ['boolean'], 'is_default_selected' => ['boolean']]);
+        $data = $request->validate(['fee_type_id' => ['required', 'exists:fee_types,id', Rule::unique('fee_schedule_items')->where('fee_schedule_id', $schedule->id)], 'description' => ['required', 'string', 'max:255'], 'amount' => ['required', 'decimal:0,2', 'gte:0'], 'price_status' => ['required', Rule::in(['tentative', 'final'])], 'is_required' => ['boolean'], 'is_default_selected' => ['boolean']]);
         $save->execute(new FeeScheduleItem, [...$data, 'fee_schedule_id' => $schedule->id, 'is_required' => $request->boolean('is_required'), 'is_default_selected' => $request->boolean('is_default_selected')], $request->user(), 'billing.fee_schedule_item.created');
 
         return $this->sectionResponse($request, 'fee-schedules', 'Fee schedule item added.');
@@ -99,7 +114,7 @@ class BillingConfigurationController
     {
         abort_unless($schedule->status === 'draft', 422);
         abort_unless($item->fee_schedule_id === $schedule->id, 404);
-        $data = $request->validate(['description' => ['required', 'string', 'max:255'], 'amount' => ['required', 'decimal:0,2', 'gte:0'], 'is_required' => ['boolean'], 'is_default_selected' => ['boolean']]);
+        $data = $request->validate(['description' => ['required', 'string', 'max:255'], 'amount' => ['required', 'decimal:0,2', 'gte:0'], 'price_status' => ['required', Rule::in(['tentative', 'final'])], 'is_required' => ['boolean'], 'is_default_selected' => ['boolean']]);
         $save->execute($item, [...$data, 'is_required' => $request->boolean('is_required'), 'is_default_selected' => $request->boolean('is_default_selected')], $request->user(), 'billing.fee_schedule_item.updated');
 
         return $this->sectionResponse($request, 'fee-schedules', 'Fee schedule item updated.');
@@ -141,6 +156,42 @@ class BillingConfigurationController
         return $this->sectionResponse($request, 'exam-periods', 'Exam period created.');
     }
 
+    public function updateExamDeadline(
+        ExamPeriod $period,
+        Request $request,
+        SaveBillingConfigurationAction $save
+    ): RedirectResponse|JsonResponse {
+        $data = $request->validate([
+            'eligibility_cutoff_on' => [
+                'required',
+                'date',
+                'before_or_equal:' . $period->starts_on->format('Y-m-d'),
+            ],
+        ]);
+
+        if ($period->eligibility_cutoff_on->isSameDay($data['eligibility_cutoff_on'])) {
+            return $this->sectionResponse(
+                $request,
+                'exam-periods',
+                'Payment deadline is unchanged.'
+            );
+        }
+
+        $save->execute(
+            $period,
+            [
+                'eligibility_cutoff_on' => $data['eligibility_cutoff_on'],
+            ],
+            $request->user(),
+            'billing.exam_period.deadline_updated'
+        );
+
+        return $this->sectionResponse(
+            $request,
+            'exam-periods',
+            'Payment deadline updated successfully.'
+        );
+    }
     public function planOption(StorePaymentPlanOptionRequest $request, ManagePaymentPlanOptionAction $manage): RedirectResponse|JsonResponse
     {
         $manage->create([...$request->validated(), 'is_active' => $request->boolean('is_active')], $request->user());
@@ -223,7 +274,7 @@ class BillingConfigurationController
         $planOptions = app(ManagePaymentPlanOptionAction::class);
 
         // Ordered so every version of the same year and grade reads together,
-        // newest series first — the two "Grade 3" cards are otherwise identical
+        // newest series first â€” the two "Grade 3" cards are otherwise identical
         // on screen.
         $schedules = FeeSchedule::query()
             ->with(['items.feeType', 'academicYear', 'gradeLevel'])

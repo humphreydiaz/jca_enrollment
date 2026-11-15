@@ -2,168 +2,205 @@
 
 namespace App\Modules\Enrollment\Http\Controllers;
 
-use App\Modules\Academics\Models\AcademicYear;
-use App\Modules\Academics\Models\GradeLevel;
-use App\Modules\Enrollment\Actions\ResendEnrollmentContactVerificationAction;
+use App\Modules\Communications\Actions\UpdateSmsConsentAction;
 use App\Modules\Enrollment\Actions\SaveEnrollmentDraftAction;
-use App\Modules\Enrollment\Actions\StartEnrollmentAction;
 use App\Modules\Enrollment\Actions\TransitionEnrollmentAction;
-use App\Modules\Enrollment\Actions\VerifyEnrollmentContactAction;
-use App\Modules\Enrollment\Http\Requests\StartEnrollmentRequest;
-use App\Modules\Enrollment\Http\Requests\UpdateEnrollmentDraftRequest;
+use App\Modules\Enrollment\Http\Requests\CompleteEnrollmentApplicationRequest;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\People\Support\LearnerProfileOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class PublicEnrollmentController
 {
     public function create(Request $request): View|RedirectResponse
     {
-        $activeApplication = $this->activeStudentApplication($request);
-        if ($activeApplication !== null) {
+        $user = $request->user();
+
+        $enrollment = Enrollment::query()
+            ->where('status', 'draft')
+            ->where(function ($query) use ($user) {
+                $query->where('access_issued_to_user_id', $user->id)
+                    ->orWhere('student_applicant_user_id', $user->id);
+
+                if ($user->studentProfile) {
+                    $query->orWhere(
+                        'student_id',
+                        $user->studentProfile->id
+                    );
+                }
+
+                if ($user->guardianProfile) {
+                    $guardian = $user->guardianProfile;
+
+                    $query->orWhereHas('student.guardians', function ($q) use ($guardian) {
+                        $q->whereKey($guardian->id)
+                            ->whereNotNull('guardian_student.verified_at')
+                            ->where('guardian_student.may_manage_enrollment', true);
+                    });
+                }
+            })
+            ->with([
+                'student',
+                'guardian',
+                'academicYear',
+                'gradeLevel',
+            ])
+            ->when($request->filled('enrollment'), function ($query) use ($request) {
+                $query->where('public_id', $request->query('enrollment'));
+            })
+            ->latest('id')
+            ->get()
+            ->first(fn (Enrollment $record) => $user->can('update', $record));
+
+        if (! $enrollment) {
             return redirect()
-                ->route('enrollment.public.status', $activeApplication)
-                ->with('status', 'You already have an active application for this school year.');
+                ->route('identity.dashboard')
+                ->withErrors([
+                    'application' => 'No editable draft application is available for this account.',
+                ]);
         }
 
-        $studentSelfApplicant = $request->user()?->hasRole('student') ?? false;
+        if ($this->isEnrollmentClosed($enrollment)) {
+            return redirect()
+                ->route('enrollment.public.status', $enrollment)
+                ->withErrors([
+                    'application' => 'Enrollment is currently closed. Editing and submission are disabled.',
+                ]);
+        }
 
         return view('enrollment.public.start', [
-            'years' => AcademicYear::query()->whereIn('status', ['planned', 'open'])->orderByDesc('starts_on')->get(),
-            'grades' => GradeLevel::query()
-                ->where('is_active', true)
-                ->availableForApplicant($studentSelfApplicant)
-                ->orderBy('sequence')
-                ->get(),
+            'enrollment' => $enrollment,
+            'years' => collect([$enrollment->academicYear]),
+            'grades' => collect([$enrollment->gradeLevel]),
             'sexes' => LearnerProfileOptions::SEXES,
             'guardianRelationships' => LearnerProfileOptions::GUARDIAN_RELATIONSHIPS,
             'disabilityTypes' => LearnerProfileOptions::DISABILITY_TYPES,
+            'smsOptIn' => [
+                'guardian' => UpdateSmsConsentAction::granted($enrollment->guardian),
+                'student' => UpdateSmsConsentAction::granted($enrollment->student),
+            ],
+            'enrollmentClosed' => false,
         ]);
     }
 
-    public function store(StartEnrollmentRequest $request, StartEnrollmentAction $start): RedirectResponse
-    {
-        $studentApplicant = $request->user()?->hasRole('student') ? $request->user() : null;
-        $started = $start->execute($request->validated(), $studentApplicant);
+    public function status(
+        Enrollment $enrollment,
+        Request $request
+    ): View {
+        Gate::authorize('view', $enrollment);
 
-        $redirect = redirect()
-            ->route('enrollment.public.status', $this->statusRouteParameters($started->enrollment, $studentApplicant === null ? $started->resumeToken : ''))
-            ->with('status', 'Draft application saved. Verify the contact to continue.');
+        $enrollment->loadMissing('academicYear');
 
-        if (app()->environment(['local', 'testing'])) {
-            $redirect->with('verification_code', $started->verificationCode);
-        }
-
-        return $redirect;
-    }
-
-    public function status(Enrollment $enrollment, Request $request): View
-    {
-        $token = $this->authorizeResume($enrollment, $request);
-
-        return view('enrollment.public.status', [
-            'enrollment' => $enrollment->load(['student', 'guardian', 'academicYear', 'gradeLevel', 'requirements.documentType', 'requirements.activeUpload', 'history']),
-            'resumeToken' => $token,
+        return view('enrollment.application.status', [
+            'enrollment' => $enrollment->load([
+                'student',
+                'guardian',
+                'academicYear',
+                'gradeLevel',
+                'requirements.documentType',
+                'requirements.activeUpload',
+                'history',
+            ]),
             'guardianRelationships' => LearnerProfileOptions::GUARDIAN_RELATIONSHIPS,
+            'enrollmentClosed' => $this->isEnrollmentClosed($enrollment),
         ]);
     }
 
-    public function verify(Enrollment $enrollment, Request $request, VerifyEnrollmentContactAction $verify): RedirectResponse
-    {
-        $token = $this->authorizeResume($enrollment, $request);
-        $data = $request->validate(['verification_code' => ['required', 'digits:6']]);
-        $verify->execute($enrollment, $data['verification_code']);
+    public function update(
+        Enrollment $enrollment,
+        CompleteEnrollmentApplicationRequest $request,
+        SaveEnrollmentDraftAction $save
+    ): RedirectResponse {
+        Gate::authorize('update', $enrollment);
 
-        return redirect()->route('enrollment.public.status', $this->statusRouteParameters($enrollment, $token))->with('status', 'Contact verified. You can now complete and submit the draft.');
-    }
+        $enrollment->loadMissing('academicYear');
 
-    public function resendVerification(Enrollment $enrollment, Request $request, ResendEnrollmentContactVerificationAction $resend): RedirectResponse
-    {
-        $token = $this->authorizeResume($enrollment, $request);
-        abort_if($enrollment->contact_verified_at !== null, 403);
-
-        // Per-application cooldown so codes (and SMS credits) can't be spammed.
-        if (! Cache::add('enroll-verify-resend:'.$enrollment->id, true, now()->addSeconds(60))) {
-            throw ValidationException::withMessages([
-                'verification_code' => 'A code was just sent. Please wait a minute before requesting another.',
-            ]);
+        if ($this->isEnrollmentClosed($enrollment)) {
+            return redirect()
+                ->route('enrollment.public.status', $enrollment)
+                ->withErrors([
+                    'application' => 'Enrollment is closed. Changes to your application are no longer allowed.',
+                ]);
         }
 
-        $code = $resend->execute($enrollment);
+        $save->execute(
+            $enrollment,
+            $request->validated(),
+            $request->user()
+        );
 
-        $redirect = redirect()
-            ->route('enrollment.public.status', $this->statusRouteParameters($enrollment, $token))
-            ->with('status', 'A new verification code has been sent to your contact.');
+        return redirect()
+            ->route('enrollment.public.status', $enrollment)
+            ->with(
+                'status',
+                'Application details saved. Review them, then submit the application.'
+            );
+    }
 
-        if (app()->environment(['local', 'testing'])) {
-            $redirect->with('verification_code', $code);
+    public function submit(
+        Enrollment $enrollment,
+        Request $request,
+        TransitionEnrollmentAction $transition
+    ): RedirectResponse {
+        Gate::authorize('update', $enrollment);
+
+        $enrollment->loadMissing('academicYear');
+
+        if ($this->isEnrollmentClosed($enrollment)) {
+            return redirect()
+                ->route('enrollment.public.status', $enrollment)
+                ->withErrors([
+                    'application' => 'Enrollment is closed. Application submission is disabled.',
+                ]);
         }
 
-        return $redirect;
+        $transition->execute(
+            $enrollment,
+            'submitted',
+            $request->user()
+        );
+
+        return redirect()
+            ->route('enrollment.public.status', $enrollment)
+            ->with(
+                'status',
+                'Application submitted for Registrar review.'
+            );
     }
 
-    public function update(Enrollment $enrollment, UpdateEnrollmentDraftRequest $request, SaveEnrollmentDraftAction $save): RedirectResponse
+    private function isEnrollmentClosed(Enrollment $enrollment): bool
     {
-        $token = $this->authorizeResume($enrollment, $request);
-        abort_unless($enrollment->contact_verified_at !== null, 403);
-        $save->execute($enrollment, $request->validated());
+        $enrollment->loadMissing('academicYear');
 
-        return redirect()->route('enrollment.public.status', $this->statusRouteParameters($enrollment, $token))->with('status', 'Draft details saved.');
-    }
+        $year = $enrollment->academicYear;
 
-    public function submit(Enrollment $enrollment, Request $request, TransitionEnrollmentAction $transition): RedirectResponse
-    {
-        $token = $this->authorizeResume($enrollment, $request);
-        abort_unless($enrollment->contact_verified_at !== null, 403);
-
-        if (blank($enrollment->guardian_relationship) || ($enrollment->student_category === 'transferee' && (blank($enrollment->previous_school_name) || blank($enrollment->previous_school_address)))) {
-            throw ValidationException::withMessages(['application' => 'Complete and save all required application details before submission.']);
+        if (
+            ! $year ||
+            $year->status !== 'open' ||
+            ! $year->enrollment_is_open
+        ) {
+            return true;
         }
 
-        $actor = $enrollment->student_applicant_user_id === $request->user()?->id ? $request->user() : null;
-        $transition->execute($enrollment, 'submitted', $actor);
+        $today = now('Asia/Manila')->toDateString();
 
-        return redirect()->route('enrollment.public.status', $this->statusRouteParameters($enrollment, $token))->with('status', 'Application submitted for Registrar review.');
-    }
-
-    private function authorizeResume(Enrollment $enrollment, Request $request): string
-    {
-        if ($enrollment->student_applicant_user_id !== null
-            && $request->user()?->id === $enrollment->student_applicant_user_id
-            && $request->user()->hasRole('student')) {
-            return '';
+        if (
+            $year->enrollment_opens_on &&
+            $today < $year->enrollment_opens_on->toDateString()
+        ) {
+            return true;
         }
 
-        $token = (string) ($request->input('resume_token') ?: $request->query('token'));
-        abort_unless(strlen($token) === 64 && $enrollment->resume_token_hash !== null && hash_equals($enrollment->resume_token_hash, hash('sha256', $token)), 404);
-
-        return $token;
-    }
-
-    /** @return array<string, Enrollment|string> */
-    private function statusRouteParameters(Enrollment $enrollment, string $token): array
-    {
-        return array_filter([
-            'enrollment' => $enrollment,
-            'token' => $token,
-        ], fn (Enrollment|string $value): bool => ! is_string($value) || $value !== '');
-    }
-
-    private function activeStudentApplication(Request $request): ?Enrollment
-    {
-        $user = $request->user();
-        if ($user === null || ! $user->hasRole('student')) {
-            return null;
+        if (
+            $year->enrollment_closes_on &&
+            $today > $year->enrollment_closes_on->toDateString()
+        ) {
+            return true;
         }
 
-        return Enrollment::query()
-            ->where('student_applicant_user_id', $user->id)
-            ->whereNotIn('status', Enrollment::TERMINAL_STATUSES)
-            ->latest()
-            ->first();
+        return false;
     }
 }

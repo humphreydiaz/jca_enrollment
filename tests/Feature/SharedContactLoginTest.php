@@ -20,10 +20,8 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * With shared contact accounts enabled, a household may reuse one mobile number
- * across a parent and a child, so a single identifier can match several
- * accounts. The password has to decide which of them is signing in — resolving
- * to whichever row comes first locks everyone else out.
+ * Shared household contacts remain valid communication data in the configured
+ * testing environment, but email and mobile are no longer login identifiers.
  *
  * Reproducing that needs two users on one number, which the schema's
  * users_mobile_unique index normally prevents, so these tests drop the index for
@@ -85,26 +83,17 @@ class SharedContactLoginTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_each_account_sharing_a_mobile_number_signs_in_with_its_own_password(): void
+    public function test_a_shared_mobile_number_is_not_a_login_identifier(): void
     {
         $student = $this->account('Shared Student', ['student'], 'StudentPass123');
         $guardian = $this->account('Shared Guardian', ['guardian'], 'GuardianPass123');
 
-        // The guardian is not the first row for this number, which is what used
-        // to make the lookup resolve to the student and reject her password.
         $this->assertGreaterThan($student->id, $guardian->id);
-
-        $this->assertSame(
-            $student->id,
-            app(AuthenticateUserAction::class)->execute('09760367468', 'StudentPass123')?->id,
-        );
-        $this->assertSame(
-            $guardian->id,
-            app(AuthenticateUserAction::class)->execute('09760367468', 'GuardianPass123')?->id,
-        );
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('09760367468', 'StudentPass123'));
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('09760367468', 'GuardianPass123'));
     }
 
-    public function test_a_shared_number_signs_in_over_http_for_the_second_account(): void
+    public function test_a_shared_number_is_rejected_over_http(): void
     {
         $this->account('Shared Student', ['student'], 'StudentPass123');
         $guardian = $this->account('Shared Guardian', ['guardian'], 'GuardianPass123');
@@ -112,9 +101,10 @@ class SharedContactLoginTest extends TestCase
         $this->post(route('identity.login.store'), [
             'identifier' => '09760367468',
             'password' => 'GuardianPass123',
-        ])->assertRedirect();
+        ])->assertSessionHasErrors('identifier');
 
-        $this->assertAuthenticatedAs($guardian);
+        $this->assertGuest();
+        $this->assertNull($guardian->fresh()->last_login_at);
     }
 
     public function test_a_wrong_password_is_still_rejected_for_every_account_on_the_number(): void
@@ -125,13 +115,12 @@ class SharedContactLoginTest extends TestCase
         $this->assertNull(app(AuthenticateUserAction::class)->execute('09760367468', 'NeitherPassword1'));
     }
 
-    public function test_the_role_gate_still_applies_when_a_number_is_shared(): void
+    public function test_unified_authentication_accepts_school_identifiers_not_contacts(): void
     {
         $this->account('Shared Student', ['student'], 'StudentPass123');
         $this->account('Shared Guardian', ['guardian'], 'GuardianPass123');
 
-        $this->assertNull(app(AuthenticateUserAction::class)->execute('09760367468', 'GuardianPass123', ['admin', 'registrar']));
-        $this->assertNotNull(app(AuthenticateUserAction::class)->execute('09760367468', 'GuardianPass123', ['guardian']));
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('09760367468', 'GuardianPass123'));
     }
 
     public function test_a_disabled_account_on_the_number_does_not_block_an_active_one(): void
@@ -140,21 +129,17 @@ class SharedContactLoginTest extends TestCase
         $disabled->forceFill(['status' => AccountStatus::Disabled])->save();
         $active = $this->account('Active Second', ['guardian'], 'SamePass12345');
 
-        $this->assertSame(
-            $active->id,
-            app(AuthenticateUserAction::class)->execute('09760367468', 'SamePass12345')?->id,
-        );
+        $this->assertNotSame($disabled->id, $active->id);
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('09760367468', 'SamePass12345'));
     }
 
-    public function test_signing_in_by_email_still_resolves_the_right_account(): void
+    public function test_email_is_not_a_login_identifier(): void
     {
         $this->account('Shared Student', ['student'], 'StudentPass123');
         $guardian = $this->account('Shared Guardian', ['guardian'], 'GuardianPass123', 'rofelia@example.test');
 
-        $this->assertSame(
-            $guardian->id,
-            app(AuthenticateUserAction::class)->execute('rofelia@example.test', 'GuardianPass123')?->id,
-        );
+        $this->assertNull(app(AuthenticateUserAction::class)->execute('rofelia@example.test', 'GuardianPass123'));
+        $this->assertNotNull($guardian->email);
     }
 
     public function test_two_unrelated_student_parent_pairs_can_share_one_testing_mobile(): void

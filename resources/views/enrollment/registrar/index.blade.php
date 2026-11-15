@@ -9,102 +9,252 @@
             'rejected' => 'Reject',
         ];
         $hasFilters = request('search') || request('status') || request('grade');
+        $reviewEnrollment = session('review_enrollment') ?? old('review_enrollment');
+        $reviewRequirementId = session('review_requirement_id') ?? old('review_requirement_id');
     @endphp
-
-    <div class="space-y-6" x-data="enrollmentReviewWorkspace(@js($rowRecords))">
-
-        {{-- ── Page header ── --}}
+    <div class="space-y-6" x-data="enrollmentReviewWorkspace(@js($rowRecords), @js($reviewEnrollment), @js($reviewRequirementId))">
+        {{-- Page header --}}
         <x-ui.page-header
             title="Enrollment review queue"
-            description="Review contact ownership, duplicate candidates, application state, and requirement snapshots. Payment and section placement remain separate."
+            description="Issue access after an in-person identity check, then review authenticated applications and requirement snapshots. Payment and section placement remain separate."
             eyebrow="Registrar workspace"
         />
-
+        <div class="flex justify-end">
+            <a href="{{ route('enrollment.registrar.issue-access.create') }}" class="jca-button jca-button-primary">
+                <x-ui.icon name="people" size="size-4" />
+                Issue walk-in access
+            </a>
+        </div>
         @if($errors->any())
             <section class="rounded-xl border border-red-200 bg-red-50 p-4 sm:p-5" role="alert" aria-labelledby="enrollment-action-error-title">
                 <h2 id="enrollment-action-error-title" class="font-black text-brand-red-600">The requested account action could not be completed</h2>
                 <p class="mt-1 text-sm leading-6 text-brand-red-600">{{ $errors->first() }}</p>
             </section>
         @endif
+        {{-- Reference-matched enrollment summary + filters. Changes below are VISUAL ONLY. --}}
+        <style>
+            /* Scoped to this enrollment view. No Tailwind build or global style changes required. */
+            .jca-er-stats {
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 12px;
+            }
+            .jca-er-stat {
+                display: flex;
+                align-items: center;
+                gap: 13px;
+                min-width: 0;
+                min-height: 74px;
+                padding: 14px 17px;
+                background: #fff;
+                border: 1px solid #dfe2ed;
+                border-radius: 10px;
+                box-shadow: 0 2px 4px rgba(29, 32, 83, .055);
+            }
+            .jca-er-stat-icon {
+                width: 36px;
+                height: 36px;
+                flex: 0 0 36px;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                border-radius: 8px;
+                background: #eef0ff;
+                color: #6665b7;
+            }
+            .jca-er-stat-icon svg { width: 18px; height: 18px; }
+            .jca-er-stat-number {
+                display: block;
+                color: #161348;
+                font-size: 24px;
+                font-weight: 800;
+                line-height: 1.1;
+                font-variant-numeric: tabular-nums;
+            }
+            .jca-er-stat-label {
+                display: block;
+                margin-top: 3px;
+                color: #73778e;
+                font-size: 14px;
+                font-weight: 500;
+                line-height: 1.25;
+            }
+            .jca-er-filter-shell {
+                overflow: hidden;
+                background: #fff;
+                border: 1px solid #dfe2ed;
+                border-radius: 11px;
+                box-shadow: 0 2px 4px rgba(29, 32, 83, .045);
+            }
+            .jca-er-filter-form {
+                display: grid;
+                grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+                align-items: end;
+                gap: 10px;
+                padding: 16px 18px;
+            }
+            .jca-er-filter-label {
+                display: block;
+                min-width: 0;
+                color: #292641;
+                font-size: 14px;
+                font-weight: 700;
+                line-height: 19px;
+            }
+            .jca-er-filter-input {
+                display: block;
+                width: 100%;
+                min-width: 0;
+                height: 40px;
+                margin-top: 4px;
+                padding: 0 12px;
+                color: #25243d;
+                background: #fff;
+                border: 1px solid #cdd4e5;
+                border-radius: 7px;
+                font: inherit;
+                font-size: 14px;
+                font-weight: 400;
+                line-height: normal;
+            }
+            .jca-er-filter-input::placeholder { color: #8b92ad; opacity: 1; }
+            .jca-er-filter-input:focus-visible {
+                outline: 2px solid #a7a2ed;
+                outline-offset: 1px;
+                border-color: #5545ad;
+            }
+            .jca-er-filter-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 7px;
+                height: 40px;
+                min-width: 76px;
+                padding: 0 13px;
+                background: #2a226d;
+                color: #fff;
+                border: 1px solid #2a226d;
+                border-radius: 7px;
+                font-size: 14px;
+                font-weight: 700;
+                white-space: nowrap;
+                cursor: pointer;
+                transition: background .15s ease;
+            }
+            .jca-er-filter-button:hover { background: #3b318b; }
+            .jca-er-filter-button:focus-visible { outline: 2px solid #a7a2ed; outline-offset: 2px; }
+            .jca-er-filter-button svg { width: 14px; height: 14px; }
+            .jca-er-filter-actions { display: flex; align-items: end; gap: 8px; }
+            .jca-er-clear-button {
+                display: inline-flex;
+                justify-content: center;
+                align-items: center;
+                height: 40px;
+                padding: 0 12px;
+                border: 1px solid #cdd4e5;
+                border-radius: 7px;
+                background: #fff;
+                color: #39365e;
+                font-size: 14px;
+                font-weight: 600;
+                text-decoration: none;
+                white-space: nowrap;
+            }
+            .jca-er-clear-button:hover { background: #f6f6fa; }
+            .jca-er-active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px; border-top: 1px solid #e5e8f2; font-size: 13px; color: #73778e; }
+            .jca-er-filter-chip { display: inline-flex; gap: 5px; border-radius: 999px; background: #eef0ff; padding: 4px 10px; color: #393276; font-weight: 600; }
+            @media (max-width: 900px) {
+                .jca-er-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+                .jca-er-filter-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            }
+            @media (max-width: 540px) {
+                .jca-er-stats { gap: 10px; }
+                .jca-er-stat { padding: 12px; min-height: 70px; gap: 9px; }
+                .jca-er-stat-icon { width: 32px; height: 32px; flex-basis: 32px; }
+                .jca-er-stat-number { font-size: 22px; }
+                .jca-er-stat-label { font-size: 13px; }
+                .jca-er-filter-form { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+                .jca-er-filter-actions, .jca-er-filter-button { width: 100%; }
+            }
+        </style>
 
-        {{-- ── Summary stat cards ── --}}
-        <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Enrollment review summary">
+        {{-- Four cards in the exact reference order; original dynamic counts preserved. --}}
+        <section class="jca-er-stats" aria-label="Enrollment review summary">
             @foreach([
                 ['label' => 'Total applications', 'value' => $summary['total'], 'icon' => 'inbox'],
                 ['label' => 'Needs review', 'value' => $summary['needs_review'], 'icon' => 'progress'],
                 ['label' => 'Waitlisted', 'value' => $summary['waitlisted'], 'icon' => 'audit'],
                 ['label' => 'Approved', 'value' => $summary['approved'], 'icon' => 'support'],
             ] as $stat)
-                <div class="jca-card flex items-center gap-4 p-4">
-                    <span class="grid size-11 place-items-center rounded-xl bg-brand-blue-100 text-brand-navy-700"><x-ui.icon :name="$stat['icon']" /></span>
-                    <span>
-                        <span class="block text-2xl font-black tabular-nums text-brand-navy-900">{{ number_format($stat['value']) }}</span>
-                        <span class="text-sm font-semibold text-muted">{{ $stat['label'] }}</span>
+                <div class="jca-er-stat">
+                    <span class="jca-er-stat-icon"><x-ui.icon :name="$stat['icon']" size="size-4" /></span>
+                    <span class="min-w-0">
+                        <span class="jca-er-stat-number">{{ number_format($stat['value']) }}</span>
+                        <span class="jca-er-stat-label">{{ $stat['label'] }}</span>
                     </span>
                 </div>
             @endforeach
         </section>
 
-        {{-- ── Search & filter bar ── --}}
-        <section class="jca-card overflow-hidden" aria-label="Filter applications">
-            <form method="GET" class="grid gap-3 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-[minmax(16rem,2fr)_repeat(2,minmax(9rem,1fr))_auto]">
-                <label class="jca-label">Search applications
-                    <input name="search" value="{{ request('search') }}" placeholder="Reference number or student name…" class="jca-input" />
+        {{-- One horizontal search / status / grade / violet filter bar as in screenshot. --}}
+        <section class="jca-er-filter-shell" aria-label="Filter applications">
+            <form method="GET" class="jca-er-filter-form">
+                <label class="jca-er-filter-label">
+                    Search applications
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Reference number or student name..." class="jca-er-filter-input" />
                 </label>
-                <label class="jca-label">Status
-                    <select name="status" class="jca-input">
+                <label class="jca-er-filter-label">
+                    Status
+                    <select name="status" class="jca-er-filter-input">
                         <option value="">All statuses</option>
                         @foreach(['draft','submitted','under_review','incomplete','assessment_required','assessment_pending','approved','waitlisted','rejected','withdrawn','cancelled'] as $filterStatus)
-                            <option value="{{ $filterStatus }}" @selected(request('status') === $filterStatus)>{{ ucfirst(str_replace('_',' ',$filterStatus)) }}</option>
+                            <option value="{{ $filterStatus }}" @selected(request('status') === $filterStatus)>{{ ucfirst(str_replace('_', ' ', $filterStatus)) }}</option>
                         @endforeach
                     </select>
                 </label>
-                <label class="jca-label">Grade level
-                    <select name="grade" class="jca-input">
+                <label class="jca-er-filter-label">
+                    Grade level
+                    <select name="grade" class="jca-er-filter-input">
                         <option value="">All grades</option>
                         @foreach($filterGrades as $grade)
                             <option value="{{ $grade->public_id }}" @selected(request('grade') === $grade->public_id)>{{ $grade->name }}</option>
                         @endforeach
                     </select>
                 </label>
-                <div class="flex items-end gap-2">
-                    <x-ui.button type="submit" variant="primary" class="w-full justify-center">
-                        <x-ui.icon name="search" size="size-4" />
-                        Filter
-                    </x-ui.button>
+                <div class="jca-er-filter-actions">
+                    <button type="submit" class="jca-er-filter-button"><x-ui.icon name="search" size="size-4" /> Filter</button>
                     @if($hasFilters)
-                        <a href="{{ route('enrollment.registrar.index') }}" class="jca-button jca-button-secondary whitespace-nowrap">Clear</a>
+                        <a href="{{ route('enrollment.registrar.index') }}" class="jca-er-clear-button">Clear</a>
                     @endif
                 </div>
             </form>
             @if($hasFilters)
-                <div class="flex flex-wrap gap-2 border-t border-border bg-canvas/50 px-5 py-3 text-sm">
-                    <span class="font-semibold text-muted">Active filters:</span>
+                <div class="jca-er-active-filters">
+                    <span class="font-semibold">Active filters:</span>
                     @if(request('search'))
-                        <span class="inline-flex items-center gap-1 rounded-full bg-brand-blue-100 px-3 py-0.5 text-xs font-bold text-brand-navy-700">Search: "{{ request('search') }}"</span>
+                        <span class="jca-er-filter-chip">Search: "{{ request('search') }}"</span>
                     @endif
                     @if(request('status'))
-                        <span class="inline-flex items-center gap-1 rounded-full bg-brand-blue-100 px-3 py-0.5 text-xs font-bold text-brand-navy-700">Status: {{ ucfirst(str_replace('_',' ',request('status'))) }}</span>
+                        <span class="jca-er-filter-chip">Status: {{ ucfirst(str_replace('_', ' ', request('status'))) }}</span>
                     @endif
                     @if(request('grade'))
-                        <span class="inline-flex items-center gap-1 rounded-full bg-brand-blue-100 px-3 py-0.5 text-xs font-bold text-brand-navy-700">Grade: {{ $filterGrades->firstWhere('public_id', request('grade'))?->name }}</span>
+                        <span class="jca-er-filter-chip">Grade: {{ $filterGrades->firstWhere('public_id', request('grade'))?->name }}</span>
                     @endif
                 </div>
             @endif
         </section>
 
-        {{-- ── Results table ── --}}
+        {{-- Results table --}}
         <section class="jca-card overflow-hidden" aria-label="Applications">
             <div class="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
                 <p class="text-sm text-muted">
                     <span class="font-bold text-ink">{{ $enrollments->total() }}</span>
                     {{ Str::plural('application', $enrollments->total()) }} found
                     @if($enrollments->hasPages())
-                        · Showing {{ $enrollments->firstItem() }}–{{ $enrollments->lastItem() }}
+                          Showing {{ $enrollments->firstItem() }}-{{ $enrollments->lastItem() }}
                     @endif
                 </p>
             </div>
-
             <div class="overflow-x-auto">
                 <table class="min-w-full text-left text-sm">
                     <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
@@ -132,6 +282,13 @@
                         @forelse($enrollments as $enrollment)
                             @php
                                 $nextStatuses = $allowedTransitions->get($enrollment->id, []);
+                                $lateClosingDate = $enrollment->academicYear?->enrollment_closes_on
+                                    ? \Illuminate\Support\Carbon::parse($enrollment->academicYear->enrollment_closes_on)->toDateString()
+                                    : null;
+                                $isLateDraft = $enrollment->status === 'draft'
+                                    && $lateClosingDate !== null
+                                    && now('Asia/Manila')->toDateString() > $lateClosingDate;
+                                $hasLateApproval = $enrollment->late_enrollment_approved_at !== null;
                                 $reqTotal = $enrollment->requirements->count();
                                 $reqVerified = $enrollment->requirements->filter(fn ($requirement) =>
                                     $requirement->soft_copy_status === 'verified'
@@ -140,7 +297,6 @@
                                     || ($requirement->status === 'submitted' && $requirement->received_at !== null)
                                 )->count();
                             @endphp
-
                             {{-- Summary row --}}
                             <tr
                                 class="transition-colors hover:bg-slate-50/60"
@@ -168,24 +324,41 @@
                                 </td>
                                 <td class="whitespace-nowrap px-5 py-4 align-top">
                                     <p class="font-semibold">{{ $enrollment->gradeLevel->name }}</p>
-                                    <p class="mt-1 text-xs text-muted">{{ $enrollment->academicYear->name ?? '—' }}</p>
+                                    <p class="mt-1 text-xs text-muted">{{ $enrollment->academicYear->name ?? '-' }}</p>
                                 </td>
                                 <td class="px-5 py-4 align-top">
                                     <div class="flex flex-col items-start gap-1">
                                         <x-ui.status-badge :status="$enrollment->status" />
+                                        @if (\App\Modules\People\Support\StudentExitOptions::isExited($enrollment->student?->status))
+                                            <x-ui.status-badge :status="$enrollment->student->status" :label="\App\Modules\People\Support\StudentExitOptions::exitLabel($enrollment->student->status)" />
+                                        @endif
                                         <x-ui.status-badge :status="$enrollment->student_category" tone="info" variant="outline" />
+                                        @if($enrollment->is_late_enrollment)
+                                            <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+                                                Late: {{ ucfirst($enrollment->late_enrollment_status ?? 'pending') }}
+                                            </span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 align-top">
                                     <div class="flex flex-col items-start gap-1">
-                                        <x-ui.status-badge :status="$enrollment->contact_verified_at ? 'verified' : 'not_verified'" />
+                                        <x-ui.status-badge :status="$enrollment->walk_in_verified_at || $enrollment->previous_enrollment_id ? 'verified' : 'legacy'" :label="$enrollment->walk_in_verified_at ? null : ($enrollment->previous_enrollment_id ? 'Continuing' : null)" />
                                         <x-ui.status-badge :status="$enrollment->duplicate_review_status" />
                                     </div>
                                 </td>
                                 <td class="px-5 py-4 align-top">
                                     @if($reqTotal)
                                         <div class="flex items-center gap-2 text-xs">
-                                            <span class="font-bold text-brand-navy-900">{{ $reqVerified }}/{{ $reqTotal }}</span>
+                                            <div class="flex flex-col gap-1">
+    <span class="font-bold text-brand-navy-900">{{ $reqVerified }}/{{ $reqTotal }}</span>
+    @if($reqVerified === $reqTotal)
+        <span class="text-xs font-bold text-emerald-700">Submitted</span>
+    @elseif($reqVerified > 0)
+        <span class="text-xs font-bold text-amber-700">Incomplete</span>
+    @else
+        <span class="text-xs font-bold text-red-700">Missing</span>
+    @endif
+</div>
                                             <div class="h-2 w-16 overflow-hidden rounded-full bg-gray-200">
                                                 <div class="h-full rounded-full {{ $reqVerified === $reqTotal ? 'bg-success-700' : 'bg-brand-gold-500' }}" style="width: {{ round(($reqVerified / $reqTotal) * 100) }}%"></div>
                                             </div>
@@ -194,7 +367,7 @@
                                         <span class="text-xs text-muted">None</span>
                                     @endif
                                 </td>
-                                <td class="whitespace-nowrap px-5 py-4 align-top text-muted">{{ $enrollment->submitted_at?->format('d M Y') ?? '—' }}</td>
+                                <td class="whitespace-nowrap px-5 py-4 align-top text-muted">{{ $enrollment->submitted_at?->format('d M Y') ?? '-' }}</td>
                                 <td class="px-5 py-4 text-right align-top">
                                     <button
                                         type="button"
@@ -207,51 +380,44 @@
                                     </button>
                                 </td>
                             </tr>
-
                             {{-- Expandable detail row --}}
-                            <tr x-show="isRowOpen('{{ $enrollment->public_id }}')" x-cloak>
+                            <tr id="enrollment-review-{{ $enrollment->public_id }}" x-show="isRowOpen('{{ $enrollment->public_id }}')" x-cloak>
                                 <td colspan="8" class="bg-canvas/40 px-5 py-5 sm:px-6">
                                     <div class="grid gap-6 xl:grid-cols-2">
-
-                                        {{-- Identity & account connection --}}
+                                        {{-- Walk-in identity and account ownership --}}
                                         <section class="rounded-xl border border-border bg-white p-4">
                                             <h3 class="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-navy-900">
                                                 <x-ui.icon name="users" size="size-4" />
-                                                Identity and account connection
+                                                Walk-in access and account ownership
                                             </h3>
-
                                             <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
                                                 <span class="flex items-center gap-1.5">
-                                                    <span class="text-muted">Contact</span>
-                                                    <x-ui.status-badge :status="$enrollment->contact_verified_at ? 'verified' : 'not_verified'" />
+                                                    <span class="text-muted">In-person review</span>
+                                                    <x-ui.status-badge :status="$enrollment->walk_in_verified_at || $enrollment->previous_enrollment_id ? 'verified' : 'legacy'" :label="$enrollment->walk_in_verified_at ? null : ($enrollment->previous_enrollment_id ? 'Continuing' : null)" />
                                                 </span>
                                                 <span class="flex items-center gap-1.5">
                                                     <span class="text-muted">Duplicate review</span>
                                                     <x-ui.status-badge :status="$enrollment->duplicate_review_status" />
                                                 </span>
                                             </div>
-
                                             <div class="mt-4 flex flex-wrap gap-2">
-                                                @unless($enrollment->contact_verified_at)
-                                                    <form method="POST" action="{{ route('enrollment.registrar.verify', $enrollment) }}">
-                                                        @csrf
-                                                        <x-ui.button type="submit" variant="secondary">
-                                                            <x-ui.icon name="support" size="size-4" />
-                                                            Staff-verify contact
-                                                        </x-ui.button>
-                                                    </form>
-                                                @endunless
-
-                                                @if($enrollment->contact_verified_at && $enrollment->duplicate_review_status !== 'pending')
-                                                    <form method="POST" action="{{ route('enrollment.registrar.connect', $enrollment) }}">
-                                                        @csrf
-                                                        <x-ui.button type="submit" variant="secondary">
-                                                            <x-ui.icon name="people" size="size-4" />
-                                                            Connect guardian account
-                                                        </x-ui.button>
-                                                    </form>
+                                                @if($enrollment->walk_in_verified_at)
+                                                    <div class="rounded-lg border border-brand-blue-100 bg-brand-blue-50 px-3 py-2 text-sm text-brand-navy-900">
+                                                        <strong>Student ID:</strong> {{ $enrollment->student->student_number }}
+                                                          <strong>Access owner:</strong> {{ $enrollment->accessOwner?->name ?? 'Unavailable' }}
+                                                          <strong>Issued:</strong> {{ $enrollment->access_issued_at?->timezone('Asia/Manila')->format('d M Y, g:i A') }}
+                                                    </div>
+                                                    @if($enrollment->status === 'draft' && $enrollment->accessOwner?->must_change_password)
+                                                        <form method="POST" action="{{ route('enrollment.registrar.issue-access.reissue', $enrollment) }}">
+                                                            @csrf
+                                                            <x-ui.button type="submit" variant="secondary">Replace temporary password</x-ui.button>
+                                                        </form>
+                                                    @endif
+                                                @elseif($enrollment->previous_enrollment_id)
+                                                    <p class="text-sm text-muted">Continuing student, promoted from {{ $enrollment->previousEnrollment?->gradeLevel?->name }} - {{ $enrollment->previousEnrollment?->academicYear?->name }}. Identity was verified through that enrollment, so no new walk-in access is needed - the Registrar submits this application.</p>
+                                                @else
+                                                    <p class="text-sm text-muted">Legacy application created before the walk-in access workflow.</p>
                                                 @endif
-
                                                 @if($enrollment->student_category === 'support_review')
                                                     <form method="POST" action="{{ route('support.create', $enrollment) }}">
                                                         @csrf
@@ -262,21 +428,18 @@
                                                     </form>
                                                 @endif
                                             </div>
-
                                             @if($enrollment->duplicate_review_status === 'pending')
                                                 <div class="mt-4 space-y-3 border-t border-border pt-4">
                                                     <p class="text-xs font-bold uppercase tracking-wider text-muted">Duplicate resolution</p>
-
                                                     <form method="POST" action="{{ route('enrollment.registrar.duplicate-review', $enrollment) }}" class="flex flex-wrap items-end gap-2">
                                                         @csrf
                                                         <input type="hidden" name="duplicate_decision" value="clear">
                                                         <div class="min-w-0 flex-1">
                                                             <label for="clear_reason_{{ $enrollment->public_id }}" class="block text-xs font-semibold text-muted">Clearance reason</label>
-                                                            <input id="clear_reason_{{ $enrollment->public_id }}" name="reason" required placeholder="Identities are distinct because…" class="jca-input" />
+                                                            <input id="clear_reason_{{ $enrollment->public_id }}" name="reason" required placeholder="Identities are distinct because..." class="jca-input" />
                                                         </div>
                                                         <x-ui.button type="submit" variant="secondary">Clear all candidates</x-ui.button>
                                                     </form>
-
                                                     @if($enrollment->potentialDuplicateStudent)
                                                         <form method="POST" action="{{ route('enrollment.registrar.duplicate-review', $enrollment) }}" class="flex flex-wrap items-end gap-2">
                                                             @csrf
@@ -284,14 +447,13 @@
                                                             <input type="hidden" name="student_public_id" value="{{ $enrollment->potentialDuplicateStudent->public_id }}">
                                                             <div class="min-w-0 flex-1">
                                                                 <label for="link_student_{{ $enrollment->public_id }}" class="block text-xs font-semibold text-muted">Match evidence</label>
-                                                                <input id="link_student_{{ $enrollment->public_id }}" name="reason" required placeholder="Student match evidence…" class="jca-input" />
+                                                                <input id="link_student_{{ $enrollment->public_id }}" name="reason" required placeholder="Student match evidence..." class="jca-input" />
                                                             </div>
                                                             <x-ui.button type="submit" variant="secondary">
                                                                 Link student: {{ $enrollment->potentialDuplicateStudent->full_name }}
                                                             </x-ui.button>
                                                         </form>
                                                     @endif
-
                                                     @if($enrollment->potentialDuplicateGuardian)
                                                         <form method="POST" action="{{ route('enrollment.registrar.duplicate-review', $enrollment) }}" class="flex flex-wrap items-end gap-2">
                                                             @csrf
@@ -299,7 +461,7 @@
                                                             <input type="hidden" name="guardian_public_id" value="{{ $enrollment->potentialDuplicateGuardian->public_id }}">
                                                             <div class="min-w-0 flex-1">
                                                                 <label for="link_guardian_{{ $enrollment->public_id }}" class="block text-xs font-semibold text-muted">Match evidence</label>
-                                                                <input id="link_guardian_{{ $enrollment->public_id }}" name="reason" required placeholder="Guardian match evidence…" class="jca-input" />
+                                                                <input id="link_guardian_{{ $enrollment->public_id }}" name="reason" required placeholder="Guardian match evidence..." class="jca-input" />
                                                             </div>
                                                             <x-ui.button type="submit" variant="secondary">
                                                                 Link guardian: {{ $enrollment->potentialDuplicateGuardian->full_name }}
@@ -309,14 +471,18 @@
                                                 </div>
                                             @endif
                                         </section>
-
                                         {{-- Controlled status transition --}}
                                         <section class="rounded-xl border border-border bg-white p-4">
                                             <h3 class="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-brand-navy-900">
                                                 <x-ui.icon name="progress" size="size-4" />
                                                 Controlled status transition
                                             </h3>
-
+                                            @if($draftMissing->has($enrollment->id))
+                                                <div class="mt-4 rounded-lg bg-warning-100 px-4 py-3 text-sm text-warning-800">
+                                                    <p class="font-bold">Waiting for the application form</p>
+                                                    <p class="mt-1">{{ $enrollment->accessOwner?->name ?? 'The access owner' }} has not filled in the application yet, so it cannot be marked Submitted. They sign in, complete the form, and press Submit. Still missing: {{ implode(', ', $draftMissing->get($enrollment->id)) }}.</p>
+                                                </div>
+                                            @endif
                                             @if($nextStatuses !== [])
                                                 <form method="POST" action="{{ route('enrollment.registrar.transition', $enrollment) }}" class="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
                                                     @csrf
@@ -330,7 +496,7 @@
                                                     </div>
                                                     <div>
                                                         <label for="transition_reason_{{ $enrollment->public_id }}" class="block text-xs font-semibold text-muted">Reason (when required)</label>
-                                                        <input id="transition_reason_{{ $enrollment->public_id }}" name="reason" placeholder="Reason for this transition…" class="jca-input" />
+                                                        <input id="transition_reason_{{ $enrollment->public_id }}" name="reason" placeholder="Reason for this transition..." class="jca-input" />
                                                     </div>
                                                     <div class="self-end">
                                                         <x-ui.button type="submit" variant="primary">Apply</x-ui.button>
@@ -342,7 +508,64 @@
                                                     No further status transition is available for the current state.
                                                 </div>
                                             @endif
-
+                                            {{-- Late enrollment exception: review actions stay inside each application --}}
+                                            @if($isLateDraft || $enrollment->is_late_enrollment)
+                                                <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                                    <h4 class="text-base font-black text-amber-950">Late enrollment request</h4>
+                                                    @if($lateClosingDate)
+                                                        <p class="mt-1 text-sm leading-6 text-amber-900">
+                                                            Regular enrollment deadline: {{ \Illuminate\Support\Carbon::parse($lateClosingDate)->format('F j, Y') }}.
+                                                        </p>
+                                                    @endif
+                                                    @if($enrollment->late_enrollment_status === 'approved')
+                                                        <div class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                                                            <strong>Late enrollment approved.</strong>
+                                                            @if($enrollment->late_enrollment_reason)
+                                                                <p class="mt-1">Reason: {{ $enrollment->late_enrollment_reason }}</p>
+                                                            @endif
+                                                            @if($enrollment->late_enrollment_approved_at)
+                                                                <p class="mt-1">
+                                                                    Approved {{ $enrollment->late_enrollment_approved_at->timezone('Asia/Manila')->format('d M Y, g:i A') }}
+                                                                    @if($enrollment->lateEnrollmentApprover)
+                                                                        by {{ $enrollment->lateEnrollmentApprover->name }}
+                                                                    @endif
+                                                                </p>
+                                                            @endif
+                                                        </div>
+                                                    @elseif($enrollment->late_enrollment_status === 'rejected')
+                                                        <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                                                            <strong>Late enrollment rejected.</strong>
+                                                            @if($enrollment->late_enrollment_reason)
+                                                                <p class="mt-1">Reason: {{ $enrollment->late_enrollment_reason }}</p>
+                                                            @endif
+                                                        </div>
+                                                    @elseif($enrollment->is_late_enrollment && $enrollment->late_enrollment_status === 'pending')
+                                                        <p class="mt-2 text-sm text-amber-900">Pending Admin / Registrar decision. The application cannot be submitted until approved.</p>
+                                                        @if(\Illuminate\Support\Facades\Route::has('enrollment.registrar.late-review') && auth()->user()->can('update', $enrollment))
+                                                            <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                                                                <form method="POST" action="{{ route('enrollment.registrar.late-review', $enrollment) }}" class="space-y-2 rounded-lg border border-emerald-200 bg-white p-3">
+                                                                    @csrf
+                                                                    <input type="hidden" name="decision" value="approved">
+                                                                    <label for="late_approve_reason_{{ $enrollment->public_id }}" class="block text-sm font-semibold">Approval reason (optional)</label>
+                                                                    <textarea id="late_approve_reason_{{ $enrollment->public_id }}" name="reason" rows="2" maxlength="1000" class="jca-input w-full" placeholder="Reason for approving this request"></textarea>
+                                                                    <button type="submit" class="jca-button jca-button-primary" onclick="return confirm('Approve this late enrollment request?')">Approve Late Enrollment</button>
+                                                                </form>
+                                                                <form method="POST" action="{{ route('enrollment.registrar.late-review', $enrollment) }}" class="space-y-2 rounded-lg border border-red-200 bg-white p-3">
+                                                                    @csrf
+                                                                    <input type="hidden" name="decision" value="rejected">
+                                                                    <label for="late_reject_reason_{{ $enrollment->public_id }}" class="block text-sm font-semibold">Rejection reason (required)</label>
+                                                                    <textarea id="late_reject_reason_{{ $enrollment->public_id }}" name="reason" rows="2" required maxlength="1000" class="jca-input w-full" placeholder="Reason for rejection"></textarea>
+                                                                    <button type="submit" class="jca-button jca-button-secondary" onclick="return confirm('Reject this late enrollment request?')">Reject Late Enrollment</button>
+                                                                </form>
+                                                            </div>
+                                                        @else
+                                                            <p class="mt-3 text-sm text-amber-900">Approval controls are unavailable for this account.</p>
+                                                        @endif
+                                                    @else
+                                                        <p class="mt-2 text-sm text-amber-900">The deadline has passed. The application must first be registered as a pending late request before review.</p>
+                                                    @endif
+                                                </div>
+                                            @endif
                                             <div class="mt-4 border-t border-border pt-3">
                                                 <p class="text-xs font-bold uppercase tracking-wider text-muted">Timeline</p>
                                                 <div class="mt-2 grid grid-cols-2 gap-2 text-xs text-muted">
@@ -366,7 +589,6 @@
                                             </div>
                                         </section>
                                     </div>
-
                                     {{-- Soft-copy evidence and continuing hard-copy obligation --}}
                                     <section class="mt-6 border-t border-border pt-5" aria-labelledby="requirements-{{ $enrollment->public_id }}">
                                         <div class="flex flex-wrap items-end justify-between gap-3">
@@ -379,7 +601,16 @@
                                             </div>
                                             @if($reqTotal)
                                                 <div class="flex items-center gap-2 text-sm">
-                                                    <span class="font-bold text-brand-navy-900">{{ $reqVerified }}/{{ $reqTotal }}</span>
+                                                    <div class="flex flex-col gap-1">
+    <span class="font-bold text-brand-navy-900">{{ $reqVerified }}/{{ $reqTotal }}</span>
+    @if($reqVerified === $reqTotal)
+        <span class="text-xs font-bold text-emerald-700">Submitted</span>
+    @elseif($reqVerified > 0)
+        <span class="text-xs font-bold text-amber-700">Incomplete</span>
+    @else
+        <span class="text-xs font-bold text-red-700">Missing</span>
+    @endif
+</div>
                                                     <span class="text-muted">cleared</span>
                                                     <div class="h-2 w-24 overflow-hidden rounded-full bg-gray-200">
                                                         <div class="h-full rounded-full transition-all duration-300 {{ $reqVerified === $reqTotal ? 'bg-success-700' : 'bg-brand-gold-500' }}" style="width: {{ round(($reqVerified / $reqTotal) * 100) }}%"></div>
@@ -387,7 +618,6 @@
                                                 </div>
                                             @endif
                                         </div>
-
                                         <div class="mt-4 grid gap-3 lg:grid-cols-2">
                                             @forelse($enrollment->requirements as $requirement)
                                                 @php
@@ -397,7 +627,7 @@
                                                     $reqIconName = $reqCleared ? 'support' : 'enrollment';
                                                     $reqIconBg = $reqCleared ? 'bg-green-50 text-success-700' : ($reqRejected ? 'bg-red-50 text-brand-red-600' : 'bg-gray-50 text-muted');
                                                 @endphp
-                                                <article class="rounded-xl border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+                                                <article id="requirement-card-{{ $requirement->id }}" class="rounded-xl border border-border bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
                                                     <div class="flex flex-wrap items-center justify-between gap-2">
                                                         <h4 class="flex items-center gap-2 font-semibold text-brand-navy-900">
                                                             <span class="grid size-7 place-items-center rounded-md {{ $reqIconBg }}">
@@ -412,15 +642,15 @@
                                                             <x-ui.status-badge :status="$requirement->status" :label="$requirementLabel" />
                                                         </div>
                                                     </div>
-
+                                                    @if($reviewEnrollment === $enrollment->public_id && (string) $reviewRequirementId === (string) $requirement->id && session('status'))
+                                                        <p class="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-success-700" role="status">{{ session('status') }}</p>
+                                                    @endif
                                                     @if($requirement->carriedFromRequirement)
                                                         <p class="mt-3 rounded-lg bg-brand-blue-50 px-3 py-2 text-xs font-semibold leading-5 text-brand-navy-900">
-                                                            Previously accepted for {{ collect([$requirement->carriedFromRequirement->enrollment?->gradeLevel?->name, $requirement->carriedFromRequirement->enrollment?->academicYear?->name])->filter()->join(' · ') }}. No resubmission is required.
+                                                            Previously accepted for {{ collect([$requirement->carriedFromRequirement->enrollment?->gradeLevel?->name, $requirement->carriedFromRequirement->enrollment?->academicYear?->name])->filter()->join(' - ') }}. No resubmission is required.
                                                         </p>
                                                     @endif
-
-                                                    <x-enrollment.registrar-soft-copy-review :requirement="$requirement" />
-
+                                                    <x-enrollment.registrar-soft-copy-review :requirement="$requirement" :enrollment-public-id="$enrollment->public_id" />
                                                     <div class="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-4">
                                                         <div>
                                                             <p class="text-xs font-extrabold uppercase tracking-wider text-amber-900">Hard-copy obligation</p>
@@ -430,10 +660,11 @@
                                                             <x-ui.status-badge status="pending" label="Still outstanding" />
                                                         @endif
                                                     </div>
-
                                                     @if(in_array($requirement->status, ['missing', 'submitted', 'rejected'], true))
                                                         <form method="POST" action="{{ route('requirements.hard-copy.update', $requirement) }}" class="mt-3 space-y-3 border-t border-border pt-3">
                                                             @csrf @method('PUT')
+                                                            <input type="hidden" name="review_enrollment" value="{{ $enrollment->public_id }}">
+                                                            <input type="hidden" name="review_requirement_id" value="{{ $requirement->id }}">
                                                             <input type="hidden" name="received" value="0">
                                                             <label class="jca-check">
                                                                 <input type="checkbox" name="received" value="1" @checked($requirement->status === 'submitted')>
@@ -446,17 +677,17 @@
                                                             <x-ui.button type="submit" variant="secondary">Save checklist item</x-ui.button>
                                                         </form>
                                                     @endif
-
                                                     @if($requirement->received_at)
                                                         <p class="mt-3 flex items-center gap-1 text-xs text-muted">
                                                             <x-ui.icon name="audit" size="size-3" />
                                                             Last received {{ $requirement->received_at->format('d M Y, g:i A') }} by {{ $requirement->receivedBy?->name ?? 'authorized staff' }}.
                                                         </p>
                                                     @endif
-
                                                     @if(in_array($requirement->status, ['submitted', 'verified'], true) || auth()->user()->hasRole('admin'))
                                                         <form method="POST" action="{{ route('requirements.review', $requirement) }}" class="mt-3 flex flex-wrap items-end gap-2 border-t border-border pt-3">
                                                             @csrf
+                                                            <input type="hidden" name="review_enrollment" value="{{ $enrollment->public_id }}">
+                                                            <input type="hidden" name="review_requirement_id" value="{{ $requirement->id }}">
                                                             <div>
                                                                 <label for="review_status_{{ $requirement->id }}" class="block text-xs font-semibold text-muted">Review decision</label>
                                                                 <select id="review_status_{{ $requirement->id }}" name="status" required class="jca-input">
@@ -471,7 +702,7 @@
                                                             </div>
                                                             <div class="min-w-0 flex-1">
                                                                 <label for="review_reason_{{ $requirement->id }}" class="block text-xs font-semibold text-muted">Reason</label>
-                                                                <input id="review_reason_{{ $requirement->id }}" name="reason" placeholder="Reason when rejecting or waiving…" class="jca-input" />
+                                                                <input id="review_reason_{{ $requirement->id }}" name="reason" placeholder="Reason when rejecting or waiving..." class="jca-input" />
                                                             </div>
                                                             <x-ui.button type="submit" variant="secondary">Save review</x-ui.button>
                                                         </form>
@@ -496,13 +727,11 @@
                     </tbody>
                 </table>
             </div>
-
             @if($enrollments->hasPages())
                 <div class="border-t border-border p-5 sm:px-6">{{ $enrollments->onEachSide(1)->links() }}</div>
             @endif
         </section>
-
-        {{-- ── Sticky bulk action bar ── --}}
+        {{-- Sticky bulk action bar --}}
         <form
             method="POST"
             action="{{ route('enrollment.registrar.bulk-transition') }}"
@@ -540,7 +769,7 @@
                     </label>
                     <label class="text-xs font-semibold text-white/70">
                         <span class="mb-1 block">Reason (when required)</span>
-                        <input name="reason" placeholder="Reason for waitlist / reject / incomplete…" class="jca-input min-w-[14rem] text-ink" />
+                        <input name="reason" placeholder="Reason for waitlist / reject / incomplete..." class="jca-input min-w-[14rem] text-ink" />
                     </label>
                     <button
                         type="submit"
@@ -559,8 +788,7 @@
                 </div>
             </div>
         </form>
-
-        {{-- ── Soft-copy preview dialog ── --}}
+        {{-- Soft-copy preview dialog --}}
         <dialog x-ref="softCopyPreview" @cancel="previewUrl = ''" class="m-auto w-[min(70rem,calc(100%-2rem))] overflow-hidden rounded-2xl border-0 bg-white p-0 text-ink shadow-2xl backdrop:bg-slate-950/60" aria-labelledby="soft-copy-preview-title">
             <div class="flex h-[min(52rem,calc(100vh-2rem))] flex-col">
                 <header class="flex items-center justify-between gap-4 border-b border-border px-5 py-4">

@@ -90,6 +90,28 @@ class BillingLifecycleTest extends TestCase
         $payment->fresh()->update(['payer_name' => 'Forbidden edit']);
     }
 
+    public function test_accounting_sees_a_repeated_draft_and_cancels_it_from_the_billing_page(): void
+    {
+        $accounting = $this->user(['accounting']);
+        [$enrollment, $schedule] = $this->fixture();
+        $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
+        app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
+        $data = ['received_on' => '2026-08-10', 'amount' => '20000.00', 'method' => 'cash', 'payer_name' => 'Fictional Uncle'];
+        $posted = app(PostPaymentAction::class)->execute(app(CreateDraftPaymentAction::class)->execute($assessment->fresh(), $data, $accounting), $accounting);
+        $repeat = app(CreateDraftPaymentAction::class)->execute($assessment->fresh(), $data, $accounting);
+
+        $this->actingAs($accounting)->get(route('billing.index'))->assertOk()
+            ->assertSee('Possible duplicate:')->assertSee($posted->fresh()->receipt_reference)
+            ->assertSee('Cancel draft payment')->assertSee(route('billing.payments.cancel', $repeat), false);
+
+        $this->actingAs($accounting)->post(route('billing.payments.cancel', $repeat), ['reason' => 'Duplicate of '.$posted->fresh()->receipt_reference])
+            ->assertSessionHas('status', 'Draft payment cancelled; history retained.');
+        $this->assertSame('cancelled', $repeat->fresh()->status);
+        $this->assertSame('posted', $posted->fresh()->status);
+        $this->actingAs($accounting)->get(route('billing.index'))->assertOk()->assertSee('No draft payments')->assertDontSee('Possible duplicate:');
+        $this->assertDatabaseHas('audit_logs', ['action' => 'billing.payment.draft_cancelled']);
+    }
+
     public function test_cancelled_discount_slot_is_reopened_only_by_admin_and_awarded_next(): void
     {
         $accounting = $this->user(['accounting']);

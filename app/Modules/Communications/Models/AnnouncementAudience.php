@@ -11,6 +11,12 @@ use Illuminate\Support\Str;
 
 class AnnouncementAudience extends Model
 {
+    /** D-052: the audiences an Admin can pick, in display order. */
+    public const ROLES = [
+        'guardian' => 'Parent/Guardian', 'student' => 'Students', 'teacher' => 'Teachers',
+        'registrar' => 'Registrar', 'accounting' => 'Accounting', 'admin' => 'Admin',
+    ];
+
     protected $fillable = ['announcement_id', 'audience_type', 'role_code', 'section_id', 'student_id', 'guardian_id'];
 
     /**
@@ -21,11 +27,8 @@ class AnnouncementAudience extends Model
     public function label(): string
     {
         return match ($this->audience_type) {
-            'all' => 'All portals',
-            'role' => [
-                'guardian' => 'Guardians', 'student' => 'Students', 'teacher' => 'Teachers',
-                'registrar' => 'Registrars', 'accounting' => 'Accounting',
-            ][$this->role_code] ?? Str::headline((string) $this->role_code),
+            'all' => 'Everyone',
+            'role' => self::ROLES[$this->role_code] ?? Str::headline((string) $this->role_code),
             'section' => 'Specific section',
             'student' => 'Specific student',
             'guardian' => 'Specific guardian',
@@ -53,3 +56,4 @@ class AnnouncementAudience extends Model
         return $this->belongsTo(GuardianProfile::class);
     }
 }
+

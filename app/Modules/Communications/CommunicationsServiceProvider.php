@@ -6,11 +6,8 @@ use App\Modules\Communications\Contracts\SmsGateway;
 use App\Modules\Communications\Gateways\DisabledSmsGateway;
 use App\Modules\Communications\Gateways\LogSmsGateway;
 use App\Modules\Communications\Gateways\SemaphoreSmsGateway;
-use App\Modules\Communications\Listeners\QueueEnrollmentStatusSms;
 use App\Modules\Communications\Models\Announcement;
 use App\Modules\Communications\Policies\AnnouncementPolicy;
-use App\Modules\Enrollment\Events\EnrollmentStatusChanged;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -35,7 +32,6 @@ class CommunicationsServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Announcement::class, AnnouncementPolicy::class);
-        Event::listen(EnrollmentStatusChanged::class, QueueEnrollmentStatusSms::class);
         Route::middleware('web')->group(base_path('routes/modules/communications.php'));
     }
 }

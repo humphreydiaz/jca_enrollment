@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
+use App\Modules\Enrollment\Actions\TransitionEnrollmentAction;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Enrollment\Models\EnrollmentRequirement;
 use App\Modules\Identity\Actions\AssignRolesAction;
@@ -17,13 +18,15 @@ use Database\Seeders\Identity\RoleSeeder;
 use Database\Seeders\Requirements\RequirementsBaselineSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\CompletesApplicationForms;
 use Tests\TestCase;
 
 class RequirementsBaselineSeederTest extends TestCase
 {
-    use RefreshDatabase;
+    use CompletesApplicationForms, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -54,6 +57,7 @@ class RequirementsBaselineSeederTest extends TestCase
         app(RequirementsBaselineSeeder::class)->run();
 
         $this->assertDatabaseCount('document_types', 4);
+        $this->assertDatabaseHas('document_types', ['code' => 'FORM_138', 'name' => 'School Form 9 (SF9)']);
         $this->assertDatabaseCount('requirement_rules', 7);
         $this->assertDatabaseCount('enrollment_requirements', 2);
         $this->assertDatabaseHas('document_types', ['id' => $birthCertificate->id, 'name' => 'PSA Birth Certificate']);
@@ -71,11 +75,17 @@ class RequirementsBaselineSeederTest extends TestCase
             ->firstOrFail();
         $this->assertFalse((bool) $requirement->rule_snapshot['is_blocking']);
 
+        $schoolForm9 = DocumentType::query()->where('code', 'FORM_138')->firstOrFail();
+        DB::table('document_types')->where('id', $schoolForm9->id)->update(['name' => 'Form 138 / Report Card']);
+        $this->assertSame('School Form 9 (SF9)', $schoolForm9->fresh()->name);
+
         $this->actingAs($guardian)
             ->get(route('guardian.enrollment.progress'))
             ->assertOk()
             ->assertSee('type="file"', false)
-            ->assertSee('PSA Birth Certificate');
+            ->assertSee('PSA Birth Certificate')
+            ->assertSee('School Form 9 (SF9)')
+            ->assertDontSee('Form 138 / Report Card');
 
         $this->actingAs($guardian)->post(route('requirements.documents.store', $requirement), [
             'document' => UploadedFile::fake()->image('birth-certificate.jpg'),
@@ -84,6 +94,27 @@ class RequirementsBaselineSeederTest extends TestCase
         $upload = $requirement->fresh()->activeUpload()->firstOrFail();
         Storage::disk('documents')->assertExists($upload->path);
         $this->assertSame('submitted', $requirement->fresh()->soft_copy_status);
+    }
+
+    public function test_it_repairs_a_past_school_year_and_allows_its_existing_draft_to_submit(): void
+    {
+        [$enrollment, $guardian] = $this->inFlightEnrollment();
+        $year = $enrollment->academicYear;
+        $year->update([
+            'code' => '2025-2026', 'name' => 'School Year 2025-2026',
+            'starts_on' => '2025-06-01', 'ends_on' => '2026-03-31', 'status' => 'closed',
+        ]);
+        $enrollment->update(['status' => 'draft', 'submitted_at' => null]);
+
+        app(RequirementsBaselineSeeder::class)->run();
+        app(RequirementsBaselineSeeder::class)->run();
+
+        $this->assertSame(7, RequirementRule::query()->where('academic_year_id', $year->id)->count());
+        $this->assertDatabaseCount('enrollment_requirements', 0);
+        $this->completeApplicationForm($enrollment);
+        app(TransitionEnrollmentAction::class)->execute($enrollment, 'submitted', $guardian);
+        $this->assertSame('submitted', $enrollment->fresh()->status);
+        $this->assertSame(2, EnrollmentRequirement::query()->where('enrollment_id', $enrollment->id)->count());
     }
 
     /** @return array{0: Enrollment, 1: User} */

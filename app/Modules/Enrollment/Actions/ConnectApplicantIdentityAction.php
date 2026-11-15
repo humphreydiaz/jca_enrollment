@@ -111,7 +111,7 @@ class ConnectApplicantIdentityAction
                     ]);
                 }
 
-                if ($user->locked_at !== null || $user->status === AccountStatus::Locked) {
+                if ($user->locked_at !== null) {
                     throw ValidationException::withMessages([
                         'application' => 'The connected guardian account is locked and requires Admin security review.',
                     ]);
@@ -148,6 +148,7 @@ class ConnectApplicantIdentityAction
                 'relationship_type' => $record->guardian_relationship ?: 'Guardian',
                 'is_primary_contact' => true,
                 'may_manage_enrollment' => true,
+                'may_view_financials' => true, // D-053: the parent who enrolls the learner sees what is due and paid
             ], $actor);
             $this->verifyLink->execute($link, $actor);
             $this->audit->record($actor, 'enrollment.identity.connected', $record);

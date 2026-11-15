@@ -16,38 +16,118 @@ final class ManageFeeScheduleAction
     public function __construct(private AuditRecorder $audit) {}
 
     /**
-     * Create a draft. The version is assigned by the system — it is the next
-     * number for this school year and grade — so an admin can never collide
-     * with an existing version or have to guess which number is free.
+     * Create a draft with the next available version number.
      *
-     * @param  array<string, mixed>  $attributes
+     * @param array<string, mixed> $attributes
      */
     public function create(array $attributes, User $actor): FeeSchedule
     {
-        return DB::transaction(function () use ($attributes, $actor): FeeSchedule {
-            AcademicYear::query()->whereKey($attributes['academic_year_id'])->lockForUpdate()->firstOrFail();
+        return $this->createFrom($attributes, $actor, null)['schedule'];
+    }
+
+    /**
+     * Create a draft, optionally copying another version's fees.
+     *
+     * @param array<string, mixed> $attributes
+     * @return array{schedule: FeeSchedule, copied: int, skipped: int}
+     */
+    public function createFrom(
+        array $attributes,
+        User $actor,
+        ?FeeSchedule $copyFrom
+    ): array {
+        return DB::transaction(function () use (
+            $attributes,
+            $actor,
+            $copyFrom
+        ): array {
+            AcademicYear::query()
+                ->whereKey($attributes['academic_year_id'])
+                ->lockForUpdate()
+                ->firstOrFail();
 
             $schedule = FeeSchedule::query()->create([
                 ...$attributes,
-                'version' => $this->nextVersion($attributes['academic_year_id'], $attributes['grade_level_id'] ?? null),
+                'version' => $this->nextVersion(
+                    $attributes['academic_year_id'],
+                    $attributes['grade_level_id'] ?? null
+                ),
                 'status' => 'draft',
             ]);
-            $this->audit->record($actor, 'billing.fee_schedule.created', $schedule);
 
-            return $schedule;
+            $copied = 0;
+            $skipped = 0;
+
+            if ($copyFrom !== null) {
+                $source = FeeScheduleItem::query()
+                    ->where('fee_schedule_id', $copyFrom->id)
+                    ->with('feeType')
+                    ->orderBy('id')
+                    ->get();
+
+                foreach ($source as $item) {
+                    if (
+                        $item->feeType === null ||
+                        ! $item->feeType->is_active
+                    ) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    FeeScheduleItem::query()->create([
+                        'fee_schedule_id' => $schedule->id,
+                        'fee_type_id' => $item->fee_type_id,
+                        'description' => $item->description,
+                        'amount' => $item->amount,
+
+                        // Preserve Tentative or Final Price.
+                        'price_status' => $item->price_status ?? 'final',
+
+                        'is_required' => $item->is_required,
+                        'is_default_selected' => $item->is_default_selected,
+                    ]);
+
+                    $copied++;
+                }
+            }
+
+            $this->audit->record(
+                $actor,
+                'billing.fee_schedule.created',
+                $schedule,
+                $copyFrom === null ? [] : [
+                    'copied_from' => $copyFrom->public_id,
+                    'copied_items' => $copied,
+                    'skipped_inactive_items' => $skipped,
+                ]
+            );
+
+            return [
+                'schedule' => $schedule,
+                'copied' => $copied,
+                'skipped' => $skipped,
+            ];
         });
     }
 
     /**
-     * Correct a draft's settings — including the grade level, which is the
-     * mistake most worth fixing without publishing first.
+     * Update the settings of a draft schedule.
      *
-     * @param  array<string, mixed>  $attributes
+     * @param array<string, mixed> $attributes
      */
-    public function updateDraft(FeeSchedule $schedule, array $attributes, User $actor): FeeSchedule
-    {
-        return DB::transaction(function () use ($schedule, $attributes, $actor): FeeSchedule {
-            $locked = FeeSchedule::query()->lockForUpdate()->findOrFail($schedule->id);
+    public function updateDraft(
+        FeeSchedule $schedule,
+        array $attributes,
+        User $actor
+    ): FeeSchedule {
+        return DB::transaction(function () use (
+            $schedule,
+            $attributes,
+            $actor
+        ): FeeSchedule {
+            $locked = FeeSchedule::query()
+                ->lockForUpdate()
+                ->findOrFail($schedule->id);
 
             if (! $locked->isEditable()) {
                 throw ValidationException::withMessages([
@@ -55,37 +135,58 @@ final class ManageFeeScheduleAction
                 ]);
             }
 
-            $yearId = (int) ($attributes['academic_year_id'] ?? $locked->academic_year_id);
-            $gradeId = array_key_exists('grade_level_id', $attributes)
+            $yearId = (int) (
+                $attributes['academic_year_id']
+                ?? $locked->academic_year_id
+            );
+
+            $gradeId = array_key_exists(
+                'grade_level_id',
+                $attributes
+            )
                 ? $attributes['grade_level_id']
                 : $locked->grade_level_id;
 
-            // Moving the draft to a different year or grade puts it in another
-            // version series, so it takes the next free number over there.
-            $movedSeries = $yearId !== (int) $locked->academic_year_id
+            $movedSeries =
+                $yearId !== (int) $locked->academic_year_id
                 || (int) $gradeId !== (int) $locked->grade_level_id;
 
             $locked->fill($attributes);
+
             if ($movedSeries) {
-                $locked->version = $this->nextVersion($yearId, $gradeId);
+                $locked->version = $this->nextVersion(
+                    $yearId,
+                    $gradeId
+                );
             }
+
             $locked->save();
 
-            $this->audit->record($actor, 'billing.fee_schedule.updated', $locked);
+            $this->audit->record(
+                $actor,
+                'billing.fee_schedule.updated',
+                $locked
+            );
 
             return $locked;
         });
     }
 
     /**
-     * Remove a schedule outright. Permitted only while nothing financial hangs
-     * off it: a draft, or a published/archived version that never produced an
-     * assessment. Anything already billed is kept for the audit trail.
+     * Delete a schedule only if no assessments depend on it.
      */
-    public function delete(FeeSchedule $schedule, User $actor): void
-    {
-        DB::transaction(function () use ($schedule, $actor): void {
-            $locked = FeeSchedule::query()->lockForUpdate()->findOrFail($schedule->id);
+    public function delete(
+        FeeSchedule $schedule,
+        User $actor
+    ): void {
+        DB::transaction(function () use (
+            $schedule,
+            $actor
+        ): void {
+            $locked = FeeSchedule::query()
+                ->lockForUpdate()
+                ->findOrFail($schedule->id);
+
             $usage = $this->usageCount($locked);
 
             if ($usage > 0) {
@@ -94,30 +195,46 @@ final class ManageFeeScheduleAction
                 ]);
             }
 
-            $this->audit->record($actor, 'billing.fee_schedule.deleted', $locked, [
-                'name' => $locked->name,
-                'version' => $locked->version,
-                'status' => $locked->status,
-            ]);
+            $this->audit->record(
+                $actor,
+                'billing.fee_schedule.deleted',
+                $locked,
+                [
+                    'name' => $locked->name,
+                    'version' => $locked->version,
+                    'status' => $locked->status,
+                ]
+            );
 
-            // Mass delete on purpose: the per-item immutability guard protects a
-            // live published schedule from being edited, but this removes an
-            // unused version whole, items included.
-            FeeScheduleItem::query()->where('fee_schedule_id', $locked->id)->delete();
+            // Keep the existing mass-delete behavior.
+            FeeScheduleItem::query()
+                ->where('fee_schedule_id', $locked->id)
+                ->delete();
+
             $locked->delete();
         });
     }
 
     /**
-     * Retire a published version, or bring a retired one back. An archived
-     * schedule is no longer offered for new assessments while every assessment
-     * already made from it stays readable.
+     * Archive or restore a published fee schedule.
      */
-    public function setArchived(FeeSchedule $schedule, bool $archived, User $actor): FeeSchedule
-    {
-        return DB::transaction(function () use ($schedule, $archived, $actor): FeeSchedule {
-            $locked = FeeSchedule::query()->lockForUpdate()->findOrFail($schedule->id);
-            $expected = $archived ? 'published' : 'archived';
+    public function setArchived(
+        FeeSchedule $schedule,
+        bool $archived,
+        User $actor
+    ): FeeSchedule {
+        return DB::transaction(function () use (
+            $schedule,
+            $archived,
+            $actor
+        ): FeeSchedule {
+            $locked = FeeSchedule::query()
+                ->lockForUpdate()
+                ->findOrFail($schedule->id);
+
+            $expected = $archived
+                ? 'published'
+                : 'archived';
 
             if ($locked->status !== $expected) {
                 throw ValidationException::withMessages([
@@ -127,33 +244,49 @@ final class ManageFeeScheduleAction
                 ]);
             }
 
-            $locked->status = $archived ? 'archived' : 'published';
+            $locked->status = $archived
+                ? 'archived'
+                : 'published';
+
             $locked->save();
 
             $this->audit->record(
                 $actor,
-                $archived ? 'billing.fee_schedule.archived' : 'billing.fee_schedule.restored',
-                $locked,
+                $archived
+                    ? 'billing.fee_schedule.archived'
+                    : 'billing.fee_schedule.restored',
+                $locked
             );
 
             return $locked;
         });
     }
 
-    /** Student assessments issued from this exact version. */
+    /**
+     * Count assessments from this schedule version.
+     */
     public function usageCount(FeeSchedule $schedule): int
     {
-        return FeeAssessment::query()->where('fee_schedule_id', $schedule->id)->count();
+        return FeeAssessment::query()
+            ->where('fee_schedule_id', $schedule->id)
+            ->count();
     }
 
-    public function nextVersion(int $academicYearId, int|string|null $gradeLevelId): int
-    {
+    /**
+     * Get the next version number for year and grade.
+     */
+    public function nextVersion(
+        int $academicYearId,
+        int|string|null $gradeLevelId
+    ): int {
         $highest = FeeSchedule::query()
             ->where('academic_year_id', $academicYearId)
             ->when(
                 $gradeLevelId,
-                fn ($query, $gradeId) => $query->where('grade_level_id', $gradeId),
-                fn ($query) => $query->whereNull('grade_level_id'),
+                fn ($query, $gradeId) =>
+                    $query->where('grade_level_id', $gradeId),
+                fn ($query) =>
+                    $query->whereNull('grade_level_id'),
             )
             ->max('version');
 

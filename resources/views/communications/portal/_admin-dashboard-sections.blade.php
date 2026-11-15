@@ -1,3 +1,22 @@
+@if ($urgentMissingAssessments > 0)
+<section class="jca-card cursor-pointer border-2 border-red-300 bg-red-50 p-5 sm:p-6 transition hover:bg-red-100" onclick="window.location.href='{{ route('billing.index') }}#awaiting-assessment'">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h2 class="text-lg font-black text-red-800">
+                URGENT — Enrolled Students Without Fee Assessment
+            </h2>
+            <p class="mt-2 text-sm text-red-700">
+                {{ $urgentMissingAssessments }}
+                enrolled student(s) have no fee assessment.
+                Please review their billing records.
+            </p>
+        </div>
+        <a href="{{ route('billing.index') }}"
+           class="inline-flex items-center rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800">
+            View in Billing
+        </a>
+    </div>
+</section>
 <section class="jca-card overflow-hidden" aria-labelledby="academic-year-title">
     <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4 sm:px-6">
         <div class="flex items-center gap-3">
@@ -130,8 +149,8 @@
                     <dd class="font-bold tabular-nums text-brand-navy-900">{{ $userSummary['invited'] }}</dd>
                 </div>
                 <div class="flex justify-between">
-                    <dt class="text-muted">Locked</dt>
-                    <dd class="font-bold tabular-nums text-brand-navy-900">{{ $userSummary['locked'] }}</dd>
+                    <dt class="text-muted">Disabled</dt>
+                    <dd class="font-bold tabular-nums text-brand-navy-900">{{ $userSummary['disabled'] }}</dd>
                 </div>
             </dl>
         </a>
@@ -182,7 +201,7 @@
                     <x-ui.icon name="audit" />
                 </span>
                 <span class="min-w-0 flex-1">
-                    <span class="block text-sm font-bold text-brand-navy-900">{{ str($log->action)->replace('.', ' &rsaquo; ')->headline() }}</span>
+                    <span class="block text-sm font-bold text-brand-navy-900">{{ collect(explode('.', $log->action))->map(fn ($part) => \Illuminate\Support\Str::headline($part))->join(' > ') }}</span>
                     <span class="block text-xs text-muted">{{ $log->actor?->name ?? 'System' }} &middot; {{ $log->occurred_at->diffForHumans() }}</span>
                 </span>
                 <x-ui.status-badge :status="$log->outcome" />
@@ -194,3 +213,4 @@
         @endforelse
     </div>
 </section>
+@endif

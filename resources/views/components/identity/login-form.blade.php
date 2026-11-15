@@ -1,8 +1,8 @@
 @props([
     'action',
     'submitLabel' => 'Sign in',
-    'identifierLabel' => 'Student number, email address, or mobile number',
-    'identifierPlaceholder' => 'e.g. S-2026-2027-0011',
+    'identifierLabel' => 'Username',
+    'identifierPlaceholder' => 'e.g. JCA-26-693 or 26-JCA-783',
 ])
 
 <form method="POST" action="{{ $action }}" class="mt-7 space-y-5">
@@ -43,14 +43,17 @@
         </div>
     </x-ui.field>
 
-    <div class="flex flex-wrap items-center justify-between gap-3">
-        <a href="{{ route('identity.invitations.activate') }}" class="text-sm font-bold text-brand-navy-700 underline decoration-brand-navy-700/30 underline-offset-4 hover:text-brand-navy-900">
-            Activate account
-        </a>
+    <div class="flex justify-end">
         <a href="{{ route('identity.recovery') }}" class="text-sm font-bold text-brand-navy-700 underline decoration-brand-navy-700/30 underline-offset-4 hover:text-brand-navy-900">
             Need help signing in?
         </a>
     </div>
 
     <x-ui.button type="submit" class="w-full">{{ $submitLabel }}</x-ui.button>
+
+    {{-- Staff onboarding/recovery only: the Admin issues a one-time code (it may arrive by SMS without a link). Families use the Registrar's temporary password. --}}
+    <p class="border-t border-border pt-4 text-center text-xs text-muted">
+        School staff with a one-time account code?
+        <a href="{{ route('identity.invitations.activate') }}" class="font-bold text-brand-navy-700 underline decoration-brand-navy-700/30 underline-offset-4 hover:text-brand-navy-900">Set up your staff account</a>
+    </p>
 </form>

@@ -4,28 +4,25 @@ namespace App\Modules\Communications\Actions;
 
 use Illuminate\Validation\ValidationException;
 
+/**
+ * School-wide messages stay general: an announcement (portal or SMS) may not carry confidential
+ * support, document, or financial detail, because it reaches many people and shared phones.
+ */
 class SafeMessageContent
 {
-    /** @var list<string> */
-    private const ALLOWED = ['school_name', 'status', 'action_url', 'announcement_title', 'announcement_body'];
+    private const CONFIDENTIAL = '/\b(therapy|diagnos(?:is|ed)|medical|assessment|document|balance|receipt|payment)\b/i';
 
-    public function validate(string $content): void
+    /** @param  array<string, string>  $fields  field name => text */
+    public function guard(array $fields): void
     {
-        foreach (preg_match_all('/{{\s*([a-z_]+)\s*}}/i', $content, $matches) ? $matches[1] : [] as $placeholder) {
-            if (! in_array($placeholder, self::ALLOWED, true)) {
-                throw ValidationException::withMessages(['content' => 'This template contains an unsupported placeholder.']);
+        $errors = [];
+        foreach ($fields as $field => $text) {
+            if ($text !== '' && preg_match(self::CONFIDENTIAL, $text)) {
+                $errors[$field] = 'Announcements must not contain confidential support, document, or financial detail (for example payment, balance, receipt, assessment, medical). Keep them general, or message the person directly.';
             }
         }
-        if (preg_match('/\b(therapy|diagnos(?:is|ed)|medical|assessment|document|balance|receipt|payment)\b/i', $content)) {
-            throw ValidationException::withMessages(['content' => 'Messages must not contain confidential support, document, or financial detail.']);
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
         }
-    }
-
-    /** @param array<string, string> $values */
-    public function render(string $content, array $values): string
-    {
-        $this->validate($content);
-
-        return preg_replace_callback('/{{\s*([a-z_]+)\s*}}/i', fn (array $match): string => $values[$match[1]] ?? '', $content) ?? $content;
     }
 }

@@ -38,9 +38,20 @@ class StudentProfile extends Model
         'disability_type',
         'current_address',
         'permanent_address',
-        'father_name',
-        'mother_maiden_name',
+        'mobile',
+        'father_first_name',
+        'father_middle_name',
+        'father_last_name',
+        'father_extension_name',
+        'mother_first_name',
+        'mother_middle_name',
+        'mother_maiden_last_name',
+        'mother_extension_name',
         'status',
+        'archived_at',
+        'graduated_at',
+        'transferred_out_at',
+        'archive_reason',
     ];
 
     protected static function booted(): void
@@ -57,6 +68,9 @@ class StudentProfile extends Model
     {
         return [
             'birth_date' => 'date',
+            'archived_at' => 'datetime',
+            'graduated_at' => 'datetime',
+            'transferred_out_at' => 'datetime',
             'is_4ps_recipient' => 'boolean',
             'is_learner_with_disability' => 'boolean',
         ];
@@ -110,6 +124,12 @@ class StudentProfile extends Model
         return $this->hasMany(Enrollment::class, 'potential_duplicate_student_id');
     }
 
+    /** @return HasMany<StudentProfileCorrection, $this> */
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(StudentProfileCorrection::class, 'student_id');
+    }
+
     /**
      * The most recent application, used by the directory listing to show the
      * learner's current grade, year, and state without loading every record.
@@ -125,6 +145,20 @@ class StudentProfile extends Model
     {
         return collect([$this->first_name, $this->middle_name, $this->last_name, $this->extension_name])
             ->filter()
+            ->join(' ');
+    }
+
+    public function getFatherFullNameAttribute(): string
+    {
+        return collect([$this->father_first_name, $this->father_middle_name, $this->father_last_name, $this->father_extension_name])
+            ->filter(fn ($value) => filled($value))
+            ->join(' ');
+    }
+
+    public function getMotherFullNameAttribute(): string
+    {
+        return collect([$this->mother_first_name, $this->mother_middle_name, $this->mother_maiden_last_name, $this->mother_extension_name])
+            ->filter(fn ($value) => filled($value))
             ->join(' ');
     }
 

@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 class SmsConsent extends Model
 {
-    protected $fillable = ['guardian_id', 'purpose', 'status', 'source', 'effective_at', 'withdrawn_at', 'recorded_by'];
+    protected $fillable = ['guardian_id', 'user_id', 'student_id', 'purpose', 'status', 'source', 'effective_at', 'withdrawn_at', 'recorded_by'];
 
     protected static function booted(): void
     {

@@ -22,11 +22,12 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Concerns\CompletesApplicationForms;
 use Tests\TestCase;
 
 class RequirementDocumentsTest extends TestCase
 {
-    use RefreshDatabase;
+    use CompletesApplicationForms, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -49,6 +50,7 @@ class RequirementDocumentsTest extends TestCase
             'is_blocking' => true,
         ]);
         $enrollment->update(['contact_verified_at' => now()]);
+        $this->completeApplicationForm($enrollment);
 
         app(TransitionEnrollmentAction::class)->execute($enrollment, 'submitted', $admin);
 
@@ -123,6 +125,58 @@ class RequirementDocumentsTest extends TestCase
             'action' => 'requirements.hard_copy.marked_missing',
             'actor_user_id' => $registrar->id,
         ]);
+    }
+
+    public function test_checklist_save_returns_to_the_same_review_card_with_visible_confirmation(): void
+    {
+        $registrar = $this->user(['registrar']);
+        [$enrollment] = $this->enrollment();
+        $requirement = $this->requirement($enrollment);
+        $queue = route('enrollment.registrar.index', ['status' => 'draft']);
+
+        $this->actingAs($registrar)->from($queue)->put(route('requirements.hard-copy.update', $requirement), [
+            'received' => true,
+            'receipt_notes' => 'Original checked at the counter.',
+            'review_enrollment' => $enrollment->public_id,
+            'review_requirement_id' => $requirement->id,
+        ])->assertRedirect($queue)
+            ->assertSessionHas('status', 'Hard-copy requirement marked received.')
+            ->assertSessionHas('review_enrollment', $enrollment->public_id)
+            ->assertSessionHas('review_requirement_id', $requirement->id);
+
+        $page = $this->actingAs($registrar)->get($queue)
+            ->assertOk()
+            ->assertSee('id="enrollment-review-'.$enrollment->public_id.'"', false)
+            ->assertSee('id="requirement-card-'.$requirement->id.'"', false)
+            ->assertSee('Hard-copy requirement marked received.');
+        $this->assertSame(2, substr_count($page->getContent(), 'Hard-copy requirement marked received.'));
+        preg_match('/x-data="enrollmentReviewWorkspace\(([^\"]+)\)"/', $page->getContent(), $workspace);
+        $this->assertSame(2, substr_count($workspace[1] ?? '', $enrollment->public_id));
+    }
+
+    public function test_invalid_checklist_save_preserves_the_review_context(): void
+    {
+        $registrar = $this->user(['registrar']);
+        [$enrollment] = $this->enrollment();
+        $requirement = $this->requirement($enrollment);
+        $queue = route('enrollment.registrar.index');
+
+        $this->actingAs($registrar)->from($queue)->put(route('requirements.hard-copy.update', $requirement), [
+            'received' => true,
+            'receipt_notes' => str_repeat('x', 1001),
+            'review_enrollment' => $enrollment->public_id,
+            'review_requirement_id' => $requirement->id,
+        ])->assertRedirect($queue)
+            ->assertSessionHasErrors('receipt_notes')
+            ->assertSessionHas('_old_input.review_enrollment', $enrollment->public_id)
+            ->assertSessionHas('_old_input.review_requirement_id', $requirement->id);
+
+        $page = $this->actingAs($registrar)->get($queue)
+            ->assertOk()
+            ->assertSee('id="requirement-card-'.$requirement->id.'"', false);
+        preg_match('/x-data="enrollmentReviewWorkspace\(([^\"]+)\)"/', $page->getContent(), $workspace);
+        $this->assertSame(2, substr_count($workspace[1] ?? '', $enrollment->public_id));
+        $this->assertSame('missing', $requirement->fresh()->status);
     }
 
     public function test_rejected_requirement_requires_a_new_hard_copy_before_review(): void

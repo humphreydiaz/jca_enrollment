@@ -20,6 +20,7 @@ class GuardianProfile extends Model
         'first_name',
         'last_name',
         'middle_name',
+        'extension_name',
         'mobile',
         'email',
         'preferred_contact_method',
@@ -73,7 +74,7 @@ class GuardianProfile extends Model
 
     public function getFullNameAttribute(): string
     {
-        return collect([$this->first_name, $this->middle_name, $this->last_name])
+        return collect([$this->first_name, $this->middle_name, $this->last_name, $this->extension_name])
             ->filter()
             ->join(' ');
     }

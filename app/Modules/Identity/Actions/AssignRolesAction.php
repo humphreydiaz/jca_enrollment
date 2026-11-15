@@ -3,7 +3,6 @@
 namespace App\Modules\Identity\Actions;
 
 use App\Models\User;
-use App\Modules\Identity\Enums\RoleCode;
 use App\Modules\Identity\Models\Role;
 use App\Modules\Identity\Models\UserRole;
 use App\Modules\Shared\Audit\AuditRecorder;
@@ -18,14 +17,19 @@ class AssignRolesAction
     ) {}
 
     /**
-     * @param  list<string>  $roleCodes
+     * @param list<string> $roleCodes
      */
     public function execute(User $user, array $roleCodes, ?User $actor): User
     {
         $roleCodes = array_values(array_unique($roleCodes));
 
+        $this->ensureCompatibleRoles($roleCodes);
+
         return DB::transaction(function () use ($actor, $roleCodes, $user): User {
-            $lockedUser = User::query()->lockForUpdate()->findOrFail($user->id);
+            $lockedUser = User::query()
+                ->lockForUpdate()
+                ->findOrFail($user->id);
+
             $roles = Role::query()
                 ->whereIn('code', $roleCodes)
                 ->where('is_active', true)
@@ -38,17 +42,21 @@ class AssignRolesAction
                 ]);
             }
 
-            $this->ensureCompatibleRoles($roles->pluck('code')->all());
-
             $activeAssignments = UserRole::query()
                 ->where('user_id', $lockedUser->id)
                 ->whereNull('revoked_at')
                 ->lockForUpdate()
                 ->with('role')
                 ->get();
-            $activeCodes = $activeAssignments->pluck('role.code')->all();
 
-            foreach ($activeAssignments->whereNotIn('role.code', $roleCodes) as $assignment) {
+            $activeCodes = $activeAssignments
+                ->pluck('role.code')
+                ->all();
+
+            foreach (
+                $activeAssignments->whereNotIn('role.code', $roleCodes)
+                as $assignment
+            ) {
                 $assignment->update([
                     'active_assignment_key' => null,
                     'revoked_by' => $actor?->id,
@@ -68,9 +76,15 @@ class AssignRolesAction
 
             if ($activeCodes !== $roleCodes) {
                 $this->revokeUserSessions->execute($lockedUser);
-                $this->auditRecorder->record($actor, 'identity.roles.updated', $lockedUser, [
-                    'role_count' => count($roleCodes),
-                ]);
+
+                $this->auditRecorder->record(
+                    $actor,
+                    'identity.roles.updated',
+                    $lockedUser,
+                    [
+                        'role_count' => count($roleCodes),
+                    ]
+                );
             }
 
             return $lockedUser->fresh('roles');
@@ -78,19 +92,13 @@ class AssignRolesAction
     }
 
     /**
-     * @param  list<string>  $roleCodes
+     * @param list<string> $roleCodes
      */
     private function ensureCompatibleRoles(array $roleCodes): void
     {
-        $staffRoles = array_filter(
-            $roleCodes,
-            static fn (string $code): bool => RoleCode::from($code)->isStaff(),
-        );
-        $portalRoles = array_intersect($roleCodes, [RoleCode::Guardian->value, RoleCode::Student->value]);
-
-        if ($staffRoles !== [] && $portalRoles !== []) {
+        if (count($roleCodes) !== 1) {
             throw ValidationException::withMessages([
-                'roles' => 'Staff and guardian/student portal roles cannot be assigned to the same account.',
+                'roles' => 'Only one role can be assigned to each account. Student and Guardian accounts must be separate.',
             ]);
         }
     }

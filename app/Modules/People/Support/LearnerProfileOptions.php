@@ -38,5 +38,48 @@ final class LearnerProfileOptions
         'other' => 'Other',
     ];
 
+    /** Value of the "Other (please specify)" Indigenous Peoples choice; the typed name is stored instead. */
+    public const INDIGENOUS_PEOPLES_OTHER = 'other';
+
+    /**
+     * Indigenous Cultural Communities/Indigenous Peoples of the Philippines, grouped by where they mainly live.
+     * The group name itself is stored in student_profiles.ip_group (D-057). Reference list, not exhaustive:
+     * anyone not listed is recorded through "Other (please specify)".
+     *
+     * @var array<string, list<string>>
+     */
+    public const INDIGENOUS_PEOPLES = [
+        'Cordillera and Northern Luzon' => [
+            'Applai', 'Balangao', 'Bago', 'Bontok', 'Bugkalot (Ilongot)', 'Gaddang', 'Ibaloi', 'Ibatan', 'Ifugao', 'Isinai',
+            'Isnag (Isneg)', 'Itawis', 'Itneg (Tingguian)', 'Ivatan', 'Kalanguya (Ikalahan)', 'Kalinga', 'Kankanaey', 'Karao',
+            'Malaweg', 'Yogad',
+        ],
+        'Central and Southern Luzon, and Bicol' => [
+            'Abelling', 'Aeta (Ayta)', 'Agta', 'Agta-Cimaron', 'Agta-Tabangnon', 'Dumagat', 'Dumagat-Remontado', 'Kabihug',
+        ],
+        'Mindoro and Palawan' => [
+            'Alangan', 'Bangon', 'Batak', 'Buhid', 'Cagayanen', 'Hanunuo', 'Iraya', 'Molbog', "Palaw'an", 'Ratagnon',
+            'Tadyawan', 'Tagbanua', 'Tau-buid',
+        ],
+        'Visayas' => [
+            'Ati', 'Eskaya', 'Magahat (Bukidnon of Negros)', 'Panay-Bukidnon (Sulod)',
+        ],
+        'Mindanao' => [
+            'Ata Manobo', "B'laan", 'Bagobo-Klata', 'Bagobo-Tagabawa', 'Banwaon', 'Bukidnon', 'Dibabawon', 'Dulangan Manobo',
+            'Higaonon', 'Kalagan', 'Kamayo', 'Lambangian', 'Mamanwa', 'Mandaya', 'Mangguangan', 'Manobo', 'Mansaka',
+            'Matigsalug', 'Obo Manobo', 'Sangil', 'Subanen', "T'boli", 'Tagakaulo', 'Talaandig', 'Teduray', 'Tigwahanon',
+            'Umayamnon',
+        ],
+        'Bangsamoro and Sulu' => [
+            'Badjao (Sama-Bajau)', 'Iranun', 'Jama Mapun', 'Kalibugan', 'Maguindanaon', 'Maranao', 'Sama', 'Tausug', 'Yakan',
+        ],
+    ];
+
+    /** @return list<string> every listed group name */
+    public static function indigenousPeoplesGroups(): array
+    {
+        return array_merge(...array_values(self::INDIGENOUS_PEOPLES));
+    }
+
     private function __construct() {}
 }

@@ -3,42 +3,121 @@
 namespace App\Modules\People\Support;
 
 use App\Models\User;
-use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\People\Models\StudentProfile;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
-/**
- * Resolves a typed student number to the login account behind it. Before
- * approval the permanent profile is not yet connected to the student's login,
- * so the account is reached through the application that issued the number;
- * once connected, the profile's own account is used.
- */
 class StudentNumberLoginResolver
 {
     public function resolve(string $identifier): ?User
     {
+        $candidates = $this->candidates($identifier);
+
+        return $candidates->count() === 1
+            ? $candidates->first()
+            : null;
+    }
+
+    public function candidates(string $identifier): Collection
+    {
+        $identifier = strtoupper(trim($identifier));
+
+        if ($identifier === '') {
+            return collect();
+        }
+
+        // Grade 7-10 Parent/Guardian login.
+        if (preg_match('/^PAR-\d{2}-\d{3}$/', $identifier)) {
+            if (
+                ! Schema::hasTable('guardian_profiles')
+                || ! Schema::hasColumn('guardian_profiles', 'parent_login_id')
+            ) {
+                return collect();
+            }
+
+            $userIds = DB::table('guardian_profiles')
+                ->where('parent_login_id', $identifier)
+                ->whereNotNull('user_id')
+                ->distinct()
+                ->pluck('user_id');
+
+            return $this->usersWithRole($userIds, 'guardian');
+        }
+
         if (! StudentNumber::looksLike($identifier)) {
-            return null;
+            return collect();
         }
 
-        $profile = StudentProfile::query()
-            ->where('student_number', StudentNumber::normalize($identifier))
-            ->first();
+        $number = StudentNumber::normalize($identifier);
 
-        if ($profile === null) {
-            return null;
+        $students = StudentProfile::query()
+            ->where('student_number', $number)
+            ->limit(2)
+            ->get();
+
+        if ($students->count() !== 1) {
+            return collect();
         }
 
-        if ($profile->user_id !== null) {
-            return User::query()->find($profile->user_id);
+        $student = $students->first();
+
+        // Grade 7-10: Student-owned login.
+        if ($student->user_id !== null) {
+            return $this->usersWithRole(
+                collect([$student->user_id]),
+                'student'
+            );
         }
 
-        $applicantUserId = Enrollment::query()
-            ->where('student_id', $profile->id)
-            ->whereNotNull('student_applicant_user_id')
-            ->orderByDesc('submitted_at')
-            ->orderByDesc('id')
-            ->value('student_applicant_user_id');
+        // Nursery-Grade 6: Guardian-owned login.
+        // Do not use a separate PAR login for this Student ID.
+        if (
+            ! Schema::hasTable('guardian_student')
+            || ! Schema::hasTable('guardian_profiles')
+        ) {
+            return collect();
+        }
 
-        return $applicantUserId !== null ? User::query()->find($applicantUserId) : null;
+        $guardianIds = DB::table('guardian_student as gs')
+            ->join(
+                'guardian_profiles as gp',
+                'gp.id',
+                '=',
+                'gs.guardian_id'
+            )
+            ->where('gs.student_id', $student->id)
+            ->whereNull('gs.ended_at')
+            ->where('gs.may_manage_enrollment', 1)
+            ->whereNotNull('gp.user_id')
+            ->where(function ($query) {
+                $query->whereNull('gp.parent_login_id')
+                    ->orWhere('gp.parent_login_id', '');
+            })
+            ->distinct()
+            ->pluck('gp.user_id');
+
+        return $this->usersWithRole($guardianIds, 'guardian');
+    }
+
+    private function usersWithRole(
+        Collection $userIds,
+        string $role
+    ): Collection {
+        $ids = $userIds
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereIn('id', $ids)
+            ->whereHas('roles', function ($query) use ($role) {
+                $query->where('code', $role);
+            })
+            ->get();
     }
 }

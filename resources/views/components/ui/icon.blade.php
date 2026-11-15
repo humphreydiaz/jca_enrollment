@@ -83,6 +83,12 @@
         @case('check')
             <path d="M5 12l5 5L20 7" />
             @break
+        @case('eye')
+            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.5" />
+            @break
+        @case('eye-off')
+            <path d="m3 3 18 18" /><path d="M10.6 6.2A9.9 9.9 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.6 6.6C4 8.2 2.5 12 2.5 12s3.5 6 9.5 6a9.8 9.8 0 0 0 4.1-.9" /><path d="M10.2 10.2a2.5 2.5 0 0 0 3.6 3.6" />
+            @break
         @default
             <circle cx="12" cy="12" r="9" />
     @endswitch

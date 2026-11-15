@@ -47,8 +47,10 @@
         ];
     })->values();
 
-    $promotionRecords = $enrolledForPromotion->getCollection()->map(function ($enrollment) use ($futureYears) {
+    $promotionRecords = $enrolledForPromotion->getCollection()->map(function ($enrollment) use ($futureYears, $promotionGrades) {
         $recommendation = $enrollment->promotionRecommendation;
+        $readiness = $promotionGrades[$enrollment->id] ?? null;
+        $gradesReady = $readiness?->isReady() ?? false;
 
         return [
             'publicId' => $enrollment->public_id,
@@ -57,10 +59,18 @@
             'context' => $enrollment->gradeLevel->name.' · '.$enrollment->academicYear->name,
             'gradeName' => $enrollment->gradeLevel->name,
             'recommendAction' => route('promotion.recommend', $enrollment),
-            'createAction' => $recommendation?->eligibility_status === 'eligible' && ! $recommendation->created_enrollment_id
+            'createAction' => $recommendation?->eligibility_status === 'eligible' && ! $recommendation->created_enrollment_id && $gradesReady
                 ? route('promotion.create-draft', $recommendation)
                 : null,
+            'staleEligible' => $recommendation?->eligibility_status === 'eligible' && ! $recommendation->created_enrollment_id && ! $gradesReady,
+            'grades' => $readiness?->toArray(),
             'status' => $recommendation?->eligibility_status ?? 'unreviewed',
+            'statusLabel' => match ($recommendation?->eligibility_status) {
+                'eligible' => 'eligible',
+                'grades_pending' => 'waiting for approved final grades',
+                'ineligible' => 'not eligible',
+                default => 'not reviewed',
+            },
             'reason' => $recommendation?->reason,
             'target' => collect([$recommendation?->targetGradeLevel?->name, $recommendation?->targetAcademicYear?->name])->filter()->join(' · '),
             'draftCreated' => (bool) $recommendation?->created_enrollment_id,
@@ -149,7 +159,7 @@
                 <label class="jca-label">Promotion status
                     <select name="promotion_status" class="jca-input">
                         <option value="">All statuses</option>
-                        @foreach(['unreviewed' => 'Not reviewed', 'eligible' => 'Eligible', 'ineligible' => 'Ineligible', 'draft_created' => 'Draft created'] as $value => $label)<option value="{{ $value }}" @selected(($filters['promotion_status'] ?? null) === $value)>{{ $label }}</option>@endforeach
+                        @foreach(['unreviewed' => 'Not reviewed', 'eligible' => 'Eligible', 'grades_pending' => 'Waiting for final grades', 'ineligible' => 'Ineligible', 'draft_created' => 'Draft created'] as $value => $label)<option value="{{ $value }}" @selected(($filters['promotion_status'] ?? null) === $value)>{{ $label }}</option>@endforeach
                     </select>
                 </label>
                 <label class="jca-label">Rows
@@ -332,7 +342,7 @@
             aria-labelledby="promotion-title"
         >
             <div class="flex flex-col gap-2 border-b border-border px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div><h2 id="promotion-title" class="text-xl font-black text-brand-navy-900">Promotion review</h2><p class="mt-1 text-sm text-muted">Review eligibility without changing the completed school-year record.</p></div>
+                <div><h2 id="promotion-title" class="text-xl font-black text-brand-navy-900">Promotion review</h2><p class="mt-1 text-sm text-muted">A student is eligible when every current subject has a Registrar-approved final grade, a next grade level exists, and a future school year is configured. Reviewing never changes the completed school-year record.</p></div>
                 <p class="text-sm font-bold text-muted">{{ number_format($enrolledForPromotion->total()) }} result{{ $enrolledForPromotion->total() === 1 ? '' : 's' }}</p>
             </div>
             <div class="overflow-x-auto">
@@ -362,8 +372,11 @@
                     <tbody class="divide-y divide-border bg-white">
                         @forelse($enrolledForPromotion as $enrollment)
                             @php($promotion = $enrollment->promotionRecommendation)
+                            @php($justReviewed = session('promotion_reviewed') === $enrollment->public_id)
                             <tr
-                                class="transition-colors hover:bg-slate-50/60"
+                                id="promotion-row-{{ $enrollment->public_id }}"
+                                class="scroll-mt-32 transition-colors hover:bg-slate-50/60 {{ $justReviewed ? 'bg-brand-blue-100/50 shadow-[inset_4px_0_0_var(--color-brand-gold-500)]' : '' }}"
+                                @if($justReviewed) data-just-reviewed @endif
                                 :class="isPromotionSelected('{{ $enrollment->public_id }}') ? 'bg-brand-blue-100/30' : ''"
                             >
                                 <td class="px-3 py-4 text-center">
@@ -375,15 +388,23 @@
                                         aria-label="Select {{ $enrollment->student->full_name }}"
                                     >
                                 </td>
-                                <td class="px-5 py-4"><p class="font-bold text-brand-navy-900">{{ $enrollment->student->full_name }}</p><p class="mt-1 text-xs text-muted">{{ $enrollment->application_number }}</p></td>
+                                <td class="px-5 py-4"><p class="font-bold text-brand-navy-900">{{ $enrollment->student->full_name }}</p><p class="mt-1 text-xs text-muted">{{ $enrollment->application_number }}</p>@if($justReviewed)<p class="mt-1 text-xs font-bold text-brand-navy-700">Just updated</p>@endif</td>
                                 <td class="whitespace-nowrap px-5 py-4"><p class="font-semibold">{{ $enrollment->gradeLevel->name }}</p><p class="mt-1 text-xs text-muted">{{ $enrollment->academicYear->name }}</p></td>
-                                <td class="px-5 py-4">@if($promotion)<x-ui.status-badge :status="$promotion->eligibility_status" />@else<span class="font-semibold text-muted">Not reviewed</span>@endif</td>
+                                @php($gradeCheck = $promotionGrades[$enrollment->id] ?? null)
+                                <td class="px-5 py-4">
+                                    @if($promotion)<x-ui.status-badge :status="$promotion->eligibility_status" :label="$promotion->eligibility_status === 'grades_pending' ? 'Waiting for grades' : null" />@else<span class="font-semibold text-muted">Not reviewed</span>@endif
+                                    @if($gradeCheck && $gradeCheck->requiredCount() > 0)
+                                        <p class="mt-1.5 text-xs font-semibold {{ $gradeCheck->isReady() ? 'text-success-700' : 'text-warning-800' }}">Final grades approved: {{ $gradeCheck->approvedCount() }} / {{ $gradeCheck->requiredCount() }}</p>
+                                    @elseif($gradeCheck && in_array($gradeCheck->state, ['no_section', 'no_subjects'], true))
+                                        <p class="mt-1.5 text-xs font-semibold text-warning-800">{{ $gradeCheck->state === 'no_section' ? 'No confirmed section' : 'No subjects in section' }}</p>
+                                    @endif
+                                </td>
                                 <td class="px-5 py-4">{{ collect([$promotion?->targetGradeLevel?->name, $promotion?->targetAcademicYear?->name])->filter()->join(' · ') ?: '—' }}</td>
                                 <td class="px-5 py-4">@if($promotion?->created_enrollment_id)<x-ui.status-badge tone="ready">Draft created</x-ui.status-badge>@else<span class="text-muted">Not created</span>@endif</td>
                                 <td class="px-5 py-4 text-right"><button type="button" class="jca-button-secondary whitespace-nowrap" @click="openPromotion('{{ $enrollment->public_id }}')" aria-haspopup="dialog">Manage promotion</button></td>
                             </tr>
                         @empty
-                            <tr><td colspan="7" class="p-6"><x-ui.empty-state icon="progress" :title="$hasFilters ? 'No promotion records match these filters' : 'No promotion reviews available'" description="Eligible enrolled students appear here when a future school year is configured." /></td></tr>
+                            <tr><td colspan="7" class="p-6"><x-ui.empty-state icon="progress" :title="$hasFilters ? 'No promotion records match these filters' : 'No promotion reviews available'" description="Enrolled students appear here. They become eligible once every subject has a Registrar-approved final grade and a future school year is configured." /></td></tr>
                         @endforelse
                     </tbody>
                 </table>
@@ -495,14 +516,32 @@
             <div x-show="selectedPromotion" x-cloak>
                 <header class="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-border bg-white p-5 sm:px-6"><div><p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-orange-500">Promotion review</p><h2 id="promotion-dialog-title" class="mt-1 text-xl font-black text-brand-navy-900" x-text="selectedPromotion?.name"></h2><p class="mt-1 text-sm text-muted"><span x-text="selectedPromotion?.reference"></span> · <span x-text="selectedPromotion?.context"></span></p></div><button type="button" class="grid size-10 place-items-center rounded-lg text-muted hover:bg-slate-100" @click="closePromotion()" aria-label="Close promotion review"><x-ui.icon name="close" /></button></header>
                 <div class="space-y-5 p-5 sm:p-6">
-                    <template x-if="selectedPromotion?.reason"><div class="rounded-xl bg-slate-50 p-4 text-sm"><p class="font-bold text-brand-navy-900">Current review: <span x-text="selectedPromotion?.status"></span></p><p class="mt-1 text-muted" x-text="selectedPromotion?.reason"></p><p class="mt-2 font-semibold" x-show="selectedPromotion?.target">Target: <span x-text="selectedPromotion?.target"></span></p></div></template>
+                    <template x-if="selectedPromotion?.reason"><div class="rounded-xl bg-slate-50 p-4 text-sm"><p class="font-bold text-brand-navy-900">Current review: <span x-text="selectedPromotion?.statusLabel"></span></p><p class="mt-1 text-muted" x-text="selectedPromotion?.reason"></p><p class="mt-2 font-semibold" x-show="selectedPromotion?.target">Target: <span x-text="selectedPromotion?.target"></span></p></div></template>
+                    <template x-if="selectedPromotion?.grades && selectedPromotion.grades.subjects.length">
+                        <div class="rounded-xl border border-border">
+                            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+                                <p class="text-sm font-black text-brand-navy-900">Final grades</p>
+                                <p class="text-xs font-bold" :class="selectedPromotion.grades.ready ? 'text-success-700' : 'text-warning-800'"><span x-text="selectedPromotion.grades.approved"></span> of <span x-text="selectedPromotion.grades.required"></span> approved</p>
+                            </div>
+                            <ul class="divide-y divide-border text-sm">
+                                <template x-for="subject in selectedPromotion.grades.subjects" :key="subject.code">
+                                    <li class="flex items-center justify-between gap-3 px-4 py-2">
+                                        <span class="min-w-0"><span class="font-semibold" x-text="subject.name"></span> <span class="text-xs" :class="subject.status === 'approved' ? 'text-success-700' : 'text-warning-800'" x-text="'· ' + subject.label"></span></span>
+                                        <span class="font-black tabular-nums text-brand-navy-900" x-text="subject.final_grade ?? '—'"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </template>
+                    <template x-if="selectedPromotion?.grades && ! selectedPromotion.grades.subjects.length && ! selectedPromotion.grades.ready"><p class="rounded-xl bg-warning-50 p-4 text-sm font-semibold text-warning-800" x-text="selectedPromotion.grades.summary"></p></template>
+                    <template x-if="selectedPromotion?.staleEligible"><p class="rounded-xl bg-warning-50 p-4 text-sm font-semibold text-warning-800">Final grades changed since the last review. Review eligibility again before creating the next-year draft.</p></template>
                     <form method="POST" :action="selectedPromotion?.recommendAction" class="space-y-4">@csrf
                         <input type="hidden" name="modal_context" value="promotion"><input type="hidden" name="record_public_id" :value="selectedPromotion?.publicId">
                         @if(old('modal_context') === 'promotion' && $errors->any())<div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-brand-red-600" role="alert"><p class="font-bold">Please correct the promotion details.</p><ul class="mt-2 list-disc space-y-1 pl-5">@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
                         <label class="jca-label">Target school year<select name="target_academic_year_public_id" class="jca-input" x-model="targetYear"><option value="">Use earliest configured future year</option><template x-for="year in selectedPromotion?.years ?? []" :key="year.value"><option :value="year.value" x-text="year.label"></option></template></select></label>
                         <div class="flex justify-end"><x-ui.button type="submit" variant="secondary"><x-ui.icon name="progress" /> Review eligibility</x-ui.button></div>
                     </form>
-                    <template x-if="selectedPromotion?.createAction"><form method="POST" :action="selectedPromotion?.createAction" class="border-t border-border pt-5">@csrf<p class="text-sm text-muted">Eligibility is confirmed. This creates a separate next-year draft and preserves the current record.</p><div class="mt-4 flex justify-end"><x-ui.button type="submit"><x-ui.icon name="enrollment" /> Create next-year draft</x-ui.button></div></form></template>
+                    <template x-if="selectedPromotion?.createAction"><form method="POST" :action="selectedPromotion?.createAction" class="border-t border-border pt-5">@csrf<p class="text-sm text-muted">All final grades are approved and eligibility is confirmed. This creates a separate next-year draft and preserves the current record.</p><div class="mt-4 flex justify-end"><x-ui.button type="submit"><x-ui.icon name="enrollment" /> Create next-year draft</x-ui.button></div></form></template>
                     <template x-if="selectedPromotion?.draftCreated"><p class="rounded-xl bg-success-50 p-4 text-sm font-bold text-success-700">The next-year draft has already been created for Registrar review.</p></template>
                     <div class="flex justify-end border-t border-border pt-4"><button type="button" class="jca-button-secondary" @click="closePromotion()">Close</button></div>
                 </div>

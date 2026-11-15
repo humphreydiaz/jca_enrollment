@@ -25,6 +25,7 @@ class CreateGuardianProfileAction
                 'first_name' => $attributes['first_name'],
                 'last_name' => $attributes['last_name'],
                 'middle_name' => $attributes['middle_name'] ?? null,
+                'extension_name' => $attributes['extension_name'] ?? null,
                 'mobile' => ContactNormalizer::mobile($attributes['mobile'] ?? null),
                 'email' => ContactNormalizer::email($attributes['email'] ?? null),
                 'preferred_contact_method' => $attributes['preferred_contact_method'] ?? null,

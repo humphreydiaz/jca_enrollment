@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 class AcademicYear extends Model
 {
-    protected $fillable = ['code', 'name', 'starts_on', 'ends_on', 'enrollment_opens_on', 'enrollment_closes_on', 'status'];
+    protected $fillable = ['code', 'name', 'starts_on', 'ends_on', 'enrollment_opens_on', 'enrollment_closes_on', 'enrollment_is_open', 'status'];
 
     protected static function booted(): void
     {
@@ -17,7 +17,7 @@ class AcademicYear extends Model
 
     protected function casts(): array
     {
-        return ['starts_on' => 'date', 'ends_on' => 'date', 'enrollment_opens_on' => 'date', 'enrollment_closes_on' => 'date'];
+        return ['starts_on' => 'date', 'ends_on' => 'date', 'enrollment_opens_on' => 'date', 'enrollment_closes_on' => 'date', 'enrollment_is_open' => 'boolean'];
     }
 
     public function sections(): HasMany

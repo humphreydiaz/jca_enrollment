@@ -9,6 +9,11 @@ use Illuminate\Validation\Rule;
 
 class StartEnrollmentRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['religion' => 'Christianity']);
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -28,7 +33,7 @@ class StartEnrollmentRequest extends FormRequest
             'birth_date' => ['required', 'date', 'before:today'],
             'birth_place' => ['required', 'string', 'max:255'],
             'mother_tongue' => ['required', 'string', 'max:100'],
-            'religion' => ['nullable', 'string', 'max:100'],
+            'religion' => ['required', Rule::in(['Christianity'])],
             'ip_group' => ['nullable', 'string', 'max:150'],
             'is_4ps_recipient' => ['required', 'boolean'],
             'four_ps_household_id' => [Rule::requiredIf($this->boolean('is_4ps_recipient')), 'nullable', 'string', 'max:50'],
@@ -37,11 +42,18 @@ class StartEnrollmentRequest extends FormRequest
             'current_address' => ['required', 'string', 'max:1000'],
             'same_as_current_address' => ['required', 'boolean'],
             'permanent_address' => [Rule::requiredIf(! $this->boolean('same_as_current_address')), 'nullable', 'string', 'max:1000'],
-            'father_name' => ['nullable', 'string', 'max:255'],
-            'mother_maiden_name' => ['nullable', 'string', 'max:255'],
+            'father_first_name' => ['nullable', 'string', 'max:100'],
+            'father_middle_name' => ['nullable', 'string', 'max:100'],
+            'father_last_name' => ['nullable', 'string', 'max:100'],
+            'father_extension_name' => ['nullable', 'string', 'max:30'],
+            'mother_first_name' => ['nullable', 'string', 'max:100'],
+            'mother_middle_name' => ['nullable', 'string', 'max:100'],
+            'mother_maiden_last_name' => ['nullable', 'string', 'max:100'],
+            'mother_extension_name' => ['nullable', 'string', 'max:30'],
             'guardian_first_name' => ['required', 'string', 'max:100'],
             'guardian_middle_name' => ['nullable', 'string', 'max:100'],
             'guardian_last_name' => ['required', 'string', 'max:100'],
+            'guardian_extension_name' => ['nullable', 'string', 'max:30'],
             'guardian_relationship' => ['required', Rule::in(array_keys(LearnerProfileOptions::GUARDIAN_RELATIONSHIPS))],
             'guardian_mobile' => ['required', 'string', 'max:30', 'regex:/^(?:\+63|0)9\d{9}$/'],
             'guardian_email' => ['nullable', 'email:rfc', 'max:255'],

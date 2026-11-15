@@ -131,6 +131,7 @@ class StartEnrollmentAction
                     'first_name' => trim($data['guardian_first_name']),
                     'middle_name' => filled($data['guardian_middle_name'] ?? null) ? trim($data['guardian_middle_name']) : null,
                     'last_name' => trim($data['guardian_last_name']),
+                    'extension_name' => filled($data['guardian_extension_name'] ?? null) ? trim($data['guardian_extension_name']) : null,
                     'mobile' => $mobile,
                     'email' => $email,
                 ]);
@@ -152,8 +153,14 @@ class StartEnrollmentAction
                     'disability_type' => (bool) $data['is_learner_with_disability'] ? $data['disability_type'] : null,
                     'current_address' => trim($data['current_address']),
                     'permanent_address' => (bool) $data['same_as_current_address'] ? trim($data['current_address']) : trim($data['permanent_address']),
-                    'father_name' => filled($data['father_name'] ?? null) ? trim($data['father_name']) : null,
-                    'mother_maiden_name' => filled($data['mother_maiden_name'] ?? null) ? trim($data['mother_maiden_name']) : null,
+                    'father_first_name' => filled($data['father_first_name'] ?? null) ? trim($data['father_first_name']) : null,
+                    'father_middle_name' => filled($data['father_middle_name'] ?? null) ? trim($data['father_middle_name']) : null,
+                    'father_last_name' => filled($data['father_last_name'] ?? null) ? trim($data['father_last_name']) : null,
+                    'father_extension_name' => filled($data['father_extension_name'] ?? null) ? trim($data['father_extension_name']) : null,
+                    'mother_first_name' => filled($data['mother_first_name'] ?? null) ? trim($data['mother_first_name']) : null,
+                    'mother_middle_name' => filled($data['mother_middle_name'] ?? null) ? trim($data['mother_middle_name']) : null,
+                    'mother_maiden_last_name' => filled($data['mother_maiden_last_name'] ?? null) ? trim($data['mother_maiden_last_name']) : null,
+                    'mother_extension_name' => filled($data['mother_extension_name'] ?? null) ? trim($data['mother_extension_name']) : null,
                 ]);
                 $resumeToken = Str::random(64);
                 $verificationCode = (string) random_int(100000, 999999);

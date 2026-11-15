@@ -15,6 +15,28 @@
     </section>
 @endif
 
+@if (($urgentAccountingAssessments ?? 0) > 0)
+<section class="jca-card cursor-pointer border-2 border-red-300 bg-red-50 p-5 sm:p-6 transition hover:bg-red-100" onclick="window.location.href='{{ route('billing.index') }}#awaiting-assessment'">
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h2 class="text-lg font-black text-red-800">
+                URGENT - Enrolled Students Without Fee Assessment
+            </h2>
+
+            <p class="mt-2 text-sm text-red-700">
+                {{ $urgentAccountingAssessments }}
+                enrolled student(s) have no fee assessment.
+                Please review their billing records.
+            </p>
+        </div>
+
+        <a href="{{ route('billing.index') }}"
+           class="inline-flex items-center rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800">
+            View in Billing
+        </a>
+    </div>
+</section>
+@endif
 <section aria-labelledby="acct-collections-title">
     <div>
         <h2 id="acct-collections-title" class="text-xl font-black text-brand-navy-900">Collections summary</h2>

@@ -9,7 +9,7 @@ class TransitionEnrollmentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->can('update', $this->route('enrollment')) ?? false;
+        return $this->user()?->can('viewAny', \App\Modules\Enrollment\Models\Enrollment::class) ?? false;
     }
 
     public function rules(): array

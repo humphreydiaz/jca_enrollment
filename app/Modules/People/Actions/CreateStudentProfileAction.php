@@ -22,8 +22,12 @@ class CreateStudentProfileAction
                 'first_name' => $attributes['first_name'],
                 'last_name' => $attributes['last_name'],
                 'middle_name' => $attributes['middle_name'] ?? null,
+                'extension_name' => $attributes['extension_name'] ?? null,
                 'preferred_name' => $attributes['preferred_name'] ?? null,
+                'lrn' => $attributes['lrn'] ?? null,
+                'sex' => $attributes['sex'] ?? null,
                 'birth_date' => $attributes['birth_date'] ?? null,
+                'religion' => $attributes['religion'] ?? null,
                 'status' => 'active',
             ]);
 

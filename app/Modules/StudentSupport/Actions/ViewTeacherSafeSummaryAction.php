@@ -30,10 +30,7 @@ class ViewTeacherSafeSummaryAction
 
         $summary = ApprovedSupportSummary::query()
             ->whereHas('supportCase', fn (Builder $query) => $query->where('enrollment_id', $assignment->enrollment_id))
-            ->whereNotNull('approved_at')
-            ->whereNull('superseded_by')
-            ->where(fn (Builder $query) => $query->whereNull('effective_from')->orWhereDate('effective_from', '<=', today()))
-            ->where(fn (Builder $query) => $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', today()))
+            ->currentlyEffective()
             ->latest('approved_at')
             ->first();
 

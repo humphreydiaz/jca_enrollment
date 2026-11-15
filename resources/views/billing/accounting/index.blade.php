@@ -182,7 +182,19 @@
                                 <td class="px-4 py-4">
                                     <span class="inline-flex items-center rounded-full bg-brand-blue-100 px-2.5 py-0.5 text-xs font-bold text-brand-navy-700">{{ $assessment->enrollment->gradeLevel?->name }}</span>
                                 </td>
-                                <td class="px-4 py-4"><x-ui.status-badge :status="$assessment->status" /></td>
+                                <td class="px-4 py-4">
+    @if (
+        $assessment->status === 'finalized'
+        && round((float) $balances[$assessment->id]['due'], 2) == 0
+    )
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+              style="background-color: #dcfce7; color: #166534;">
+            Paid
+        </span>
+    @else
+        <x-ui.status-badge :status="$assessment->status" />
+    @endif
+</td>
                                 <td class="px-4 py-4 text-right font-bold tabular-nums {{ (float) $balances[$assessment->id]['due'] > 0 ? 'text-brand-orange-500' : 'text-brand-navy-900' }}">PHP {{ number_format((float) $balances[$assessment->id]['due'], 2) }}</td>
                                 <td class="px-4 py-4 text-right">
                                     @if ($assessment->status === 'draft')

@@ -1,6 +1,10 @@
-<x-layouts.app title="Instructional support summary">
-    <section class="jca-card p-6 sm:p-8"><p class="text-sm font-bold uppercase tracking-[0.16em] text-brand-orange-500">Teacher-safe view</p><h1 class="mt-2 text-3xl font-black text-brand-navy-900">{{ $student->full_name }}</h1><p class="mt-2 text-sm text-muted">{{ $safeView->assignment->section->academicYear->name }} · {{ $safeView->assignment->section->gradeLevel->name }} · {{ $safeView->assignment->section->name }}</p>
-        @if($safeView->summary)<div class="mt-6 rounded-lg bg-brand-blue-100 p-5"><h2 class="text-xl font-black text-brand-navy-900">Approved instructional summary</h2><p class="mt-3 whitespace-pre-line text-ink">{{ $safeView->summary->summary }}</p><p class="mt-3 text-sm text-muted">Effective {{ $safeView->summary->effective_from?->format('d M Y') ?? 'immediately' }}{{ $safeView->summary->effective_until ? ' to '.$safeView->summary->effective_until->format('d M Y') : '' }}.</p></div>@else<p class="mt-6 rounded-lg bg-canvas p-4 text-muted">No currently effective approved teacher-safe summary is available.</p>@endif
-        <p class="mt-5 text-sm text-muted">Raw support records, reviewer identities, observations, documents, rationale, and full outcomes are never included in this view.</p>
-    </section>
+<x-layouts.app title="Student summary">
+    <div class="mx-auto max-w-3xl space-y-4">
+        <a class="inline-flex items-center gap-1 text-sm font-bold text-brand-navy-700 hover:underline" href="{{ route('academics.teacher.assignments', ['year' => $safeView->assignment->section->academicYear->public_id]) }}">← My teaching</a>
+        <section class="jca-card p-6 sm:p-8">
+            <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-brand-orange-500">Student summary</p>
+            <h1 class="mt-2 text-2xl font-black text-brand-navy-900 sm:text-3xl">{{ $student->full_name }}</h1>
+            <div class="mt-5">@include('support.partials.teacher-safe-summary')</div>
+        </section>
+    </div>
 </x-layouts.app>

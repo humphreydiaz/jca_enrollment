@@ -4,7 +4,7 @@ This runbook is hosting-neutral until P-007 names the production host and servic
 
 ## Release prerequisites
 
-- Signed P-001 through P-008 artifacts are stored in the launch record.
+- Signed P-001 through P-011 artifacts are stored in the launch record.
 - Production secrets are installed outside the repository; `.env.production.example` is a template only.
 - A least-privilege MySQL 8.0+ database/user exists, with TLS if the host supports it.
 - HTTPS termination, encrypted private storage, encrypted offsite backup, monitoring, queue supervision, scheduler invocation, and log rotation are configured.

@@ -20,8 +20,8 @@ class BackfillStudentNumbers extends Command
         // Learners who have a live (non-terminal) submitted application but no
         // number yet — i.e. everyone currently expected to sign in. Terminal
         // applicants (rejected, withdrawn, cancelled) are left out; they get a
-        // number only if they re-apply. Ordered by first submission so the
-        // sequence within each entry year reflects the historical order.
+        // number only if they re-apply. Historical order is used only to make
+        // the operational output predictable; suffixes are randomly issued.
         $profiles = StudentProfile::query()
             ->whereNull('student_number')
             ->whereHas('enrollments', fn ($query) => $query

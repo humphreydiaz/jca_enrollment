@@ -11,18 +11,11 @@
                 <x-ui.empty-state
                     class="jca-card"
                     icon="users"
-                    title="Student account setup is incomplete"
-                    description="This login is not connected to an approved student profile yet. Start one enrollment application, then return here to follow its status and requirement checklist."
-                >
-                    <x-slot:action>
-                        <a class="jca-button-primary" href="{{ route('enrollment.public.start') }}">
-                            <x-ui.icon name="enrollment" size="size-4" />
-                            Start enrollment application
-                        </a>
-                    </x-slot:action>
-                </x-ui.empty-state>
+                    title="No Registrar-issued application"
+                    description="Visit the JCA Registrar in person. After identity and duplicate-record checking, the Registrar will issue temporary access for the application."
+                />
             @else
-                @php($hasActiveApplication = $studentApplications->contains(fn ($application) => ! $application->isTerminal()))
+                @php $hasActiveApplication = $studentApplications->contains(fn ($application) => ! $application->isTerminal()); @endphp
                 <div class="space-y-5">
                     @foreach ($studentApplications as $application)
                         <article class="jca-card overflow-hidden" aria-labelledby="application-{{ $application->public_id }}">
@@ -100,12 +93,7 @@
                     @endforeach
 
                     @unless ($hasActiveApplication)
-                        <div class="flex justify-end">
-                            <a class="jca-button-primary" href="{{ route('enrollment.public.start') }}">
-                                <x-ui.icon name="enrollment" size="size-4" />
-                                Start a new application
-                            </a>
-                        </div>
+                        <p class="rounded-xl border border-brand-blue-100 bg-brand-blue-50 p-4 text-sm text-brand-navy-900">To begin another school-year application, visit the Registrar for an in-person review and issued access.</p>
                     @endunless
                 </div>
             @endif
@@ -128,12 +116,47 @@
                             <h2 class="text-xl font-black text-brand-navy-900">{{ $enrollment->academicYear->name }} · {{ $enrollment->gradeLevel->name }}</h2>
                             <p class="mt-1 text-sm text-muted">Application {{ $enrollment->application_number }}</p>
                         </div>
-                        <x-ui.status-badge :status="$enrollment->status" />
+                        @php $learnerExitLabel = in_array($enrollment->status, ['approved', 'enrolled'], true) ? \App\Modules\People\Support\StudentExitOptions::exitLabel($enrollment->student?->status) : null; @endphp
+                        @if ($learnerExitLabel)
+                            <x-ui.status-badge :status="$enrollment->student->status" :label="$learnerExitLabel" />
+                        @else
+                            <x-ui.status-badge :status="$enrollment->status" />
+                        @endif
                     </div>
 
+                    @php
+                        $ownsDraft = $enrollment->status === 'draft' && $enrollment->access_issued_to_user_id === auth()->id();
+                        $inReview = in_array($enrollment->status, ['submitted', 'under_review', 'incomplete', 'assessment_required', 'assessment_pending', 'waitlisted'], true);
+                        $placementStage = in_array($enrollment->status, ['approved', 'enrolled'], true);
+                    @endphp
                     <div class="p-5 sm:p-6">
-                        @if ($assignment = $enrollment->currentSectionAssignment)
-                            @php($adviser = $assignment->section->teachingAssignments->first())
+                        {{-- D-049: an application still being filled in or reviewed is shown as such, never as "placement pending". --}}
+                        @if ($ownsDraft)
+                            <section class="flex flex-col gap-4 rounded-xl border border-brand-orange-500/40 bg-brand-orange-500/5 p-5 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="draft-{{ $enrollment->public_id }}">
+                                <div>
+                                    <h3 id="draft-{{ $enrollment->public_id }}" class="font-black text-brand-navy-900">Your application form is not finished yet</h3>
+                                    <p class="mt-1 text-sm text-muted">Fill in the remaining details, then press Submit for Registrar review. Nothing is reviewed until you submit.</p>
+                                </div>
+                                <a class="jca-button-primary shrink-0" href="{{ route('enrollment.public.status', $enrollment) }}"><x-ui.icon name="enrollment" size="size-4" /> Complete application</a>
+                            </section>
+                        @elseif ($enrollment->status === 'draft')
+                            <x-ui.empty-state icon="enrollment" title="Application being prepared" description="Your parent or guardian, or the Registrar, is completing this application. It appears here as submitted once it is sent for review." />
+                        @elseif ($inReview)
+                            <section class="flex flex-col gap-4 rounded-xl border border-border bg-canvas p-5 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="review-{{ $enrollment->public_id }}">
+                                <div>
+                                    <h3 id="review-{{ $enrollment->public_id }}" class="font-black text-brand-navy-900">{{ $enrollment->status === 'incomplete' ? 'The Registrar needs more from you' : 'Your application is with the Registrar' }}</h3>
+                                    <p class="mt-1 text-sm text-muted">{{ $enrollment->status === 'incomplete' ? 'Check the requirements below or visit the Registrar.' : 'Your section and class schedule appear here after the application is approved.' }}</p>
+                                </div>
+                                <a class="jca-button-secondary shrink-0" href="{{ route('enrollment.public.status', $enrollment) }}"><x-ui.icon name="reports" size="size-4" /> View application</a>
+                            </section>
+                        @elseif ($enrollment->isTerminal() && ! $enrollment->currentSectionAssignment)
+                            <p class="rounded-lg bg-slate-50 p-4 text-sm text-muted">This application is closed ({{ str($enrollment->status)->headline() }}).</p>
+                        @endif
+
+                        @if (! $placementStage && ! $enrollment->currentSectionAssignment)
+                            {{-- no placement block before approval --}}
+                        @elseif ($assignment = $enrollment->currentSectionAssignment)
+                            @php $adviser = $assignment->section->teachingAssignments->first(); @endphp
                             <div class="grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                                 <section class="rounded-xl bg-brand-blue-100 p-5" aria-labelledby="section-{{ $enrollment->public_id }}">
                                     <span class="grid size-11 place-items-center rounded-xl bg-white text-brand-navy-700 shadow-sm"><x-ui.icon name="sections" /></span>
@@ -145,11 +168,18 @@
 
                                 <section class="rounded-xl border border-border p-5" aria-labelledby="schedule-{{ $enrollment->public_id }}">
                                     <div class="flex items-center gap-3"><span class="grid size-10 place-items-center rounded-xl bg-slate-100 text-brand-navy-700"><x-ui.icon name="academics" /></span><h3 id="schedule-{{ $enrollment->public_id }}" class="text-lg font-black text-brand-navy-900">Class schedule</h3></div>
-                                    <ul class="mt-4 divide-y divide-border">
+                                    @if ($assignment->section->sectionSubjects->isNotEmpty())
+                                        <div class="mt-4 hidden gap-4 border-b border-border pb-2 text-xs font-extrabold uppercase tracking-wider text-muted sm:grid sm:grid-cols-[minmax(9rem,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]" aria-hidden="true"><span>Subject</span><span>Schedule</span><span>Teacher</span></div>
+                                    @endif
+                                    <ul class="divide-y divide-border {{ $assignment->section->sectionSubjects->isNotEmpty() ? 'sm:mt-0 mt-4' : 'mt-4' }}">
                                         @forelse ($assignment->section->sectionSubjects as $sectionSubject)
-                                            <li class="grid gap-1 py-3 sm:grid-cols-[minmax(10rem,0.7fr)_minmax(0,1.3fr)] sm:gap-4"><strong class="text-sm text-brand-navy-900">{{ $sectionSubject->subject->name }}</strong><span class="text-sm text-muted">{{ $sectionSubject->schedule_text ?: 'Schedule not yet recorded' }}</span></li>
+                                            <li class="grid gap-1 py-3 sm:grid-cols-[minmax(9rem,1fr)_minmax(0,1fr)_minmax(0,0.9fr)] sm:gap-4"><strong class="text-sm text-brand-navy-900">{{ $sectionSubject->subject->name }}</strong><span class="text-sm text-muted">{{ $sectionSubject->schedule_text ?: 'Schedule not yet recorded' }}</span><span class="text-sm text-ink"><span class="text-muted sm:hidden">Teacher: </span>{{ $sectionSubject->teacherNames() ?: 'To be assigned' }}</span></li>
                                         @empty
-                                            <li><x-ui.empty-state icon="academics" title="No schedule configured" description="Your subjects and meeting schedule will appear here after school staff complete the section schedule." /></li>
+                                            @if ($assignment->section->activity_schedule)
+                                                <li><x-academics.daily-activities :section="$assignment->section" class="py-3" /></li>
+                                            @else
+                                                <li><x-ui.empty-state icon="academics" title="No schedule configured" description="Your subjects and meeting schedule will appear here after school staff complete the section schedule." /></li>
+                                            @endif
                                         @endforelse
                                     </ul>
                                 </section>
@@ -159,12 +189,12 @@
                         @endif
 
                         @if($enrollment->requirements->isNotEmpty())
-                            <section class="mt-6 border-t border-border pt-5" aria-labelledby="connected-requirements-{{ $enrollment->public_id }}">
+                            <section class="{{ $ownsDraft || $inReview || $placementStage || $enrollment->currentSectionAssignment ? 'mt-6 border-t border-border pt-5' : '' }}" aria-labelledby="connected-requirements-{{ $enrollment->public_id }}">
                                 <h3 id="connected-requirements-{{ $enrollment->public_id }}" class="text-lg font-black text-brand-navy-900">Requirement record</h3>
                                 <p class="mt-1 text-sm text-muted">Soft-copy evidence and the continuing hard-copy obligation are shown separately.</p>
                                 <div class="mt-4 space-y-3">
                                     @foreach($enrollment->requirements as $requirement)
-                                        <x-enrollment.requirement-status :requirement="$requirement" :show-upload="false" />
+                                        <x-enrollment.requirement-status :requirement="$requirement" :show-upload="$enrollment->student_applicant_user_id === auth()->id() && ! $placementStage" />
                                     @endforeach
                                 </div>
                             </section>

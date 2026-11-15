@@ -14,13 +14,15 @@ Build a maintainable school system that remains simple to deploy: one Laravel ap
 - `.env.example` and `.env.testing.example` target MySQL; the application configuration has no SQLite, PostgreSQL, or Redis connection.
 - Shared module routing, a non-business smoke route, reusable Blade layouts/components, private-document disk configuration, and log-context redaction are available.
 - Phase 2 adds closed login, separate role-gated parent/student and staff sign-in entry points over one identity/session system, rate limiting, one-time invitations, staff-assisted recovery invitations, password-change enforcement, role history, people profiles, and guardian/student relationships.
-- Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. The confirmed Nursery-to-Grade-12 progression is seeded; the remaining official catalog inputs are still pending.
+- Phase 3 adds the Academics module: data-driven school years, grade levels, subjects, sections, schedule notes, and active teaching assignments. Admin/Registrar maintain catalog data; teacher visibility is derived only from active assignments. The confirmed Nursery-to-Grade-10 progression is seeded; the remaining official catalog inputs are still pending.
 - Phase 4 adds Enrollment, Requirements & Documents, and Student Support delivery: rate-limited public drafts, hashed resume/contact-verification secrets, email code delivery with staff verification fallback, MySQL identity locks, duplicate review, guardian invitation connection, explicit enrollment transitions/history/decisions, checklist snapshots, restricted reviewer queues/events, and guardian-safe progress. D-025 now supports versioned private soft-copy evidence alongside audited hard-copy receipt tracking.
 - Phase 5 adds the Section Assignment module: deterministic available-capacity recommendation, transactionally locked confirmation/transfer, Admin-only overrides, append-only history, final academic `enrolled` transition, promotion recommendations/drafts with audited accepted hard-copy requirement carryover, portal-safe section/schedule views, and assignment-scoped Teacher summaries.
 - Phase 6 adds Billing: versioned configuration, immutable assessment snapshots/revisions, exact-centavo plan generation, after-commit approval discount awards, append-only offline collections/corrections, private evidence, permit calculations/overrides, scoped portals, and audited print history. MySQL row locks protect award and reference allocation.
-- Live Semaphore communication, approved official report formats, grades, and attendance remain unimplemented.
+- Live Semaphore communication, approved official report formats, and attendance remain unimplemented. Phase 10 defines the post-baseline target, Phases 11-15 implement the identifier/correction foundation, unified login, walk-in access, curriculum automation, and four-quarter numeric grading. Phases 16-17 remain planned for promotion and release packaging.
 
 ## 3. System context
+
+Phase 15 now adds a bounded Grading module with its own provider, routes, models, policies, actions, and MySQL tables. It reads Academics teaching assignments and Enrollment student identity, writes only grading periods/results/correction requests/revisions, and exposes only finalized results to families and the Admin operational grade report. The earlier baseline inventory above predates this phase.
 
 ```text
 Guardian / Student / Staff browser
@@ -72,13 +74,14 @@ app/Modules/<Module>/
   Support/          module-private utilities
 ```
 
-Views use `resources/views/<module>/`; routes are split under `routes/modules/` and registered by module providers. Shared, Identity, Academics, Enrollment, Student Support, Section Assignment, and Billing providers register their bounded web routes.
+Views use `resources/views/<module>/`; routes are split under `routes/modules/` and registered by module providers. Shared, Identity, Academics, Enrollment, Student Support, Section Assignment, and Billing providers register their bounded web routes. The planned Grading module will receive its own provider and bounded routes when Phase 15 begins.
 
 ### 4.3 Transaction boundary
 
 An application Action owns each transaction. Controllers must not coordinate partial writes. The following operations require explicit database transactions and locking/idempotency as applicable:
 
 - verifying a submission and issuing an invitation;
+- issuing or replacing walk-in temporary access after offline identity review;
 - enrollment transition and history creation;
 - assigning an early-enrollee discount rank;
 - confirming or transferring a section assignment;
@@ -86,7 +89,8 @@ An application Action owns each transaction. Controllers must not coordinate par
 - posting/reversing a payment and updating allocations;
 - granting an exam-permit override;
 - recording document deletion;
-- reserving and dispatching an SMS notification.
+- reserving and dispatching an SMS notification;
+- submitting, reopening, correcting, or finalizing quarter grades.
 
 ## 5. Module map
 
@@ -95,16 +99,18 @@ An application Action owns each transaction. Controllers must not coordinate par
 | Identity & Access | users, invitations, roles, authentication, session/security events | Shared/Audit |
 | People | student, guardian, staff profiles and relationships | Identity, Shared/Audit |
 | Academics | school years, grade levels, subjects, sections, teaching assignments | People, Shared/Audit |
-| Enrollment | applications, enrollment state, decisions, promotion | People, Academics, Requirements, Support, Shared/Audit |
+| Enrollment | applications, enrollment state, decisions | People, Academics, Requirements, Support, Shared/Audit |
 | Requirements & Documents | requirement rules, checklist snapshots, versioned private soft-copy evidence, hard-copy receipt/review metadata, private-file access logs | Enrollment identity references, Shared/Audit |
 | Student Support | restricted assessment, observations, approved teacher summary | People, Enrollment, Academics, Shared/Audit |
-| Section Assignment | recommendations, confirmations, transfers, capacity overrides | Enrollment, Academics, Student Support, Shared/Audit |
+| Section Assignment | recommendations, confirmations, transfers, capacity overrides, promotion recommendations/drafts | Enrollment, Academics, Student Support, Grading, Shared/Audit |
+| Grading (Phase 15) | grading periods, quarter grades, submission/finalization state, correction requests/revisions, calculated final subject grades | Academics, Enrollment, People, Shared/Audit |
 | Billing | fees, assessments, discounts, due schedules, payment ledger, permits | Enrollment, People, Shared/Audit |
 | Communications | announcements, templates, notifications, Semaphore delivery logs | Identity, People, Enrollment events, Shared/Audit |
 | Reporting | authorized read models, CSV/print exports | read-only access to module data |
 | Shared/Audit | reference generation, audit records, common value objects | none |
+| Shared/Backup | encrypted backup files of the whole database and private documents, restore and drill (D-060); no tables of its own | every table (read for backup, replaced only by an explicit SSH restore), Shared/Audit |
 
-**Phase 8 implementation:** Reporting is a read-only cross-module boundary with a fixed catalog, per-report role matrix, explicit field allowlists, and scoped query construction. It owns only export-job lifecycle data. Generated CSV files use a private non-serving disk, expire, and require authorization again at download. Audit review is Admin-only and exposes a deliberately reduced view rather than raw request context or metadata.
+**Phase 8 implementation:** Reporting is a read-only cross-module boundary with a fixed catalog, per-report role matrix, explicit field allowlists, and scoped query construction. It owns only export-job lifecycle data. Generated CSV files use a private non-serving disk, expire, and require authorization again at download. Audit review is Admin-only and exposes a deliberately reduced view rather than raw request context or metadata; since D-059 it also shows the allowlisted change summary (changed fields, masked old/new values, status from/to), and the Registrar's student record lists that learner's change events.
 
 ### Boundary rules
 
@@ -114,24 +120,38 @@ An application Action owns each transaction. Controllers must not coordinate par
 4. Reporting may read across modules but does not become a back door for writes or authorization bypass.
 5. Reusable code is moved to Shared only after at least two modules need the same stable concept.
 
+### Post-baseline boundaries
+
+- Identity authenticates all roles through one neutral login surface but does not decide downstream record authorization.
+- Phase 11 is implemented: People owns structured student/guardian/staff identities, collision-safe identifier issuance, and audited student-profile corrections. Identifier correction is separate from generic profile editing. Enrollment owns previous-school correction records.
+- Enrollment orchestrates the walk-in account/application start but does not write Identity or People tables directly; explicit Actions coordinate those modules.
+- Family links (D-048): People owns the grant/attach/connect actions; granting a Student account calls the Identity temporary-access action instead of writing `users` directly. Identity reads the People `SharedStudentIdPasswordGuard` before accepting a new password.
+- Communications (D-052): `SmsRecipientDirectory` reads People, Enrollment, and Identity records (read-only) to resolve who can be texted; Communications owns consents, notifications, and direct messages. Enrollment's draft save calls the Communications `UpdateSmsConsentAction` to record opt-ins given on the application form, and People stores the optional learner mobile.
+- Academics owns versioned curricula, grade-to-subject mappings, reusable section templates, year-specific offerings, schedule notes, and explicit teacher assignments. Phase 14 publishes a reviewed version transactionally into the target year; it does not own student marks.
+- Academic-year saving orchestrates a Requirements-owned Action in the same transaction to fill that year's missing official enrollment rules. Academics does not write requirement tables directly; the backfill seeder uses that same Action.
+- Grading owns quarter and final-grade records. Teachers are scoped through active Academics assignments, and final grades are computed server-side.
+- Section Assignment reads finalized grading outcomes to recommend promotion and writes only its promotion records. It never edits grades.
+
+Unified login is implemented in Phase 12 with one authentication endpoint and school-issued Student ID or Staff ID resolution. Phase 13 removes public enrollment start and requires Registrar-issued authenticated drafts. A Student ID may identify its learner account and verified guardian accounts with enrollment-management authority; the password must match exactly one active natural-person account or authentication fails closed. Email/mobile remain contact data. Phase 14 implements curriculum automation; Phase 15 implements four-quarter numeric grading for Grades 1–10; grade-based promotion remains planned.
+
 ## 6. Key workflows
 
 ### 6.1 Applicant to guardian and student accounts
 
-1. A Grade 1-6 learner applies with a guardian. For Grades 7-12, Admin may first invite a Student login and the signed-in learner may own and submit the application.
-2. The enrollment application creates the applicant student and guardian profiles; staff do not manually pre-create a profile for a new online applicant.
-3. Rate limiting, validation, duplicate detection, and bot/spam controls protect the endpoint, and the applicant receives an opaque application reference.
-4. Registrar validates the submission and resolves duplicate candidates.
-5. Identity connects or creates an expiring, single-use invitation for the guardian account, and People records the verified guardian/student relationship.
-6. After academic approval, Admin connects an eligible Grade 7-12 Student login to the permanent profile. Grade 1-6 Student connections remain audited exceptions.
+1. Parent/guardian or Grade 7-10 student appears at the Registrar in person.
+2. Registrar checks for an existing learner, guardian, account, and active application before creating anything; possible matches fail closed for reviewed connection rather than automatic merging.
+3. Enrollment orchestrates explicit People and Identity actions in one transaction. People creates the learner, primary guardian, Student ID, and verified relationship; Identity creates the natural-person account.
+4. Nursery through Grade 6 use guardian-owned access. Grades 7-10 use Student-owned access while retaining the verified guardian relationship.
+5. Registrar prints or copies the Student ID and three-day temporary password once. Only the hash is stored, no SMS/email verification is sent, and a replacement can be issued only before the owner establishes a private password.
+6. The owner signs in through the unified login, must establish a private password, and then completes/submits the owned application while authenticated.
 
 Disabled or locked guardian accounts fail closed during enrollment connection. A disabled account is reactivated only from Admin User management with a reason; the Identity action returns it to `invited`, revokes sessions, audits the change, and replaces prior setup invitations. Locked accounts remain blocked for separate security review.
 
-Student account connection is a separate People action after academic approval. It validates the Student role and one-to-one profile ownership, reads the approved/enrolled grade, permits Grades 7-12 by default, and requires an audited Admin exception reason for a younger student. Profile creation never attaches an account directly.
+Student account connection is a separate People action after academic approval. It validates the Student role and one-to-one profile ownership, reads the approved/enrolled grade, permits Grades 7-10 by default, and requires an audited Admin exception reason for a younger student. Profile creation never attaches an account directly.
 
 The manual People student-profile form is for verified legacy or offline records. An unused mistaken profile may be removed only through the audited D-024 action; all historical references fail closed.
 
-The system never sends a permanent plaintext password by SMS.
+The system never sends an enrollment password or verification code by SMS. Live transactional SMS for later enrollment status events remains separately disabled until P-005 is approved.
 
 ### 6.2 Enrollment approval
 
@@ -179,7 +199,7 @@ Use a single session guard and user provider. Roles narrow the set of possible a
 |---|---|
 | Admin | Configuration, oversight, exceptional approval; sensitive support access only when specifically authorized and audited |
 | Registrar | Student identity, enrollment, requirements, academic records, support workflow review, sections, reports |
-| Accounting | Fee assessment, payment ledger, financial reports; minimum student identity; no raw support documents |
+| Accounting | Fee assessment, payment ledger, financial configuration (D-046), financial reports; minimum student identity; no raw support documents |
 | Teacher | Current assigned advisory/subject students and approved instructional support summary |
 | Guardian | Students connected by an active guardian relationship and allowed visibility flags |
 | Student | Own current and historical portal-safe records |

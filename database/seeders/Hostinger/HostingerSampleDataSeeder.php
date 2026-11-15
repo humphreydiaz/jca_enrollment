@@ -72,12 +72,12 @@ class HostingerSampleDataSeeder extends Seeder
     ];
 
     private const TEACHERS = [
-        ['name' => 'Jose Ramos', 'email' => 'jose.ramos@example.com', 'employee_number' => 'HST-TCH-001'],
-        ['name' => 'Maria Teresa Bautista', 'email' => 'maria.bautista@example.com', 'employee_number' => 'HST-TCH-002'],
-        ['name' => 'Carlo Mendoza', 'email' => 'carlo.mendoza@example.com', 'employee_number' => 'HST-TCH-003'],
-        ['name' => 'Liza Navarro', 'email' => 'liza.navarro@example.com', 'employee_number' => 'HST-TCH-004'],
-        ['name' => 'Ramon Castillo', 'email' => 'ramon.castillo@example.com', 'employee_number' => 'HST-TCH-005'],
-        ['name' => 'Grace Villanueva', 'email' => 'grace.villanueva@example.com', 'employee_number' => 'HST-TCH-006'],
+        ['name' => 'Jose Ramos', 'email' => 'jose.ramos@example.com', 'employee_number' => '26-JCA-103'],
+        ['name' => 'Maria Teresa Bautista', 'email' => 'maria.bautista@example.com', 'employee_number' => '26-JCA-104'],
+        ['name' => 'Carlo Mendoza', 'email' => 'carlo.mendoza@example.com', 'employee_number' => '26-JCA-105'],
+        ['name' => 'Liza Navarro', 'email' => 'liza.navarro@example.com', 'employee_number' => '26-JCA-106'],
+        ['name' => 'Ramon Castillo', 'email' => 'ramon.castillo@example.com', 'employee_number' => '26-JCA-107'],
+        ['name' => 'Grace Villanueva', 'email' => 'grace.villanueva@example.com', 'employee_number' => '26-JCA-108'],
     ];
 
     private const STUDENT_FIRST_NAMES = [
@@ -259,7 +259,7 @@ class HostingerSampleDataSeeder extends Seeder
             'Jenny Santos',
             'jenny@gmail.com',
             'registrar',
-            'HST-REG-001',
+            '26-JCA-101',
             'Registrar',
             $temporaryPassword,
         );
@@ -268,7 +268,7 @@ class HostingerSampleDataSeeder extends Seeder
             'Angelica Garcia',
             'angelica@gmail.com',
             'accounting',
-            'HST-ACC-001',
+            '26-JCA-102',
             'Accounting Staff',
             $temporaryPassword,
         );
@@ -391,7 +391,7 @@ class HostingerSampleDataSeeder extends Seeder
             $number = $index + 1;
             $section = $sectionList->get($index % $sectionList->count());
             $grade = $grades->get($section->grade_level_id);
-            $studentNumber = 'SIM-2026-'.str_pad((string) $number, 4, '0', STR_PAD_LEFT);
+            $studentNumber = 'JCA-26-'.str_pad((string) (99 + $number), 3, '0', STR_PAD_LEFT);
             $student = StudentProfile::query()->where('student_number', $studentNumber)->first();
 
             if ($student === null) {

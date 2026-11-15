@@ -18,11 +18,12 @@ class ExamPermitPolicy
 
     public function issue(User $user): bool
     {
-        return $user->hasRole('accounting');
+        return $user->hasAnyRole(['admin', 'accounting']);
     }
 
     public function print(User $user, ExamPermit $permit): bool
     {
-        return $permit->status === 'issued' && $this->view($user, $permit);
+        return $permit->status === 'issued'
+            && $this->view($user, $permit);
     }
 }

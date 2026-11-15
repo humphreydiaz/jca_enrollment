@@ -103,7 +103,8 @@ class BillingWorkflowTest extends TestCase
         $this->actingAs($accounting)->get(route('billing.index'))->assertOk();
         $this->actingAs($registrar)->get(route('billing.index'))->assertOk();
         $this->actingAs($teacher)->get(route('billing.index'))->assertForbidden();
-        $this->actingAs($guardianUser)->get(route('billing.portal.show', $assessment))->assertOk();
+        // Financial records are staff-only: guardians are refused.
+        $this->actingAs($guardianUser)->get(route('billing.portal.show', $assessment))->assertForbidden();
         $draft = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => today(), 'amount' => '10.00', 'method' => 'cash', 'payer_name' => 'Fictional Payer', 'status' => 'draft', 'created_by' => $accounting->id]);
         PaymentAllocation::query()->create(['payment_id' => $draft->id, 'assessment_item_id' => $assessment->items()->first()->id, 'amount' => '10.00']);
         $this->actingAs($admin)->post(route('billing.payments.post', $draft))->assertForbidden();
@@ -184,21 +185,24 @@ class BillingWorkflowTest extends TestCase
         $permit = app(IssueExamPermitAction::class)->execute($assessment->fresh(), $period, $accounting);
         $this->assertSame('issued', $permit->status);
 
-        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('ORIGINAL')->assertSee($payment->fresh()->receipt_reference)->assertSee('images/reporting/jca-reports-header.png');
-        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('REPRINT #1');
+        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertForbidden();
+        $this->actingAs($accounting)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('ORIGINAL')->assertSee($payment->fresh()->receipt_reference)->assertSee('images/reporting/JCA-reports-header.png');
+        $this->actingAs($accounting)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('REPRINT #1');
         $permitResponse = $this->actingAs($guardian)->get(route('billing.print.permit', $permit));
-        $permitResponse->assertOk()->assertSee('AUTHORIZED')->assertSee('images/reporting/jca-reports-header.png')->assertDontSee('outstanding balance')->assertDontSee('hardship')->assertDontSee('payment history');
+        $permitResponse->assertOk()->assertSee('AUTHORIZED')->assertSee('images/reporting/JCA-reports-header.png')->assertDontSee('outstanding balance')->assertDontSee('hardship')->assertDontSee('payment history');
         $this->assertSame(2, ReceiptPrint::query()->where('payment_id', $payment->id)->count());
         $this->assertSame(1, ExamPermitPrint::query()->where('exam_permit_id', $permit->id)->count());
 
         $this->actingAs($registrar)->get(route('billing.portal.show', $assessment))->assertOk()->assertSee('Financial status')->assertDontSee('Tuition Fee');
         $this->actingAs($registrar)->get(route('billing.print.receipt', $payment->fresh()))->assertForbidden();
-        $this->actingAs($studentUser)->get(route('billing.portal.show', $assessment))->assertOk();
-        $this->actingAs($studentUser)->get(route('billing.portal.index'))->assertOk()->assertSee('Fictional Student');
-        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.show', $assessment))->assertNotFound();
-        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.index'))->assertOk()->assertDontSee($assessment->assessment_reference);
-        $this->actingAs($unrelatedStudent)->get(route('billing.portal.show', $assessment))->assertNotFound();
-        $this->actingAs($unrelatedGuardian)->get('/finance/assessments/'.Str::ulid())->assertNotFound();
+        $this->actingAs($studentUser)->get(route('billing.portal.show', $assessment))->assertForbidden();
+        $this->actingAs($studentUser)->get(route('billing.portal.index'))->assertForbidden();
+        $this->actingAs($guardian)->get(route('billing.portal.index'))->assertForbidden();
+        $this->actingAs($guardian)->get(route('billing.print.statement', $assessment))->assertForbidden();
+        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.show', $assessment))->assertForbidden();
+        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.index'))->assertForbidden();
+        $this->actingAs($unrelatedStudent)->get(route('billing.portal.show', $assessment))->assertForbidden();
+        $this->assertContains($this->actingAs($unrelatedGuardian)->get('/finance/assessments/'.Str::ulid())->status(), [403, 404]);
         auth()->logout();
         $this->get(route('billing.portal.show', $assessment))->assertRedirect();
 
@@ -249,7 +253,8 @@ class BillingWorkflowTest extends TestCase
         $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => '2026-06-01', 'amount' => '100.00', 'method' => 'bank_transfer', 'payer_name' => 'Fictional Guardian', 'method_reference' => 'FICTIONAL-REF', 'status' => 'draft', 'created_by' => $accounting->id]);
 
         $this->actingAs($admin)->get(route('billing.configuration.index'))->assertOk()->assertSee('Financial configuration');
-        $this->actingAs($accounting)->get(route('billing.configuration.index'))->assertForbidden();
+        $this->actingAs($accounting)->get(route('billing.configuration.index'))->assertOk()->assertSee('Financial configuration');
+        $this->actingAs($guardian)->get(route('billing.configuration.index'))->assertForbidden();
         $this->actingAs($accounting)->post(route('billing.evidence.store', $payment), ['evidence' => UploadedFile::fake()->create('fictional-proof.pdf', 10, 'application/pdf')])->assertRedirect();
         $evidence = PaymentEvidence::query()->firstOrFail();
         Storage::disk('documents')->assertExists($evidence->storage_path);
@@ -343,6 +348,8 @@ class BillingWorkflowTest extends TestCase
         app(PostPaymentAction::class)->execute($payment, $accounting);
         $this->assertSame('1500.00', app(BalanceCalculator::class)->calculate($assessment)['credit']);
         $refund = app(RequestRefundAction::class)->execute($assessment, '1000.00', 'Fictional written request', $accounting);
+        // Configuration access (D-046) does not give Accounting the Admin's decision on its own requests.
+        $this->actingAs($accounting)->post(route('billing.refunds.decide', $refund), ['decision' => 'approve'])->assertForbidden();
         app(ApproveRefundAction::class)->execute($refund, $admin, true, 'FIC-RELEASE-1', '2026-06-02');
         $this->assertSame('500.00', app(BalanceCalculator::class)->calculate($assessment)['credit']);
         $credit = app(RequestAdjustmentAction::class)->execute($assessment, ['adjustment_type' => 'credit', 'amount' => '500.00', 'reason' => 'Fictional approved correction'], $accounting);
@@ -377,7 +384,8 @@ class BillingWorkflowTest extends TestCase
         $this->assertSame(1, PaymentPlanOption::query()->where('academic_year_id', $enrollment->academic_year_id)->whereNull('grade_level_id')->where('code', 'full')->count());
 
         $option = PaymentPlanOption::query()->where('grade_level_id', $enrollment->grade_level_id)->firstOrFail();
-        $this->actingAs($accounting)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional request'])->assertForbidden();
+        $registrar = $this->user(['registrar']);
+        $this->actingAs($registrar)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional request'])->assertForbidden();
         $this->actingAs($admin)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional configuration correction'])->assertRedirect();
         $this->assertFalse($option->fresh()->is_active);
         $this->assertDatabaseHas('audit_logs', ['action' => 'billing.payment_plan_option.deactivated', 'subject_id' => $option->id]);

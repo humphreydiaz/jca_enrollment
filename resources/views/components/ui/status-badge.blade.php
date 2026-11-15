@@ -13,14 +13,14 @@
     $resolvedTone = $tone ?? match ($statusKey) {
         'active', 'approved', 'authorized', 'clear', 'complete', 'completed', 'confirmed',
         'delivered', 'eligible', 'enrolled', 'granted', 'issued', 'open', 'paid', 'posted',
-        'published', 'ready', 'sent', 'success', 'successful', 'verified', 'waived' => 'ready',
-        'assessment_pending', 'assessment_required', 'awaiting_confirmation', 'draft',
+        'published', 'ready', 'sent', 'success', 'successful', 'verified', 'waived', 'graduated' => 'ready',
+        'assessment_pending', 'assessment_required', 'grades_pending', 'awaiting_confirmation', 'draft',
         'incomplete', 'missing', 'more_information_required', 'not_authorized', 'not_selected',
-        'not_verified', 'pending', 'planned', 'review_required', 'waitlisted' => 'warning',
+        'not_verified', 'pending', 'planned', 'review_required', 'waitlisted', 'transferred_out' => 'warning',
         'accepted', 'generating', 'processing', 'queued', 'scheduled', 'submitted',
         'under_review' => 'info',
         'blocked', 'cancelled', 'canceled', 'denied', 'expired', 'failed', 'overdue',
-        'not_approved', 'rejected', 'reversed', 'revoked' => 'danger',
+        'not_approved', 'rejected', 'reversed', 'revoked', 'dropped' => 'danger',
         default => 'neutral',
     };
     $resolvedLabel = $label ?? ($statusValue === null
