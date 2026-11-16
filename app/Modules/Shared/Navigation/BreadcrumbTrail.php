@@ -78,6 +78,8 @@ class BreadcrumbTrail
         'teacher.students.support-summary' => 'Student summary',
         'billing.teacher.status' => 'Exam authorization',
         'billing.portal.show' => 'Financial summary',
+        'billing.family.index' => 'Financial summary',
+        'reporting.analytics' => 'School insights',
         'reporting.audit.index' => 'Audit trail',
         'reporting.information-updates.index' => 'Information updates',
         'reporting.audit.show' => 'Audit entry',

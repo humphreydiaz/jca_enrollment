@@ -2,8 +2,15 @@
 
 use App\Modules\Reporting\Http\Controllers\AuditLogController;
 use App\Modules\Reporting\Http\Controllers\ReportController;
+use App\Modules\Reporting\Http\Controllers\SchoolInsightsController;
 use App\Modules\Shared\Backup\Http\BackupController;
 use Illuminate\Support\Facades\Route;
+
+// D-065: School insights (enrollment and collections, this year vs last) for Admin and Accounting.
+Route::middleware(['auth', 'password.changed', 'role:admin,accounting'])->group(function (): void {
+    Route::get('/reports/insights', [SchoolInsightsController::class, 'show'])->name('reporting.analytics');
+    Route::get('/reports/insights/print', [SchoolInsightsController::class, 'print'])->name('reporting.analytics.print');
+});
 
 // Reports: Admin, Registrar, Accounting, Teacher
 Route::middleware([

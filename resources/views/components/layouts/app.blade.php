@@ -153,6 +153,7 @@
                     $navItem('Enrollment progress', 'guardian.enrollment.progress', 'progress', ['guardian.enrollment.progress']),
                     $navItem('Student information', 'my-information.index', 'people', ['my-information.*']),
                     $navItem('Final grades', 'grading.family.index', 'academics', ['grading.family.*']),
+                    $navItem('Financial summary', 'billing.family.index', 'finance', ['billing.family.*']),
                 ]];
             }
 
@@ -161,6 +162,7 @@
                     $navItem('My enrollment', 'student.enrollment.progress', 'progress', ['student.enrollment.progress']),
                     $navItem('Student information', 'my-information.index', 'people', ['my-information.*']),
                     $navItem('Final grades', 'grading.family.index', 'academics', ['grading.family.*']),
+                    $navItem('Financial summary', 'billing.family.index', 'finance', ['billing.family.*']),
                 ]];
             }
 
@@ -205,9 +207,11 @@
             }
 
             if ($user->hasAnyRole(['admin', 'registrar', 'accounting', 'teacher'])) {
-                $navGroups[] = ['label' => 'Insights', 'items' => [
-                    $navItem('Reports', 'reporting.index', 'reports', ['reporting.index', 'reporting.show', 'reporting.print']),
-                ]];
+                $insightItems = [$navItem('Reports', 'reporting.index', 'reports', ['reporting.index', 'reporting.show', 'reporting.print'])];
+                if ($user->hasAnyRole(['admin', 'accounting'])) {
+                    $insightItems[] = $navItem('School insights', 'reporting.analytics', 'dashboard', ['reporting.analytics*']);
+                }
+                $navGroups[] = ['label' => 'Insights', 'items' => $insightItems];
             }
 
             if ($user->hasRole('admin')) {

@@ -1448,3 +1448,29 @@ nav,
 body {
     overflow-x: hidden;
 }
+
+/* D-065 charts: paired horizontal bars (validated categorical pair: blue #2a78d6 / orange #eb6834). */
+.jca-chart {
+    --chart-series-a: #2a78d6;
+    --chart-series-b: #eb6834;
+}
+.jca-chart__bar {
+    display: block;
+    height: 10px;
+    min-width: 0;
+    border-radius: 0 4px 4px 0;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+.jca-chart__bar--a,
+.jca-chart__swatch--a { background: var(--chart-series-a); }
+.jca-chart__bar--b,
+.jca-chart__swatch--b { background: var(--chart-series-b); }
+.jca-chart__swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}

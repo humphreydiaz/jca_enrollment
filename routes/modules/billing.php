@@ -3,15 +3,16 @@
 use App\Modules\Billing\Http\Controllers\BillingConfigurationController;
 use App\Modules\Billing\Http\Controllers\BillingController;
 use App\Modules\Billing\Http\Controllers\ExamPermitController;
+use App\Modules\Billing\Http\Controllers\FamilyFinanceController;
 use App\Modules\Billing\Http\Controllers\FinancialPortalController;
 use App\Modules\Billing\Http\Controllers\FinancialPrintController;
 use App\Modules\Billing\Http\Controllers\PaymentEvidenceController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'password.changed'])->group(function (): void {
-    // Financial records are staff-only: students and guardians do not see
-    // assessments, statements, balances, or receipts (panel decision, Nov 2026).
-    // Exam permits stay printable because they carry no financial detail.
+    // Staff financial records stay staff-only (D-061). Parents/guardians and students get their own
+    // read-only summary of their own learners (D-064, pre-final panel). Exam permits stay printable.
+    Route::get('/my-finances', FamilyFinanceController::class)->middleware('role:guardian,student')->name('billing.family.index');
     Route::middleware('role:admin,accounting,registrar')->group(function (): void {
         Route::get('/finance', [FinancialPortalController::class, 'index'])->name('billing.portal.index');
         Route::get('/finance/assessments/{assessment}', [FinancialPortalController::class, 'show'])->name('billing.portal.show');
