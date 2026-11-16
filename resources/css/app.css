@@ -1474,3 +1474,22 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
 }
+
+/* Printing an app page (schedules, top students): the page content only, without the sidebar and top bar. */
+@media print {
+    .jca-sidebar,
+    .jca-shell header.fixed {
+        display: none !important;
+    }
+    .jca-content {
+        padding-left: 0 !important;
+    }
+    .jca-main {
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    .jca-card {
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+}

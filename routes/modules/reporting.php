@@ -3,6 +3,7 @@
 use App\Modules\Reporting\Http\Controllers\AuditLogController;
 use App\Modules\Reporting\Http\Controllers\ReportController;
 use App\Modules\Reporting\Http\Controllers\SchoolInsightsController;
+use App\Modules\Reporting\Http\Controllers\TopStudentsController;
 use App\Modules\Shared\Backup\Http\BackupController;
 use Illuminate\Support\Facades\Route;
 
@@ -11,6 +12,11 @@ Route::middleware(['auth', 'password.changed', 'role:admin,accounting'])->group(
     Route::get('/reports/insights', [SchoolInsightsController::class, 'show'])->name('reporting.analytics');
     Route::get('/reports/insights/print', [SchoolInsightsController::class, 'print'])->name('reporting.analytics.print');
 });
+
+// D-069: top students per grade level or section (Admin, Registrar).
+Route::get('/reports/top-students', TopStudentsController::class)
+    ->middleware(['auth', 'password.changed', 'role:admin,registrar'])
+    ->name('reporting.top-students');
 
 // Reports: Admin, Registrar, Accounting, Teacher
 Route::middleware([

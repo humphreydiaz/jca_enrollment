@@ -51,7 +51,7 @@ class ReportingPhaseEightTest extends TestCase
         $teacher = $this->user(['teacher']);
         $guardian = $this->user(['guardian']);
         $student = $this->user(['student']);
-        $this->assertCount(11, app(ReportCatalog::class)->definitions());
+        $this->assertCount(12, app(ReportCatalog::class)->definitions());
         $this->actingAs($admin)->get(route('reporting.index'))->assertOk()->assertSee('Enrollment')->assertSee('Communications');
         $this->actingAs($registrar)->get(route('reporting.show', 'enrollments'))->assertOk();
         $this->actingAs($registrar)->get(route('reporting.show', 'payments'))->assertForbidden();

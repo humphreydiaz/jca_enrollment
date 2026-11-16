@@ -213,6 +213,9 @@
                 if ($user->hasAnyRole(['admin', 'accounting'])) {
                     $insightItems[] = $navItem('School insights', 'reporting.analytics', 'dashboard', ['reporting.analytics*']);
                 }
+                if ($user->hasAnyRole(['admin', 'registrar'])) {
+                    $insightItems[] = $navItem('Top students', 'reporting.top-students', 'check-all', ['reporting.top-students']);
+                }
                 $navGroups[] = ['label' => 'Insights', 'items' => $insightItems];
             }
 
@@ -319,7 +322,7 @@
                 </div>
             </aside>
 
-            <div class="min-h-screen lg:pl-72">
+            <div class="jca-content min-h-screen lg:pl-72">
                 <header class="fixed inset-x-0 top-0 z-30 border-b border-brand-navy-700 bg-brand-navy-900 text-white shadow-sm lg:left-72">
                     <div class="flex min-h-20 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
                         <div class="flex min-w-0 items-center gap-3">

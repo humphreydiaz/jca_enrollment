@@ -82,6 +82,7 @@ class BreadcrumbTrail
         'billing.portal.show' => 'Financial summary',
         'billing.family.index' => 'Financial summary',
         'reporting.analytics' => 'School insights',
+        'reporting.top-students' => 'Top students',
         'reporting.audit.index' => 'Audit trail',
         'reporting.information-updates.index' => 'Information updates',
         'reporting.audit.show' => 'Audit entry',
