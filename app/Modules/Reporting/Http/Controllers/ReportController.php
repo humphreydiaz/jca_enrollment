@@ -63,6 +63,9 @@ class ReportController
         if ($report === 'enrollments') {
             $viewData['enrollmentSummary'] = $reports->enrollmentSummary($filters);
         }
+        if ($report === 'retention') {
+            $viewData['retentionSummary'] = $reports->retentionSummary($filters);
+        }
 
         return view('reporting.show', $viewData);
     }
@@ -121,6 +124,9 @@ class ReportController
         $wantsDetail = $selectedRows !== [] || $request->pickedColumns() !== null || $request->layout() === 'detail';
         if ($report === 'enrollments' && ! $wantsDetail) {
             $viewData['enrollmentSummary'] = $reports->enrollmentSummary($filters);
+        }
+        if ($report === 'retention' && $selectedRows === []) {
+            $viewData['retentionSummary'] = $reports->retentionSummary($filters);
         }
 
         return view('reporting.print', $viewData);

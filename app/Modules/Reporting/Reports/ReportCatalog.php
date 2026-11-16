@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class ReportCatalog
 {
+    public function __construct(private readonly RetentionReport $retention = new RetentionReport) {}
+
     /** Filters every student-level report shares (pre-final panel: "filtering para mas specific"). */
     private const STUDENT_FILTERS = ['school_year', 'grade', 'section', 'search', 'status'];
 
@@ -39,7 +41,18 @@ class ReportCatalog
             'permits' => ['label' => 'Exam permits', 'description' => 'Issued permit status without confidential exception reasons.', 'roles' => ['admin', 'accounting', 'registrar'], 'filters' => [...self::STUDENT_FILTERS, 'date_from', 'date_to']],
             'grades' => ['label' => 'Final grades', 'description' => 'Admin-only finalized four-quarter subject results.', 'roles' => ['admin'], 'filters' => ['school_year', 'grade', 'section', 'search', 'band', 'min_grade', 'max_grade', 'date_from', 'date_to']],
             'communications' => ['label' => 'Communications', 'description' => 'SMS purpose and delivery state without message or recipient content.', 'roles' => ['admin'], 'filters' => ['status', 'date_from', 'date_to']],
+            'retention' => ['label' => 'Retention and exits', 'description' => 'Who dropped out, was excluded, transferred out, did not return, is repeating, changed section, or has a final grade below 75.', 'roles' => ['admin', 'registrar'], 'filters' => ['school_year', 'grade', 'section', 'search', 'status']],
         ];
+    }
+
+    /** A cell as people should read it (coded values become words); used on screen, print and CSV. */
+    public static function displayValue(string $field, mixed $value): mixed
+    {
+        if ($field === 'outcome' && is_string($value)) {
+            return RetentionReport::OUTCOMES[$value] ?? $value;
+        }
+
+        return $value;
     }
 
     /** @return array<string, array{label: string, description: string, roles: list<string>, filters: list<string>}> */
@@ -76,6 +89,7 @@ class ReportCatalog
             'permits' => ['permit_reference' => 'Permit', 'student_number' => 'Student number', 'student_name' => 'Student', 'school_year' => 'School year', 'grade' => 'Grade', 'section' => 'Section', 'exam_period' => 'Exam period', 'status' => 'Status', 'issued_at' => 'Issued'],
             'grades' => ['student_number' => 'Student number', 'student_name' => 'Student', 'school_year' => 'School year', 'grade' => 'Grade', 'section' => 'Section', 'subject' => 'Subject', 'quarter_1' => 'Q1', 'quarter_2' => 'Q2', 'quarter_3' => 'Q3', 'quarter_4' => 'Q4', 'final_grade' => 'Final grade', 'finalized_at' => 'Finalized'],
             'communications' => ['notification_reference' => 'Notification', 'purpose' => 'Purpose', 'status' => 'Status', 'provider' => 'Provider', 'attempt_count' => 'Attempts', 'scheduled_at' => 'Scheduled', 'accepted_at' => 'Accepted', 'failed_at' => 'Failed'],
+            'retention' => ['student_number' => 'Student number', 'student_name' => 'Student', 'school_year' => 'Last enrolled in', 'grade' => 'Grade', 'section' => 'Section', 'outcome' => 'Outcome', 'details' => 'Details', 'outcome_date' => 'Date'],
             default => [],
         };
         if ($code === 'permits' && $user->hasAnyRole(['admin', 'accounting'])) {
@@ -115,6 +129,9 @@ class ReportCatalog
             'discounts' => ['discount_awards', 'status'], 'permits' => ['exam_permits', 'status'], 'communications' => ['notifications', 'status'],
             default => [null, null],
         };
+        if ($code === 'retention') {
+            return array_keys(RetentionReport::OUTCOMES);
+        }
 
         return $table === null ? [] : DB::table($table)->whereNotNull($column)->distinct()->orderBy($column)->pluck($column)->map(fn ($value) => (string) $value)->all();
     }
@@ -140,12 +157,15 @@ class ReportCatalog
             'permits' => $this->permits(),
             'grades' => $this->grades(),
             'communications' => $this->communications(),
+            'retention' => $this->retention->query($filters),
             default => throw new \InvalidArgumentException('Unknown report.'),
         };
 
         // An opaque key per row (public ULIDs, never internal ids) so a viewer can tick rows to print.
         $rowKey = $this->rowKeyExpression($code);
-        $query->addSelect(DB::raw($rowKey.' as row_key'));
+        if ($code !== 'retention') {
+            $query->addSelect(DB::raw($rowKey.' as row_key'));
+        }
         if ($rowKeys !== []) {
             $query->whereIn(DB::raw($rowKey), $rowKeys);
         }
@@ -165,6 +185,7 @@ class ReportCatalog
             'permits' => 'ep.public_id',
             'grades' => 'sgr.public_id',
             'communications' => 'n.public_id',
+            'retention' => 'rt.row_key',
         };
     }
 
@@ -277,6 +298,9 @@ class ReportCatalog
     /** @param array<string, mixed> $filters */
     private function applyFilters(Builder $query, string $code, array $filters): Builder
     {
+        if ($code === 'retention') {
+            return $this->applyRetentionFilters($query, $filters);
+        }
         $academic = $code !== 'communications';
         if ($academic && filled($filters['school_year'] ?? null)) {
             $query->where('ay.public_id', $filters['school_year']);
@@ -323,6 +347,38 @@ class ReportCatalog
         }
 
         return $query;
+    }
+
+    /**
+     * The retention rows are one derived table (`rt`); the year itself is chosen inside RetentionReport.
+     *
+     * @param  array<string, mixed>  $filters
+     */
+    private function applyRetentionFilters(Builder $query, array $filters): Builder
+    {
+        if (filled($filters['grade'] ?? null)) {
+            $query->where('rt.grade_public', $filters['grade']);
+        }
+        if (filled($filters['section'] ?? null)) {
+            $query->where('rt.section_public', $filters['section']);
+        }
+        if (filled($filters['status'] ?? null)) {
+            $query->where('rt.outcome', $filters['status']);
+        }
+        if (filled($filters['search'] ?? null)) {
+            $term = '%'.addcslashes(trim((string) $filters['search']), '%_\\').'%';
+            $query->where(fn (Builder $search) => $search->where('rt.student_number', 'like', $term)
+                ->orWhere('rt.first_name', 'like', $term)->orWhere('rt.last_name', 'like', $term)
+                ->orWhere('rt.student_name', 'like', $term));
+        }
+
+        return $query;
+    }
+
+    /** @return array<string, mixed> */
+    public function retentionSummary(array $filters): array
+    {
+        return $this->retention->summary($filters);
     }
 
     /**

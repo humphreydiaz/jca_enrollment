@@ -71,6 +71,9 @@
         </p>
     </header>
     <p class="notice no-print-notice">Development operational layout. Official signatories, control numbers, and final format remain pending under P-006.</p>
+    @isset($retentionSummary)
+        @include('reporting.partials.retention-summary')
+    @endisset
     @if($truncated)<p class="notice"><strong>Result limited:</strong> this print view shows the first {{ config('reporting.print_row_limit') }} authorized rows. Use a filtered private CSV export for larger results.</p>@endif
     <table>
         <thead><tr><th class="num">#</th>@foreach($columns as $field => $label)<th @class(['num' => in_array($field, $moneyColumns, true)])>{{ $label }}</th>@endforeach</tr></thead>
@@ -79,7 +82,7 @@
                 <tr>
                     <td class="num">{{ $loop->iteration }}</td>
                     @foreach($columns as $field => $label)
-                        @php($value = data_get($row, $field))
+                        @php($value = \App\Modules\Reporting\Reports\ReportCatalog::displayValue($field, data_get($row, $field)))
                         <td @class(['num' => in_array($field, $moneyColumns, true)])>{{ in_array($field, $moneyColumns, true) && filled($value) ? number_format((float) $value, 2) : ($field === 'status' && filled($value) ? str($value)->headline() : ($value ?? '—')) }}</td>
                     @endforeach
                 </tr>

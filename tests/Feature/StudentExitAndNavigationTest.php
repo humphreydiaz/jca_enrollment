@@ -59,6 +59,9 @@ class StudentExitAndNavigationTest extends TestCase
         $this->assertNotNull($student->transferred_out_at);
         $this->assertStringContainsString('Bolinao Central School', (string) $student->archive_reason);
         $this->assertStringContainsString('SF10', (string) $student->archive_reason);
+        // D-066: the transfer is also kept as data for the retention report.
+        $this->assertSame('transferred_out', $student->exit_category);
+        $this->assertSame('Bolinao Central School', $student->exit_receiving_school);
 
         // Enrollment history is preserved untouched.
         $this->assertSame('enrolled', $enrollment->fresh()->status);
@@ -99,6 +102,12 @@ class StudentExitAndNavigationTest extends TestCase
             'confirm_drop' => '1',
         ];
 
+        // The kind of drop is required (D-066).
+        $this->actingAs($registrar)
+            ->post(route('people.registrar.students.drop', $student), $payload + ['lis_dropped' => '1'])
+            ->assertSessionHasErrors(['drop_category'], null, 'dropStudent');
+        $payload['drop_category'] = 'excluded';
+
         $this->actingAs($registrar)
             ->post(route('people.registrar.students.drop', $student), $payload)
             ->assertSessionHasErrors(['lis_dropped'], null, 'dropStudent');
@@ -109,6 +118,8 @@ class StudentExitAndNavigationTest extends TestCase
             ->assertRedirect(route('people.registrar.students.show', $student));
 
         $this->assertSame('dropped', $student->fresh()->status);
+        $this->assertSame('excluded', $student->fresh()->exit_category);
+        $this->assertSame(today()->toDateString(), $student->fresh()->dropped_at->toDateString());
         $this->assertNotNull($student->fresh()->archived_at);
         $this->assertDatabaseHas('audit_logs', ['action' => 'people.student.dropped', 'subject_id' => $student->id]);
     }
@@ -122,6 +133,7 @@ class StudentExitAndNavigationTest extends TestCase
             ->post(route('people.registrar.students.drop', $student), [
                 'effective_on' => today()->toDateString(),
                 'reason' => 'Trying to drop the learner again.',
+                'drop_category' => 'dropped_out',
                 'lis_dropped' => '1',
                 'confirm_drop' => '1',
             ])

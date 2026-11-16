@@ -58,7 +58,7 @@ class GenerateReportExport implements ShouldQueue
             fwrite($stream, "\xEF\xBB\xBF");
             fputcsv($stream, array_values($columns));
             foreach ($rows as $row) {
-                fputcsv($stream, array_map(fn (string $field): string => $this->safeCsvValue(data_get($row, $field)), array_keys($columns)));
+                fputcsv($stream, array_map(fn (string $field): string => $this->safeCsvValue(ReportCatalog::displayValue($field, data_get($row, $field))), array_keys($columns)));
             }
             rewind($stream);
             $contents = stream_get_contents($stream);

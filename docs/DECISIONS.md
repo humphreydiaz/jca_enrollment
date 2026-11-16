@@ -528,6 +528,22 @@ Screens show only these metadata keys, through `AuditChangeSummary`: `fields`, `
 
 **Consequences:** Only aggregate counts and amounts are shown, never learner-level rows. Views and prints are audited as `reporting.analytics.viewed`. The estimates are planning aids, not forecasts the school has approved.
 
+### D-066 - Structured learner exits and the retention report
+
+**Status:** Implemented on 2026-11-16 for the pre-final defense panel ("retention reports // ilan yung bumabagsak, ilan yung nag shishift, ilan yung nag drodropout/kick out, yung mga nag enrolled pero di naman bumalik / transfers must be also in detailed").
+
+**Decision:** Learner exits are also stored as data on `student_profiles`: `exit_category` (`transferred_out`, `dropped_out`, `excluded`, `other_drop`), `dropped_at`, and `exit_receiving_school`. The Drop form asks for the kind of drop (dropped out / excluded or expelled by the school / other). Migration `2026_11_16_000001` backfills transfers and drop dates from `archive_reason` where the text allows; earlier drops have no category and appear as "Dropped (kind not recorded)". A "Retention and exits" report (Admin, Registrar) lists one row per learner and outcome for a school year: dropped out, excluded, other drop, transferred out (with the receiving school), did not return (enrolled last year, not graduated or exited, no application this year), repeating the same grade, changed section during the year ("nag-shift", from the section history), and final grade below 75. A summary gives counts per outcome and the retention rate (last year's non-graduating learners who came back). It uses the shared report filters, column choice, row selection, print and CSV (D-063). The Student directory gains "Print directory" (the Students report with the directory's year, grade and search) and links the archive to this report.
+
+**Consequences:** "Below 75" is a plain fact from finalized grades using the DepEd numeric threshold; it is not the school's promotion or retention rule, which stays pending under P-010. "Changed section" reads "nag-shift" as a section move within the year; a change of program does not exist for Nursery-Grade 10. Exits keep their enrollment records (D-061), so they still count as enrolled for the year they left.
+
+### D-067 - Sibling discount confirmed by the Registrar, applied by Accounting
+
+**Status:** Owner-chosen on 2026-11-16 for the pre-final defense panel ("discounts confirm in siblings JCA sa family links"; Admin "discounts // confirm").
+
+**Decision:** Two learners are siblings when the same parent/guardian has a verified, current link to both and both have a current, submitted enrollment in the same school year. Family links shows each learner's siblings at JCA this school year, and the Registrar or Admin confirms "Sibling discount" for an enrollment (`sibling_discount_confirmations`, one active row per enrollment through `active_key`, a snapshot of the siblings, who and when). Withdrawing needs a reason and keeps the row. Accounting sees the confirmation on the learner's financial summary and applies the school's sibling discount through the existing credit-adjustment request and Admin approval. No peso amount, percentage or eligible-child rule is coded; the value stays the school's decision (P-002).
+
+**Consequences:** Confirmation and withdrawal are audited (`billing.sibling_discount.confirmed` / `withdrawn`). A learner without a qualifying sibling cannot be confirmed. Accounting cannot confirm; the Registrar cannot apply money.
+
 P6-01 through P6-21 are **Assumed – Owner-authorized for development**. They satisfy the Phase 6 development/testing prerequisite, but they are not accepted production policies. The configurable implementation and fictional fixtures may be replaced without rewriting historical financial snapshots. The questionnaire remains the production-confirmation checklist.
 
 | ID | Owner-authorized development policy area | Production status |

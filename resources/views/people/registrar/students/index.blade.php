@@ -35,6 +35,25 @@
             </a>
         </nav>
 
+        {{-- Pre-final panel: "print student directory // print button ... specific print na gusto mo lang". --}}
+        @php
+            $directoryPrint = array_filter([
+                'school_year' => request('year'),
+                'grade' => request('grade'),
+                'search' => request('search'),
+            ], fn ($value) => filled($value));
+        @endphp
+        <div class="flex flex-wrap items-center gap-3 print:hidden">
+            @if ($isArchive)
+                <a class="jca-button jca-button-secondary" href="{{ route('reporting.show', ['retention']) }}">Retention and exits report</a>
+                <span class="text-sm text-muted">Counts and printable lists of transfers, drops, learners who did not return, and repeaters.</span>
+            @else
+                <a class="jca-button jca-button-primary" href="{{ route('reporting.print', ['students'] + $directoryPrint) }}" target="_blank" rel="noopener">Print directory</a>
+                <a class="jca-button jca-button-secondary" href="{{ route('reporting.show', ['students'] + $directoryPrint) }}">Choose learners and columns to print</a>
+                <span class="text-sm text-muted">Printing uses the school year, grade and search above.</span>
+            @endif
+        </div>
+
         {{-- Search & filter bar --}}
         <section class="jca-card" aria-label="Filter learners">
             <form method="GET" class="grid gap-4 p-4 sm:p-5 md:grid-cols-2 xl:grid-cols-[minmax(14rem,2fr)_repeat(4,minmax(9rem,1fr))_auto]">

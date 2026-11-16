@@ -216,6 +216,16 @@
                             <input id="drop_effective_on" type="date" name="effective_on" value="{{ $dropErrors->any() ? old('effective_on', $today) : $today }}" max="{{ $today }}" class="jca-input">
                             @if ($dropErrors->has('effective_on'))<p class="mt-1 text-sm font-semibold text-brand-red-600">{{ $dropErrors->first('effective_on') }}</p>@endif
                         </div>
+                        <div>
+                            <label for="drop_category" class="jca-label jca-required">Kind of drop</label>
+                            <select id="drop_category" name="drop_category" class="jca-input" required>
+                                <option value="">Select</option>
+                                @foreach (\App\Modules\People\Support\StudentExitOptions::DROP_CATEGORIES as $value => $label)
+                                    <option value="{{ $value }}" @selected($dropErrors->any() && old('drop_category') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            @if ($dropErrors->has('drop_category'))<p class="mt-1 text-sm font-semibold text-brand-red-600">{{ $dropErrors->first('drop_category') }}</p>@endif
+                        </div>
                     </div>
 
                     <div>

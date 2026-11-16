@@ -11,6 +11,7 @@ use App\Modules\Billing\Models\ExamPermitOverride;
 use App\Modules\Billing\Models\FeeAssessment;
 use App\Modules\Billing\Models\FeeSchedule;
 use App\Modules\Billing\Models\PaymentPlanOption;
+use App\Modules\Billing\Models\SiblingDiscountConfirmation;
 use App\Modules\Shared\Audit\AuditRecorder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -222,8 +223,7 @@ class FinancialPortalController
                     'has_issued_permit' => $hasIssuedPermit,
                     'has_approved_override' => $activeOverride !== null,
                     'has_pending_override' => $pendingOverride !== null,
-                    'can_request_override' =>
-                        ! $result['eligible']
+                    'can_request_override' => ! $result['eligible']
                         && ! $hasIssuedPermit
                         && $activeOverride === null
                         && $pendingOverride === null,
@@ -258,6 +258,7 @@ class FinancialPortalController
             'permitStatus' => $permitStatus,
             'issuedPermit' => $issuedPermit,
             'discountAwards' => $discountAwards,
+            'siblingDiscount' => SiblingDiscountConfirmation::query()->active()->with('confirmer')->where('enrollment_id', $assessment->enrollment_id)->first(),
             'availablePlanOptions' => $availablePlanOptions,
             'examPeriods' => $examPeriods,
             'examPermitEligibility' => $examPermitEligibility,

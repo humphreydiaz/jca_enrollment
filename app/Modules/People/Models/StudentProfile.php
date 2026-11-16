@@ -71,6 +71,7 @@ class StudentProfile extends Model
             'archived_at' => 'datetime',
             'graduated_at' => 'datetime',
             'transferred_out_at' => 'datetime',
+            'dropped_at' => 'date',
             'is_4ps_recipient' => 'boolean',
             'is_learner_with_disability' => 'boolean',
         ];

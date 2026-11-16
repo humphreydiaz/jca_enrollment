@@ -7,12 +7,18 @@ use App\Modules\Billing\Http\Controllers\FamilyFinanceController;
 use App\Modules\Billing\Http\Controllers\FinancialPortalController;
 use App\Modules\Billing\Http\Controllers\FinancialPrintController;
 use App\Modules\Billing\Http\Controllers\PaymentEvidenceController;
+use App\Modules\Billing\Http\Controllers\SiblingDiscountController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'password.changed'])->group(function (): void {
     // Staff financial records stay staff-only (D-061). Parents/guardians and students get their own
     // read-only summary of their own learners (D-064, pre-final panel). Exam permits stay printable.
     Route::get('/my-finances', FamilyFinanceController::class)->middleware('role:guardian,student')->name('billing.family.index');
+    // D-067: the Registrar/Admin confirms or withdraws the sibling discount from Family links.
+    Route::middleware('role:admin,registrar')->group(function (): void {
+        Route::post('/registrar/enrollments/{enrollment}/sibling-discount', [SiblingDiscountController::class, 'store'])->name('billing.sibling-discount.store');
+        Route::delete('/registrar/sibling-discounts/{confirmation}', [SiblingDiscountController::class, 'destroy'])->name('billing.sibling-discount.destroy');
+    });
     Route::middleware('role:admin,accounting,registrar')->group(function (): void {
         Route::get('/finance', [FinancialPortalController::class, 'index'])->name('billing.portal.index');
         Route::get('/finance/assessments/{assessment}', [FinancialPortalController::class, 'show'])->name('billing.portal.show');

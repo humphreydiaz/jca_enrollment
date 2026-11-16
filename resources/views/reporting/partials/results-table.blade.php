@@ -38,7 +38,7 @@
                                 @elseif(in_array($field, $moneyColumns, true) && filled(data_get($row, $field)))
                                     {{ number_format((float) data_get($row, $field), 2) }}
                                 @else
-                                    {{ data_get($row, $field) ?? '—' }}
+                                    {{ \App\Modules\Reporting\Reports\ReportCatalog::displayValue($field, data_get($row, $field)) ?? '—' }}
                                 @endif
                             </td>
                         @endforeach

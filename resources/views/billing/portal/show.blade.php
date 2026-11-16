@@ -8,6 +8,12 @@
             </div>
             <a class="jca-button-secondary" href="{{ route('billing.print.statement', $assessment) }}">Print statement</a>
         </div>
+        @if ($siblingDiscount ?? null)
+            {{-- D-067: the Registrar confirmed the sibling discount; Accounting applies it as an approved adjustment. --}}
+            <p class="mt-4 rounded-lg border border-brand-navy-700/20 bg-brand-blue-50 p-3 text-sm text-brand-navy-900" role="status">
+                <strong>Sibling discount confirmed</strong> by {{ $siblingDiscount->confirmer?->name }} on {{ $siblingDiscount->confirmed_at->timezone('Asia/Manila')->format('d M Y') }} (siblings: {{ $siblingDiscount->sibling_summary }}). Apply the school's sibling discount below as a credit adjustment with the reason "Sibling discount".
+            </p>
+        @endif
         <dl class="mt-6 grid gap-3 sm:grid-cols-3">
             <div><dt class="text-sm text-slate-600">Assessment</dt><dd class="font-bold">PHP {{ number_format((float) $assessment->net_total, 2) }}</dd></div>
             <div><dt class="text-sm text-slate-600">Paid</dt><dd class="font-bold">PHP {{ number_format((float) $balance['paid'], 2) }}</dd></div>

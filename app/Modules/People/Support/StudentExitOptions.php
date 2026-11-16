@@ -32,6 +32,17 @@ final class StudentExitOptions
     ];
 
     /**
+     * D-066: why a learner was dropped (DepEd terms). "excluded" is a school-initiated removal.
+     *
+     * @var array<string, string>
+     */
+    public const DROP_CATEGORIES = [
+        'dropped_out' => 'Dropped out (stopped attending)',
+        'excluded' => 'Excluded or expelled by the school',
+        'other_drop' => 'Other reason',
+    ];
+
+    /**
      * @var array<string, string>
      */
     public const SF10_RELEASE_METHODS = [

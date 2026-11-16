@@ -123,7 +123,15 @@ class PeopleManagementController
             ->orderBy('first_name')
             ->get();
 
+        // D-067: siblings enrolled this school year and any confirmed sibling discount, per learner.
+        $currentEnrollments = $learners->getCollection()->mapWithKeys(fn (StudentProfile $learner) => [
+            $learner->id => $learner->enrollments->first(fn ($enrollment) => ! in_array($enrollment->status, Enrollment::TERMINAL_STATUSES, true)),
+        ]);
+        $siblingDiscounts = app(\App\Modules\Billing\Queries\SiblingDiscountQuery::class)->forEnrollments($currentEnrollments->filter()->values());
+
         return view('people.admin.index', [
+            'currentEnrollments' => $currentEnrollments,
+            'siblingDiscounts' => $siblingDiscounts,
             'loginOptions' => $loginOptions,
             'search' => $search,
             'learners' => $learners,

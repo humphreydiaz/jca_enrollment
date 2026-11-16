@@ -24,6 +24,7 @@ class DropStudentRequest extends FormRequest
     {
         return [
             'effective_on' => ['required', 'date', 'before_or_equal:today'],
+            'drop_category' => ['required', \Illuminate\Validation\Rule::in(array_keys(\App\Modules\People\Support\StudentExitOptions::DROP_CATEGORIES))],
             'reason' => ['required', 'string', 'min:10', 'max:1000'],
             'lis_dropped' => ['accepted'],
             'confirm_drop' => ['accepted'],
@@ -37,6 +38,7 @@ class DropStudentRequest extends FormRequest
     {
         return [
             'effective_on' => 'drop date',
+            'drop_category' => 'kind of drop',
             'reason' => 'reason for dropping',
             'lis_dropped' => 'DepEd LIS confirmation',
             'confirm_drop' => 'confirmation',

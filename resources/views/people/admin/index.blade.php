@@ -166,6 +166,36 @@
                             </span>
                         @endif
                     </header>
+                    {{-- D-067: siblings at JCA this school year and the sibling discount confirmation. --}}
+                    @php
+                        $currentEnrollment = $currentEnrollments[$learner->id] ?? null;
+                        $sibling = $currentEnrollment ? ($siblingDiscounts[$currentEnrollment->id] ?? null) : null;
+                    @endphp
+                    @if ($sibling && ($sibling['siblings'] !== [] || $sibling['confirmation']))
+                        <div class="flex flex-wrap items-start justify-between gap-3 border-b border-border bg-brand-blue-50/60 px-5 py-3 text-sm sm:px-6">
+                            <div class="min-w-0">
+                                <p class="font-bold text-brand-navy-900">Siblings at JCA this school year</p>
+                                <p class="text-muted">{{ $sibling['siblings'] !== [] ? implode(', ', $sibling['siblings']) : ($sibling['confirmation']?->sibling_summary ?? '') }}</p>
+                                @if ($sibling['confirmation'])
+                                    <p class="mt-1 font-semibold text-success-700">Sibling discount confirmed by {{ $sibling['confirmation']->confirmer?->name }} on {{ $sibling['confirmation']->confirmed_at->timezone('Asia/Manila')->format('d M Y') }}. Accounting applies it to the assessment.</p>
+                                @endif
+                            </div>
+                            @if ($sibling['confirmation'])
+                                <form method="POST" action="{{ route('billing.sibling-discount.destroy', $sibling['confirmation']) }}" class="flex flex-wrap items-end gap-2">
+                                    @csrf @method('DELETE')
+                                    <label class="text-xs font-bold text-brand-navy-900" for="withdraw-{{ $learner->public_id }}">Reason to withdraw
+                                        <input id="withdraw-{{ $learner->public_id }}" name="reason" required minlength="5" maxlength="500" class="jca-input mt-1 py-1 text-sm" placeholder="e.g. Sibling transferred out">
+                                    </label>
+                                    <button type="submit" class="jca-button jca-button-secondary">Withdraw</button>
+                                </form>
+                            @else
+                                <form method="POST" action="{{ route('billing.sibling-discount.store', $currentEnrollment) }}">
+                                    @csrf
+                                    <button type="submit" class="jca-button jca-button-primary">Confirm sibling discount</button>
+                                </form>
+                            @endif
+                        </div>
+                    @endif
                     <div class="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                         {{-- LEFT: Linked accounts --}}
                         <div>

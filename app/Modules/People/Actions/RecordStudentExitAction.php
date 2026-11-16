@@ -55,6 +55,8 @@ class RecordStudentExitAction
 
             if ($exitStatus === StudentExitOptions::TRANSFERRED_OUT) {
                 $record->transferred_out_at = $effectiveOn;
+                $record->exit_category = StudentExitOptions::TRANSFERRED_OUT;
+                $record->exit_receiving_school = trim((string) $details['receiving_school']);
                 $record->archive_reason = $this->transferSummary($details, $effectiveOn, $reason);
                 $metadata = [
                     'receiving_school' => trim((string) $details['receiving_school']),
@@ -65,8 +67,11 @@ class RecordStudentExitAction
                 ];
                 $action = 'people.student.transferred_out';
             } else {
-                $record->archive_reason = $this->dropSummary($effectiveOn, $reason);
-                $metadata = ['lis_dropped_confirmed' => true];
+                $category = (string) ($details['drop_category'] ?? 'other_drop');
+                $record->exit_category = array_key_exists($category, StudentExitOptions::DROP_CATEGORIES) ? $category : 'other_drop';
+                $record->dropped_at = $effectiveOn->toDateString();
+                $record->archive_reason = $this->dropSummary($effectiveOn, $reason, $record->exit_category);
+                $metadata = ['lis_dropped_confirmed' => true, 'drop_category' => $record->exit_category];
                 $action = 'people.student.dropped';
             }
 
@@ -109,10 +114,11 @@ class RecordStudentExitAction
         return implode("\n", $lines);
     }
 
-    private function dropSummary(Carbon $effectiveOn, string $reason): string
+    private function dropSummary(Carbon $effectiveOn, string $reason, string $category): string
     {
         return implode("\n", [
             'Dropped effective: '.$effectiveOn->format('F j, Y'),
+            'Kind of drop: '.(StudentExitOptions::DROP_CATEGORIES[$category] ?? $category),
             'DepEd LIS: drop recorded directly in LIS',
             'Reason: '.$reason,
         ]);

@@ -264,6 +264,9 @@
                 </div>
             </div>
         @else
+            @isset($retentionSummary)
+                @include('reporting.partials.retention-summary')
+            @endisset
             @include('reporting.partials.results-table')
         @endif
     </div>
