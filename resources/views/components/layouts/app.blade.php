@@ -169,6 +169,7 @@
             if ($user->hasRole('teacher')) {
                 $navGroups[] = ['label' => 'My teaching', 'items' => [
                     $navItem('My classes', 'academics.teacher.assignments', 'teaching', ['academics.teacher.*', 'billing.teacher.*', 'teacher.students.*']),
+                    $navItem('My schedule', 'academics.my-schedule', 'calendar', ['academics.my-schedule']),
                     $navItem('Grades', 'grading.teacher.index', 'academics', ['grading.teacher.*'], ['notification' => $teacherGradesNeedAction, 'notificationKey' => 'teacher_grades']),
                 ]];
             }
@@ -186,6 +187,7 @@
                 $navGroups[] = ['label' => 'School records', 'items' => $studentItems];
                 $navGroups[] = ['label' => 'Academics & support', 'items' => [
                     $navItem('Academics', 'academics.admin.index', 'academics', ['academics.admin.*']),
+                    $navItem('Schedule conflicts', 'academics.schedule-conflicts', 'calendar', ['academics.schedule-conflicts']),
                     $navItem('Grade approval', 'grading.admin.index', 'check-all', ['grading.admin.*'], ['notification' => $gradeNeedsReview, 'notificationKey' => 'grade_approval']),
                     $navItem('Restricted support', 'support.queue', 'support', ['support.*'], ['notification' => $supportNeedsReview, 'notificationKey' => 'restricted_support']),
                 ]];

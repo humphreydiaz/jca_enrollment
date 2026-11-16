@@ -71,6 +71,8 @@ class BreadcrumbTrail
         'academics.admin.setup' => 'Setup',
         'academics.admin.curricula.index' => 'Curriculum',
         'academics.teacher.assignments' => 'My classes',
+        'academics.my-schedule' => 'My schedule',
+        'academics.schedule-conflicts' => 'Schedule conflicts',
         'grading.admin.class' => 'Class grades',
         'grading.teacher.show' => 'Subject grades',
         'support.queue' => 'Restricted support',

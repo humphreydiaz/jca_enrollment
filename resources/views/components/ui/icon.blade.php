@@ -35,6 +35,9 @@
         @case('progress')
             <path d="M4 19V5M4 19h16" /><path d="m7 15 4-4 3 2 5-6" />
             @break
+        @case('calendar')
+            <rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M9 3v4M15 3v4M8 14h3M13 14h3M8 17h3" />
+            @break
         @case('message')
             <path d="M4 5h16v12H8l-4 4V5Z" /><path d="M8 9h8M8 13h5" />
             @break

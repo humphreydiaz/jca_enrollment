@@ -544,6 +544,14 @@ Screens show only these metadata keys, through `AuditChangeSummary`: `fields`, `
 
 **Consequences:** Confirmation and withdrawal are audited (`billing.sibling_discount.confirmed` / `withdrawn`). A learner without a qualifying sibling cannot be confirmed. Accounting cannot confirm; the Registrar cannot apply money.
 
+### D-068 - Schedule conflicts view and the teacher's own weekly schedule
+
+**Status:** Implemented on 2026-11-16 for the pre-final defense panel (Registrar and Teacher: "conflict schedules, nakikita ba? need dapat meron yon"; "also need makita ng teachers ang kanilang schedules as well").
+
+**Decision:** A "Schedule conflicts" page (Registrar, Admin) checks every active class offering of a chosen school year and lists (1) a teacher assigned to two classes that meet at the same time, (2) two subjects of one section that meet at the same time, and (3) offerings with no schedule or a typed note that cannot be read as days and times, so they cannot be checked. Each entry links to that section in Academics to fix it. A "My schedule" page (Teacher) shows the teacher's own subject classes by weekday in time order, marks any class that overlaps another of theirs, lists classes without a set time and the sections they advise, and prints. Both reuse `ClassSchedule` (structured days/times, or a parsed schedule note) and the same overlap rule as the assignment guard.
+
+**Consequences:** The guard that blocks a conflicting teacher assignment is unchanged; this view also catches conflicts that arrive through schedule edits, curriculum publishing or imported data. Rooms are not tracked (Phase 14), so room clashes are out of scope. A teacher sees only their own classes.
+
 P6-01 through P6-21 are **Assumed – Owner-authorized for development**. They satisfy the Phase 6 development/testing prerequisite, but they are not accepted production policies. The configurable implementation and fictional fixtures may be replaced without rewriting historical financial snapshots. The questionnaire remains the production-confirmation checklist.
 
 | ID | Owner-authorized development policy area | Production status |

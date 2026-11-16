@@ -2,6 +2,7 @@
 
 use App\Modules\Academics\Http\Controllers\AcademicCatalogController;
 use App\Modules\Academics\Http\Controllers\CurriculumController;
+use App\Modules\Academics\Http\Controllers\ScheduleController;
 use App\Modules\Academics\Http\Controllers\TeacherAcademicController;
 use Illuminate\Support\Facades\Route;
 
@@ -9,6 +10,10 @@ Route::middleware(['auth', 'password.changed'])->prefix('academics')->group(func
     Route::get('/my-teaching', TeacherAcademicController::class)
         ->middleware('role:teacher')
         ->name('academics.teacher.assignments');
+
+    // D-068: the teacher's own weekly schedule, and schedule conflicts for the Registrar/Admin.
+    Route::get('/my-schedule', [ScheduleController::class, 'mine'])->middleware('role:teacher')->name('academics.my-schedule');
+    Route::get('/schedule-conflicts', [ScheduleController::class, 'conflicts'])->middleware('role:admin,registrar')->name('academics.schedule-conflicts');
 
     Route::middleware('role:admin,registrar')->group(function (): void {
         Route::get('/curricula', [CurriculumController::class, 'index'])->name('academics.admin.curricula.index');
