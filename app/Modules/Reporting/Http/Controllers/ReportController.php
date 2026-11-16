@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reporting\Http\Controllers;
 
+use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Academics\Models\Section;
@@ -38,20 +39,25 @@ class ReportController
     public function show(ReportFilterRequest $request, string $report, ReportCatalog $reports, AuditRecorder $audit): View
     {
         $filters = $request->filters();
+        $user = $request->user();
 
         $viewData = [
             'reportCode' => $report,
             'definition' => $reports->definitions()[$report],
-            'columns' => $reports->columns($report, $request->user()),
-            'rows' => $reports->query($report, $request->user(), $filters)->paginate(25)->withQueryString(),
+            'allColumns' => $reports->columns($report, $user),
+            'columns' => $reports->selectedColumns($report, $user, $request->pickedColumns()),
+            'pickedColumns' => $request->pickedColumns(),
+            'rows' => $reports->query($report, $user, $filters)->paginate($request->perPage())->withQueryString(),
+            'perPage' => $request->perPage(),
             'filters' => $filters,
             'allowedFilters' => $reports->filters($report),
+            'statusOptions' => in_array('status', $reports->filters($report), true) ? $reports->statusOptions($report) : [],
             'academicYears' => AcademicYear::query()->orderByDesc('starts_on')->get(),
             'gradeLevels' => GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(),
             'sections' => $this->sectionsFor($request),
         ];
         if ($report === 'grades') {
-            $audit->record($request->user(), 'grading.report.viewed');
+            $audit->record($user, 'grading.report.viewed');
         }
 
         if ($report === 'enrollments') {
@@ -72,26 +78,97 @@ class ReportController
         return $query->get();
     }
 
+    /**
+     * Prints the filtered report, or only the ticked rows, with only the picked columns
+     * (panel: "print button ... para ito sa specific print na gusto mo lang ma print out").
+     */
     public function print(ReportFilterRequest $request, string $report, ReportCatalog $reports, AuditRecorder $audit): View
     {
         $filters = $request->filters();
+        $user = $request->user();
+        $selectedRows = $request->pickedRows();
+        $columns = $reports->selectedColumns($report, $user, $request->pickedColumns());
         $limit = (int) config('reporting.print_row_limit');
-        $rows = $reports->query($report, $request->user(), $filters)->limit($limit + 1)->get();
+        // Ticked rows are still looked up inside the viewer's own scoped, filtered query.
+        $rows = $reports->query($report, $user, $filters, $selectedRows)->limit($limit + 1)->get();
         $truncated = $rows->count() > $limit;
-        $audit->record($request->user(), 'reporting.report.printed', null, ['report_code' => $report, 'row_count' => min($rows->count(), $limit)]);
+        $rows = $rows->take($limit);
+        $audit->record($user, 'reporting.report.printed', null, [
+            'report_code' => $report,
+            'row_count' => $rows->count(),
+            'selected_rows' => $selectedRows !== [],
+            'fields' => array_keys($columns),
+        ]);
 
-        $viewData = ['definition' => $reports->definitions()[$report], 'columns' => $reports->columns($report, $request->user()), 'rows' => $rows->take($limit), 'filters' => $filters, 'truncated' => $truncated, 'reportCode' => $report];
+        $totals = [];
+        foreach (array_intersect(array_keys($columns), ReportCatalog::MONEY_COLUMNS) as $field) {
+            $totals[$field] = $rows->sum(fn ($row) => (float) data_get($row, $field));
+        }
 
-        if ($report === 'enrollments') {
+        $viewData = [
+            'definition' => $reports->definitions()[$report],
+            'columns' => $columns,
+            'rows' => $rows,
+            'totals' => $totals,
+            'filters' => $filters,
+            'filterSummary' => $this->filterSummary($filters, $reports, $report, $user),
+            'selectedRows' => $selectedRows !== [],
+            'truncated' => $truncated,
+            'reportCode' => $report,
+        ];
+
+        // The enrollment report prints its official summary unless specific rows or columns were asked for.
+        $wantsDetail = $selectedRows !== [] || $request->pickedColumns() !== null || $request->layout() === 'detail';
+        if ($report === 'enrollments' && ! $wantsDetail) {
             $viewData['enrollmentSummary'] = $reports->enrollmentSummary($filters);
         }
 
         return view('reporting.print', $viewData);
     }
 
+    /**
+     * Human-readable "what is on this page" lines for the printout.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return list<string>
+     */
+    private function filterSummary(array $filters, ReportCatalog $reports, string $report, User $user): array
+    {
+        $lines = [];
+        if (filled($filters['school_year'] ?? null)) {
+            $lines[] = 'School year: '.AcademicYear::query()->where('public_id', $filters['school_year'])->value('name');
+        }
+        if (filled($filters['grade'] ?? null)) {
+            $lines[] = 'Grade: '.GradeLevel::query()->where('public_id', $filters['grade'])->value('name');
+        }
+        if (filled($filters['section'] ?? null)) {
+            $lines[] = 'Section: '.Section::query()->where('public_id', $filters['section'])->value('name');
+        }
+        if (filled($filters['search'] ?? null)) {
+            $lines[] = 'Learner: '.$filters['search'];
+        }
+        if (filled($filters['status'] ?? null)) {
+            $lines[] = 'Status: '.str($filters['status'])->headline();
+        }
+        if (filled($filters['band'] ?? null)) {
+            $lines[] = 'Final grade: '.ReportCatalog::GRADE_BANDS[$filters['band']]['label'];
+        } elseif (filled($filters['min_grade'] ?? null) || filled($filters['max_grade'] ?? null)) {
+            $lines[] = 'Final grade: '.($filters['min_grade'] ?? '0').' – '.($filters['max_grade'] ?? '100');
+        }
+        if (filled($filters['date_from'] ?? null) || filled($filters['date_to'] ?? null)) {
+            $lines[] = 'Dates: '.($filters['date_from'] ?? '…').' to '.($filters['date_to'] ?? '…');
+        }
+        if (filled($filters['sort'] ?? null)) {
+            $direction = ($filters['direction'] ?? 'asc') === 'desc' ? ' (high to low)' : ' (low to high)';
+            $lines[] = 'Sorted by: '.($reports->columns($report, $user)[$filters['sort']] ?? $filters['sort']).$direction;
+        }
+
+        return $lines;
+    }
+
     public function export(ReportFilterRequest $request, string $report, RequestReportExportAction $action): RedirectResponse
     {
-        $action->execute($report, $request->filters(), $request->user());
+        $action->execute($report, $request->filters(), $request->user(), $request->pickedColumns());
 
         return to_route('reporting.index')->with('success', 'Private CSV export queued.');
     }

@@ -49,7 +49,8 @@ class GenerateReportExport implements ShouldQueue
 
                 return;
             }
-            $columns = $reports->columns($export->report_code, $export->requester);
+            // Only the columns chosen when the export was requested, re-checked against today's allowlist.
+            $columns = $reports->selectedColumns($export->report_code, $export->requester, $export->field_snapshot ?? null);
             $stream = fopen('php://temp', 'w+b');
             if ($stream === false) {
                 throw new \RuntimeException('Temporary export stream unavailable.');

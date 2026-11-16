@@ -504,6 +504,14 @@ Screens show only these metadata keys, through `AuditChangeSummary`: `fields`, `
 
 **Consequences:** P-002/P6-07 production confirmation is still pending for the overpayment rule. The panel's request for a student/parent financial summary (pre-final defense) is planned as its own change and will revisit D-061 (1).
 
+### D-063 - Report filters, column choice, and printing selected rows
+
+**Status:** Implemented on 2026-11-16 for the pre-final defense panel ("complete reports // filtering para mas specific siya kung ano at sino lang ang gusto mong iprint at tignan"; accounting "must add report section filter"; registrar "print button ... para ito sa specific print na gusto mo lang ma print out").
+
+**Decision:** Every student-level report (enrollments, students, requirements, billing, payments, discounts, permits, grades) filters by school year, grade, section (the learner's current confirmed section), learner name or Student ID, and a status picked from the statuses that exist. The grades report adds final-grade bands (below 75, 75-79, 80-84, 85-89, 90-94, 95-100) and a custom range. Any listed column can sort the result. The viewer picks which allowlisted columns to show; the same choice applies to the print view and the private CSV. Rows can be ticked and printed alone. Printouts show the filters used, peso totals for money columns, and Prepared/Checked/Noted lines.
+
+**Consequences:** Columns are still limited to each report's allowlist, and a column outside it is refused. Ticked rows are identified by public ULIDs (or the enrollment ULID plus document code for requirement rows) and are looked up inside the viewer's own scoped, filtered query, so a crafted key cannot reach another section or family. Print audit entries record the row count, whether rows were hand-picked, and the printed field names. Official signatories and form layouts remain pending under P-006.
+
 P6-01 through P6-21 are **Assumed – Owner-authorized for development**. They satisfy the Phase 6 development/testing prerequisite, but they are not accepted production policies. The configurable implementation and fictional fixtures may be replaced without rewriting historical financial snapshots. The questionnaire remains the production-confirmation checklist.
 
 | ID | Owner-authorized development policy area | Production status |

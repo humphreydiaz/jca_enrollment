@@ -1,16 +1,104 @@
 <x-layouts.app :title="$definition['label'].' report'">
+    @php
+        $presentation = array_filter([
+            'cols' => $pickedColumns,
+            'per_page' => $perPage !== 25 ? $perPage : null,
+        ]);
+        $printQuery = $filters + $presentation;
+    @endphp
     <div class="mx-auto max-w-screen-2xl space-y-6">
         <header><p class="text-sm font-bold text-muted">Operational report</p><h1 class="mt-1 text-3xl font-black text-brand-navy-900">{{ $definition['label'] }}</h1><p class="mt-2 text-muted">{{ $definition['description'] }}</p></header>
-        <form class="jca-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4" method="GET" action="{{ route('reporting.show', $reportCode) }}">
-            @if(in_array('school_year', $allowedFilters, true))<label class="text-sm font-bold">School year<select class="mt-1 w-full rounded-lg border-border" name="school_year"><option value="">All school years</option>@foreach($academicYears as $year)<option value="{{ $year->public_id }}" @selected(($filters['school_year'] ?? '') === $year->public_id)>{{ $year->name }}</option>@endforeach</select></label>@endif
-            @if(in_array('grade', $allowedFilters, true))<label class="text-sm font-bold">Grade<select class="mt-1 w-full rounded-lg border-border" name="grade"><option value="">All grades</option>@foreach($gradeLevels as $grade)<option value="{{ $grade->public_id }}" @selected(($filters['grade'] ?? '') === $grade->public_id)>{{ $grade->name }}</option>@endforeach</select></label>@endif
-            @if(in_array('section', $allowedFilters, true))<label class="text-sm font-bold">Section<select class="mt-1 w-full rounded-lg border-border" name="section"><option value="">All sections</option>@foreach($sections as $section)<option value="{{ $section->public_id }}" @selected(($filters['section'] ?? '') === $section->public_id)>{{ $section->name }} — {{ $section->gradeLevel->name }}</option>@endforeach</select></label>@endif
-            @if(in_array('status', $allowedFilters, true))<label class="text-sm font-bold">Status<input class="mt-1 w-full rounded-lg border-border" name="status" value="{{ $filters['status'] ?? '' }}" maxlength="40" placeholder="Exact status"></label>@endif
-            @if(in_array('date_from', $allowedFilters, true))<label class="text-sm font-bold">From date<input class="mt-1 w-full rounded-lg border-border" type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}"></label>@endif
-            @if(in_array('date_to', $allowedFilters, true))<label class="text-sm font-bold">To date<input class="mt-1 w-full rounded-lg border-border" type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}"></label>@endif
-            <div class="flex items-end gap-2"><x-ui.button type="submit">Apply filters</x-ui.button><a class="jca-button jca-button-secondary" href="{{ route('reporting.show', $reportCode) }}">Clear</a></div>
+
+        <form class="jca-card space-y-5 p-5" method="GET" action="{{ route('reporting.show', $reportCode) }}">
+            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                @if(in_array('search', $allowedFilters, true))
+                    <label class="text-sm font-bold">Learner name or Student ID<input class="mt-1 w-full rounded-lg border-border" name="search" value="{{ $filters['search'] ?? '' }}" maxlength="100" placeholder="e.g. Santos or JCA-26-123"></label>
+                @endif
+                @if(in_array('school_year', $allowedFilters, true))<label class="text-sm font-bold">School year<select class="mt-1 w-full rounded-lg border-border" name="school_year"><option value="">All school years</option>@foreach($academicYears as $year)<option value="{{ $year->public_id }}" @selected(($filters['school_year'] ?? '') === $year->public_id)>{{ $year->name }}</option>@endforeach</select></label>@endif
+                @if(in_array('grade', $allowedFilters, true))<label class="text-sm font-bold">Grade<select class="mt-1 w-full rounded-lg border-border" name="grade"><option value="">All grades</option>@foreach($gradeLevels as $grade)<option value="{{ $grade->public_id }}" @selected(($filters['grade'] ?? '') === $grade->public_id)>{{ $grade->name }}</option>@endforeach</select></label>@endif
+                @if(in_array('section', $allowedFilters, true))<label class="text-sm font-bold">Section<select class="mt-1 w-full rounded-lg border-border" name="section"><option value="">All sections</option>@foreach($sections as $section)<option value="{{ $section->public_id }}" @selected(($filters['section'] ?? '') === $section->public_id)>{{ $section->gradeLevel->name }} – {{ $section->name }} ({{ $section->academicYear->name }})</option>@endforeach</select></label>@endif
+                @if(in_array('status', $allowedFilters, true))
+                    <label class="text-sm font-bold">Status<select class="mt-1 w-full rounded-lg border-border" name="status"><option value="">All statuses</option>@foreach($statusOptions as $status)<option value="{{ $status }}" @selected(($filters['status'] ?? '') === $status)>{{ str($status)->headline() }}</option>@endforeach</select></label>
+                @endif
+                @if(in_array('band', $allowedFilters, true))
+                    <label class="text-sm font-bold">Final grade range<select class="mt-1 w-full rounded-lg border-border" name="band"><option value="">Any grade</option>@foreach(\App\Modules\Reporting\Reports\ReportCatalog::GRADE_BANDS as $value => $band)<option value="{{ $value }}" @selected(($filters['band'] ?? '') === $value)>{{ $band['label'] }}</option>@endforeach</select></label>
+                @endif
+                @if(in_array('min_grade', $allowedFilters, true))
+                    <div class="text-sm font-bold">
+                        <span id="custom-range-label">Or a custom range</span>
+                        <div class="mt-1 flex items-center gap-2" role="group" aria-labelledby="custom-range-label">
+                            <label class="sr-only" for="min_grade">Lowest final grade</label>
+                            <input class="w-full rounded-lg border-border" id="min_grade" type="number" name="min_grade" min="0" max="100" step="0.01" value="{{ $filters['min_grade'] ?? '' }}" placeholder="From">
+                            <span aria-hidden="true">–</span>
+                            <label class="sr-only" for="max_grade">Highest final grade</label>
+                            <input class="w-full rounded-lg border-border" id="max_grade" type="number" name="max_grade" min="0" max="100" step="0.01" value="{{ $filters['max_grade'] ?? '' }}" placeholder="To">
+                        </div>
+                    </div>
+                @endif
+                @if(in_array('date_from', $allowedFilters, true))<label class="text-sm font-bold">From date<input class="mt-1 w-full rounded-lg border-border" type="date" name="date_from" value="{{ $filters['date_from'] ?? '' }}"></label>@endif
+                @if(in_array('date_to', $allowedFilters, true))<label class="text-sm font-bold">To date<input class="mt-1 w-full rounded-lg border-border" type="date" name="date_to" value="{{ $filters['date_to'] ?? '' }}"></label>@endif
+                <label class="text-sm font-bold">Sort by<select class="mt-1 w-full rounded-lg border-border" name="sort"><option value="">Default order</option>@foreach($allColumns as $field => $label)<option value="{{ $field }}" @selected(($filters['sort'] ?? '') === $field)>{{ $label }}</option>@endforeach</select></label>
+                <label class="text-sm font-bold">Order<select class="mt-1 w-full rounded-lg border-border" name="direction"><option value="asc" @selected(($filters['direction'] ?? 'asc') === 'asc')>Low to high / A to Z</option><option value="desc" @selected(($filters['direction'] ?? '') === 'desc')>High to low / Z to A</option></select></label>
+                <label class="text-sm font-bold">Rows per page<select class="mt-1 w-full rounded-lg border-border" name="per_page">@foreach(\App\Modules\Reporting\Http\Requests\ReportFilterRequest::PER_PAGE_OPTIONS as $option)<option value="{{ $option }}" @selected($perPage === $option)>{{ $option }}</option>@endforeach</select></label>
+            </div>
+
+            <details class="rounded-lg border border-border p-4" @if($pickedColumns) open @endif>
+                <summary class="cursor-pointer text-sm font-black text-brand-navy-900">Columns to show and print ({{ count($columns) }} of {{ count($allColumns) }})</summary>
+                <fieldset class="mt-3">
+                    <legend class="sr-only">Columns to show and print</legend>
+                    <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                        @foreach($allColumns as $field => $label)
+                            <label class="inline-flex items-center gap-2 text-sm"><input type="checkbox" name="cols[]" value="{{ $field }}" @checked(array_key_exists($field, $columns)) class="size-4 rounded border-border"> {{ $label }}</label>
+                        @endforeach
+                    </div>
+                    <p class="mt-2 text-xs text-muted">Untick the columns you do not need. Leaving all ticked shows every column.</p>
+                </fieldset>
+            </details>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <x-ui.button type="submit">Apply filters</x-ui.button>
+                <a class="jca-button jca-button-secondary" href="{{ route('reporting.show', $reportCode) }}">Clear</a>
+                <span class="text-sm text-muted">{{ number_format($rows->total()) }} {{ \Illuminate\Support\Str::plural('record', $rows->total()) }} match.</span>
+            </div>
         </form>
-        <div class="flex flex-wrap gap-3"><a class="jca-button jca-button-secondary" href="{{ route('reporting.print', [$reportCode] + request()->except('page')) }}" target="_blank" rel="noopener">Print view</a><form method="POST" action="{{ route('reporting.exports.store', [$reportCode] + request()->except('page')) }}">@csrf<x-ui.button type="submit">Queue private CSV</x-ui.button></form></div>
+
+        {{-- Printing and export use exactly the filters and columns shown above. --}}
+        <div class="jca-card flex flex-wrap items-center gap-3 p-4">
+            @if($reportCode === 'enrollments')
+                <a class="jca-button jca-button-secondary" href="{{ route('reporting.print', [$reportCode] + $filters) }}" target="_blank" rel="noopener">Print enrolment summary</a>
+                <a class="jca-button jca-button-secondary" href="{{ route('reporting.print', [$reportCode] + $printQuery + ['layout' => 'detail']) }}" target="_blank" rel="noopener">Print all matching records</a>
+            @else
+                <a class="jca-button jca-button-secondary" href="{{ route('reporting.print', [$reportCode] + $printQuery) }}" target="_blank" rel="noopener">Print all matching records</a>
+            @endif
+            <form method="GET" action="{{ route('reporting.print', $reportCode) }}" target="_blank" id="report-print-selected" data-print-selected>
+                @foreach($filters as $name => $value)<input type="hidden" name="{{ $name }}" value="{{ $value }}">@endforeach
+                @foreach($pickedColumns ?? [] as $field)<input type="hidden" name="cols[]" value="{{ $field }}">@endforeach
+                <button type="submit" class="jca-button jca-button-primary" data-print-selected-button>Print selected rows (<span data-selected-count>0</span>)</button>
+            </form>
+            <form method="POST" action="{{ route('reporting.exports.store', [$reportCode] + $printQuery) }}">@csrf<x-ui.button type="submit" variant="secondary">Queue private CSV</x-ui.button></form>
+            <p class="w-full text-xs text-muted">Tick rows in the table to print only those learners. Printing and CSV use the same filters and columns.</p>
+        </div>
+        <script>
+            (() => {
+                const form = document.querySelector('[data-print-selected]');
+                if (! form) { return; }
+                const button = form.querySelector('[data-print-selected-button]');
+                const count = form.querySelector('[data-selected-count]');
+                const boxes = () => Array.from(document.querySelectorAll('[data-row-check]'));
+                const refresh = () => {
+                    const ticked = boxes().filter((box) => box.checked).length;
+                    count.textContent = ticked;
+                    button.disabled = ticked === 0;
+                };
+                document.addEventListener('change', (event) => {
+                    if (event.target.matches('[data-select-page]')) {
+                        boxes().forEach((box) => { box.checked = event.target.checked; });
+                    }
+                    if (event.target.matches('[data-row-check], [data-select-page]')) { refresh(); }
+                });
+                refresh();
+            })();
+        </script>
 
         {{-- ═══════════════════════════════════════════════════════════
              ENROLLMENT REPORT — SUMMARY + DETAIL TABS
@@ -170,18 +258,13 @@
                     </section>
                 </div>
 
-                {{-- ── Detail panel (existing table) ─────────────── --}}
+                {{-- ── Detail panel ─────────────── --}}
                 <div x-show="tab === 'detail'" x-cloak role="tabpanel" aria-labelledby="tab-detail" class="space-y-4">
-                    <section class="jca-card overflow-hidden" aria-label="Report results"><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="border-b border-border bg-brand-blue-100">@foreach($columns as $label)<th scope="col" class="whitespace-nowrap p-3 font-black text-brand-navy-900">{{ $label }}</th>@endforeach</tr></thead><tbody>
-                        @forelse($rows as $row)<tr class="border-b border-border">@foreach($columns as $field => $label)<td class="whitespace-nowrap p-3 {{ in_array($field, ['gross_total','discount_total','net_total','amount','required_amount','satisfied_amount'], true) ? 'text-right tabular-nums' : '' }}">@if($field === 'status' && filled(data_get($row, $field)))<x-ui.status-badge :status="data_get($row, $field)" />@else{{ data_get($row, $field) ?? '—' }}@endif</td>@endforeach</tr>@empty<tr><td class="p-6 text-muted" colspan="{{ count($columns) }}">No records match the authorized filters.</td></tr>@endforelse
-                    </tbody></table></div></section>{{ $rows->links() }}
+                    @include('reporting.partials.results-table')
                 </div>
             </div>
         @else
-            {{-- ── Standard report table (non-enrollment reports) ── --}}
-            <section class="jca-card overflow-hidden" aria-label="Report results"><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="border-b border-border bg-brand-blue-100">@foreach($columns as $label)<th scope="col" class="whitespace-nowrap p-3 font-black text-brand-navy-900">{{ $label }}</th>@endforeach</tr></thead><tbody>
-                @forelse($rows as $row)<tr class="border-b border-border">@foreach($columns as $field => $label)<td class="whitespace-nowrap p-3 {{ in_array($field, ['gross_total','discount_total','net_total','amount','required_amount','satisfied_amount'], true) ? 'text-right tabular-nums' : '' }}">@if($field === 'status' && filled(data_get($row, $field)))<x-ui.status-badge :status="data_get($row, $field)" />@else{{ data_get($row, $field) ?? '—' }}@endif</td>@endforeach</tr>@empty<tr><td class="p-6 text-muted" colspan="{{ count($columns) }}">No records match the authorized filters.</td></tr>@endforelse
-            </tbody></table></div></section>{{ $rows->links() }}
+            @include('reporting.partials.results-table')
         @endif
     </div>
 </x-layouts.app>

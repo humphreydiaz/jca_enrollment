@@ -225,7 +225,7 @@ class GradeApprovalBoardTest extends TestCase
     /** @return array{offering: SectionSubject, assignment: TeachingAssignment} */
     private function offer(Section $section, Subject $subject, User $teacher): array
     {
-        $staff = StaffProfile::query()->firstOrCreate(['user_id' => $teacher->id], ['employee_number' => '26-JCA-'.random_int(300, 999), 'active_from' => '2026-01-01']);
+        $staff = StaffProfile::query()->firstOrCreate(['user_id' => $teacher->id], ['employee_number' => '26-JCA-'.(300 + StaffProfile::query()->count()), 'active_from' => '2026-01-01']);
         $offering = SectionSubject::query()->create(['section_id' => $section->id, 'subject_id' => $subject->id]);
 
         return [
