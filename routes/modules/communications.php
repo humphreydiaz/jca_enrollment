@@ -2,6 +2,7 @@
 
 use App\Modules\Communications\Http\Controllers\CommunicationsController;
 use App\Modules\Communications\Http\Controllers\ContactPreferenceController;
+use App\Modules\Communications\Http\Controllers\SmsTestController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware(['auth', 'password.changed'])->group(function (): void {
@@ -15,6 +16,8 @@ Route::middleware(['auth', 'password.changed'])->group(function (): void {
     Route::redirect('/guardian/communication-preferences', '/communication-preferences');
     Route::middleware('role:admin')->prefix('admin/communications')->group(function (): void {
         Route::get('/', [CommunicationsController::class, 'admin'])->name('communications.admin');
+        // D-070: send one test text to confirm live SMS works.
+        Route::post('/sms-test', SmsTestController::class)->middleware('throttle:5,1')->name('communications.sms-test');
         Route::get('/announcements/{announcement}/preview', [CommunicationsController::class, 'preview'])->name('communications.preview');
         Route::post('/announcements', [CommunicationsController::class, 'store'])->name('communications.store');
         Route::post('/announcements/{announcement}/publish', [CommunicationsController::class, 'publish'])->name('communications.publish');

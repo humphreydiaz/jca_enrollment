@@ -14,13 +14,20 @@
                             <span><span class="font-bold text-text">Text me school announcements</span><span class="mt-0.5 block text-sm text-muted">General school news only. You can change this any time.</span></span>
                         </label>
                     @else
-                        <p class="mt-1 text-sm text-muted">No mobile number is on file, so no announcement texts can be sent. Ask the Registrar to add one.</p>
+                        <p class="mt-1 text-sm text-muted">
+                            No mobile number is on file, so no announcement texts can be sent.
+                            @if ($key === 'staff')
+                                Ask the school Admin to add your number to your staff account.
+                            @else
+                                Add it on your <a class="font-bold text-brand-navy-700 underline" href="{{ route('my-information.index') }}">Student Information</a> page, then come back here.
+                            @endif
+                        </p>
                     @endif
                 </div>
             @empty
                 <x-ui.empty-state icon="message" title="No number on file" description="Ask the Registrar to add a mobile number to your record." />
             @endforelse
-            <p class="text-xs text-muted">To change a number, ask the Registrar.</p>
+            <p class="text-xs text-muted">Parents and students change their number on the Student Information page; school staff ask the Admin.</p>
             <x-ui.button type="submit">Save preferences</x-ui.button>
         </form>
     </div>

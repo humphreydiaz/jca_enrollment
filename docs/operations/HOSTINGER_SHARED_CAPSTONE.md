@@ -37,7 +37,7 @@ For this public capstone test:
 - keep `APP_DEBUG=false`;
 - use the HTTPS temporary domain for `APP_URL`;
 - retain database-backed sessions, cache, and queues;
-- keep `SMS_ENABLED=false`;
+- live SMS is the owner's choice (D-070): with `SMS_ENABLED=true`, `SMS_DRIVER=semaphore` and the owner's `SEMAPHORE_API_KEY` in the server `.env`, texts go out through the `queue:work` cron job; confirm with Communications > SMS status and test;
 - keep every unsigned JCA approval flag false;
 - use only fictional people, documents, payments, and contact destinations.
 
@@ -104,7 +104,7 @@ Before connecting a permanent domain, verify:
 7. `jobs` and `failed_jobs` remain within the configured thresholds.
 8. `APP_DEBUG` remains false and sensitive paths return 403 or 404.
 
-Do not enable live SMS, import real student data, or mark hosting/recovery approvals true during this rehearsal.
+Do not import real student data or mark hosting/recovery approvals true during this rehearsal. Live SMS uses real credits; turn it on only with the owner's key (D-070).
 
 ## Repair a missing requirement checklist
 

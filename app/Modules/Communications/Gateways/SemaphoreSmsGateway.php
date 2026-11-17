@@ -20,8 +20,8 @@ class SemaphoreSmsGateway implements SmsGateway
         ?string $oneTimeCode = null,
     ): SmsGatewayResult {
         $key = (string) config('communications.sms.semaphore.api_key');
-        $sender = (string) config('communications.sms.semaphore.sender_name');
-        if ($key === '' || $sender === '') {
+        $sender = trim((string) config('communications.sms.semaphore.sender_name'));
+        if ($key === '') {
             return new SmsGatewayResult('disabled', null, 'missing_sms_configuration');
         }
 
@@ -39,8 +39,11 @@ class SemaphoreSmsGateway implements SmsGateway
             // Semaphore expects local (09XXXXXXXXX) or 63-prefixed digits, not a leading "+".
             'number' => ltrim($recipient, '+'),
             'message' => $body,
-            'sendername' => $sender,
         ];
+        // D-070: until Semaphore approves a sender name, leave it out and Semaphore uses its default sender.
+        if ($sender !== '') {
+            $parameters['sendername'] = $sender;
+        }
         if ($route === SmsDeliveryRoute::Otp) {
             $parameters['code'] = $oneTimeCode;
         }

@@ -70,6 +70,7 @@ class CommunicationsController
             'deliveries' => Announcement::DELIVERIES,
             'creditsPerPart' => SmsLength::creditsPerPart(),
             'route' => SmsLength::route()->value,
+            'smsStatus' => app(\App\Modules\Communications\Queries\SmsStatusQuery::class)->status(),
         ]);
     }
 

@@ -3,7 +3,7 @@
         @php
             $smsEnabled = (bool) config('communications.sms.enabled');
             $smsDriver = (string) config('communications.sms.driver');
-            $smsLive = $smsEnabled && $smsDriver === 'semaphore';
+            $smsLive = $smsEnabled && $smsDriver === 'semaphore' && filled(config('communications.sms.semaphore.api_key'));
             $smsTest = $smsEnabled && $smsDriver === 'log';
             $smsSender = (string) config('communications.sms.semaphore.sender_name');
             $routeLabel = $route === 'standard' ? 'standard queue (1 credit per 160-character part)' : 'priority queue (2 credits per 160-character part)';
@@ -16,7 +16,7 @@
                 <x-ui.icon name="check" class="mt-0.5" />
                 <div>
                     <p class="font-bold">Live SMS is active</p>
-                    <p class="mt-1 text-sm leading-6">Texts are sent from &ldquo;{{ $smsSender }}&rdquo; on Semaphore's {{ $routeLabel }}. Announcement texts reach only people who <strong>opted in</strong>; texts to people you pick under Message people always go out. Live sending uses real credits.</p>
+                    <p class="mt-1 text-sm leading-6">Texts are sent from &ldquo;{{ $smsSender !== '' ? $smsSender : 'SEMAPHORE (default sender)' }}&rdquo; on Semaphore's {{ $routeLabel }}. Announcement texts reach only people who <strong>opted in</strong>; texts to people you pick under Message people always go out. Live sending uses real credits.</p>
                 </div>
             </div>
         @elseif ($smsTest)
@@ -36,6 +36,8 @@
                 </div>
             </div>
         @endif
+
+        @include('communications.admin.partials.sms-status')
 
         <div class="grid items-start gap-6 xl:grid-cols-2">
             @include('communications.admin.partials.announcement-composer')
