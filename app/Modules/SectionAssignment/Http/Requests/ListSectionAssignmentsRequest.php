@@ -34,7 +34,7 @@ class ListSectionAssignmentsRequest extends FormRequest
             'year' => ['nullable', 'ulid', 'exists:academic_years,public_id'],
             'grade' => ['nullable', 'ulid', 'exists:grade_levels,public_id'],
             'section' => ['nullable', 'ulid', 'exists:sections,public_id'],
-            'promotion_status' => ['nullable', Rule::in(['unreviewed', 'eligible', 'ineligible', 'draft_created'])],
+            'promotion_status' => ['nullable', Rule::in(['unreviewed', 'eligible', 'grades_pending', 'ineligible', 'draft_created'])],
             'per_page' => ['nullable', 'integer', Rule::in([15, 25, 50])],
         ];
     }

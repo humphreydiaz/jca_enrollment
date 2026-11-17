@@ -5,6 +5,7 @@ namespace App\Modules\Communications\Jobs;
 use App\Modules\Communications\Contracts\SmsGateway;
 use App\Modules\Communications\Models\Notification;
 use App\Modules\Communications\Models\SmsMessage;
+use App\Modules\Communications\Support\SmsLength;
 use App\Modules\Shared\Audit\AuditRecorder;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -27,11 +28,11 @@ class DispatchSmsNotification implements ShouldQueue
     public function handle(SmsGateway $gateway, AuditRecorder $audit): void
     {
         DB::transaction(function () use ($gateway, $audit): void {
-            $notification = Notification::query()->lockForUpdate()->with('guardian')->findOrFail($this->notificationId);
+            $notification = Notification::query()->lockForUpdate()->with(['guardian', 'student', 'recipient'])->findOrFail($this->notificationId);
             if (in_array($notification->status, ['accepted', 'logged', 'disabled'], true)) {
                 return;
             }
-            $mobile = (string) $notification->guardian?->mobile;
+            $mobile = (string) $notification->recipientMobile();
             if ($mobile === '') {
                 $notification->update(['status' => 'failed', 'failed_at' => now()]);
 
@@ -45,12 +46,12 @@ class DispatchSmsNotification implements ShouldQueue
                 'status' => 'queued',
             ]);
             $message->increment('attempt_count');
-            $result = $gateway->send($mobile, (string) $notification->rendered_body, $notification->idempotency_key);
+            $result = $gateway->send($mobile, (string) $notification->rendered_body, $notification->idempotency_key, SmsLength::route());
             if ($result->accepted()) {
                 $status = $result->status;
                 $notification->update(['status' => $status, 'accepted_at' => now(), 'failed_at' => null]);
                 $message->update(['status' => $status, 'provider_reference' => $result->providerReference, 'accepted_at' => now(), 'failure_code' => null, 'failed_at' => null]);
-                $audit->record(null, 'communications.sms.dispatched', $notification, ['provider' => $message->provider, 'status' => $status]);
+                $audit->record(null, 'communications.sms.dispatched', $notification, ['provider' => $message->provider, 'status' => $status, 'route' => SmsLength::route()->value, 'parts' => SmsLength::parts((string) $notification->rendered_body)]);
 
                 return;
             }

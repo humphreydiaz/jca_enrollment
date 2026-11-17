@@ -5,6 +5,7 @@ namespace App\Modules\SectionAssignment\Actions;
 use App\Models\User;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Enrollment\Models\EnrollmentStatusHistory;
+use App\Modules\Grading\Queries\PromotionGradeReadinessQuery;
 use App\Modules\Requirements\Actions\PreparePromotedEnrollmentRequirementsAction;
 use App\Modules\SectionAssignment\Models\PromotionRecommendation;
 use App\Modules\Shared\Audit\AuditRecorder;
@@ -17,6 +18,7 @@ class CreatePromotionDraftAction
     public function __construct(
         private readonly AuditRecorder $audit,
         private readonly PreparePromotedEnrollmentRequirementsAction $prepareRequirements,
+        private readonly PromotionGradeReadinessQuery $grades,
     ) {}
 
     public function execute(PromotionRecommendation $recommendation, User $actor): Enrollment
@@ -26,6 +28,11 @@ class CreatePromotionDraftAction
             $source = Enrollment::query()->lockForUpdate()->findOrFail($record->source_enrollment_id);
             if ($record->eligibility_status !== 'eligible' || $record->target_academic_year_id === null || $record->target_grade_level_id === null || $source->status !== 'enrolled') {
                 throw ValidationException::withMessages(['promotion' => 'This recommendation is not eligible for draft creation.']);
+            }
+            // Re-check grades now: a grade may have been reopened since the eligibility review.
+            $readiness = $this->grades->forEnrollment($source);
+            if (! $readiness->isReady()) {
+                throw ValidationException::withMessages(['promotion' => 'Final grades changed since the last review. '.$readiness->summary().' Review eligibility again.']);
             }
             if ($record->created_enrollment_id !== null || Enrollment::query()->where('previous_enrollment_id', $source->id)->exists()) {
                 throw ValidationException::withMessages(['promotion' => 'A promotion draft already exists for this enrollment.']);

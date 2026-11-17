@@ -10,7 +10,7 @@ class ExportJobPolicy
 {
     public function view(User $user, ExportJob $export): bool
     {
-        return $export->requested_by === $user->id && app(ReportCatalog::class)->allows($user, $export->report_code);
+        return (int) $export->requested_by === (int) $user->id && app(ReportCatalog::class)->allows($user, $export->report_code);
     }
 
     public function delete(User $user, ExportJob $export): bool

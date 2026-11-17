@@ -4,12 +4,13 @@ This runbook is hosting-neutral until P-007 names the production host and servic
 
 ## Release prerequisites
 
-- Signed P-001 through P-008 artifacts are stored in the launch record.
+- Signed P-001 through P-011 artifacts are stored in the launch record.
 - Production secrets are installed outside the repository; `.env.production.example` is a template only.
 - A least-privilege MySQL 8.0+ database/user exists, with TLS if the host supports it.
 - HTTPS termination, encrypted private storage, encrypted offsite backup, monitoring, queue supervision, scheduler invocation, and log rotation are configured.
 - A backup and isolated restore drill has met the approved RPO/RTO.
 - `SMS_ENABLED=false` unless P-005 and live credentials are separately approved.
+- When P-005 is approved, verify both Semaphore `/api/v4/messages` (routine traffic) and `/api/v4/priority` (account links and verification codes) with fictional recipients during the controlled launch check. Priority traffic costs two credits per 160-character SMS.
 
 ## Build and deploy
 

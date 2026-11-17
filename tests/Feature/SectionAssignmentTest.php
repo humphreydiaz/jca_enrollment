@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Academics\Models\Section;
+use App\Modules\Academics\Models\SectionSubject;
+use App\Modules\Academics\Models\Subject;
 use App\Modules\Academics\Models\TeachingAssignment;
 use App\Modules\Enrollment\Actions\TransitionEnrollmentAction;
 use App\Modules\Enrollment\Models\Enrollment;
@@ -55,7 +57,7 @@ class SectionAssignmentTest extends TestCase
     {
         parent::setUp();
         $this->seed(RoleSeeder::class);
-        $this->year = AcademicYear::query()->create(['code' => 'P5-2026', 'name' => 'Fictional 2026', 'starts_on' => '2026-06-01', 'ends_on' => '2027-03-31', 'status' => 'open']);
+        $this->year = AcademicYear::query()->create(['code' => 'P5-2026', 'name' => 'Fictional 2026', 'starts_on' => '2026-06-01', 'ends_on' => '2027-03-31', 'status' => 'open', 'enrollment_is_open' => true]);
         $this->futureYear = AcademicYear::query()->create(['code' => 'P5-2027', 'name' => 'Fictional 2027', 'starts_on' => '2027-06-01', 'ends_on' => '2028-03-31', 'status' => 'planned']);
         $this->nextGrade = GradeLevel::query()->create(['code' => 'P5-G2', 'name' => 'Fictional Grade 2', 'sequence' => 2, 'is_active' => true]);
         $this->grade = GradeLevel::query()->create(['code' => 'P5-G1', 'name' => 'Fictional Grade 1', 'sequence' => 1, 'next_grade_level_id' => $this->nextGrade->id, 'is_active' => true]);
@@ -109,7 +111,7 @@ class SectionAssignmentTest extends TestCase
         $this->actingAs($accounting)->post(route('section-assignment.confirm', $second), ['section_public_id' => $this->faith->public_id])->assertForbidden();
         $this->actingAs($teacher)->post(route('section-assignment.confirm', $second), ['section_public_id' => $this->faith->public_id])->assertForbidden();
         $this->actingAs($admin)->post(route('section-assignment.confirm', $second), ['section_public_id' => $this->faith->public_id, 'override_capacity' => 1])->assertSessionHasErrors('override_reason');
-        $this->actingAs($admin)->post(route('section-assignment.confirm', $second), ['section_public_id' => $this->faith->public_id, 'override_capacity' => 1, 'override_reason' => 'Fictional approved capacity exception'])->assertRedirect();
+        $this->actingAs($admin)->post(route('section-assignment.confirm', $second), ['section_public_id' => $this->faith->public_id, 'override_capacity' => 1, 'override_reason' => 'Fictional approved capacity exception'])->assertRedirect(route('section-assignment.index').'#awaiting-placement');
 
         $this->assertDatabaseHas('section_assignments', ['enrollment_id' => $second->id, 'is_capacity_override' => true, 'capacity_override_by' => $admin->id]);
         $this->assertDatabaseHas('section_assignment_events', ['enrollment_id' => $second->id, 'event_type' => 'confirmed_override', 'is_capacity_override' => true]);
@@ -119,7 +121,7 @@ class SectionAssignmentTest extends TestCase
         $this->assignment($this->enrollment('enrolled'), $this->hope);
         $this->actingAs($registrar)->post(route('section-assignment.transfer', $assignment), ['section_public_id' => $this->hope->public_id, 'reason' => 'Registrar attempt', 'override_capacity' => 1, 'override_reason' => 'Not authorized'])->assertForbidden();
         $this->actingAs($admin)->post(route('section-assignment.transfer', $assignment), ['section_public_id' => $this->hope->public_id, 'reason' => 'Approved exceptional transfer', 'override_capacity' => 1])->assertSessionHasErrors('override_reason');
-        $this->actingAs($admin)->post(route('section-assignment.transfer', $assignment), ['section_public_id' => $this->hope->public_id, 'reason' => 'Approved exceptional transfer', 'override_capacity' => 1, 'override_reason' => 'Fictional transfer capacity exception'])->assertRedirect();
+        $this->actingAs($admin)->post(route('section-assignment.transfer', $assignment), ['section_public_id' => $this->hope->public_id, 'reason' => 'Approved exceptional transfer', 'override_capacity' => 1, 'override_reason' => 'Fictional transfer capacity exception'])->assertRedirect(route('section-assignment.index').'#current-assignments');
         $this->assertDatabaseHas('section_assignment_events', ['enrollment_id' => $first->id, 'event_type' => 'transferred_override', 'is_capacity_override' => true]);
         $this->actingAs($admin)->get(route('section-assignment.index'))->assertOk()->assertSee('Fictional transfer capacity exception')->assertSee('Approved exceptional transfer');
     }
@@ -203,21 +205,62 @@ class SectionAssignmentTest extends TestCase
         $otherStudent = StudentProfile::query()->create(['user_id' => $otherStudentUser->id, 'first_name' => 'Other', 'last_name' => 'Student']);
         $enrollment = $this->enrollment('approved', 'regular', $student, $guardian);
         $this->enrollment('approved', 'regular', $otherStudent);
+        $this->faith->update(['activity_schedule' => 'Monday-Thursday: Math and Reading enhancement. Friday: HGP.']);
+        $english = Subject::query()->create(['code' => 'ENG-PORTAL', 'name' => 'English', 'is_active' => true]);
+        $math = Subject::query()->create(['code' => 'MATH-PORTAL', 'name' => 'Mathematics', 'is_active' => true]);
+        SectionSubject::query()->create(['section_id' => $this->faith->id, 'subject_id' => $english->id, 'schedule_text' => 'Monday-Friday 10:50-11:35']);
+        $mathOffering = SectionSubject::query()->create(['section_id' => $this->faith->id, 'subject_id' => $math->id, 'schedule_text' => 'Monday-Friday 08:20-09:05']);
+        $mathTeacher = $this->user(['teacher']);
+        $mathTeacher->update(['name' => 'Gloria Mathteacher']);
+        TeachingAssignment::query()->create(['staff_profile_id' => StaffProfile::query()->create(['user_id' => $mathTeacher->id])->id, 'section_id' => $this->faith->id, 'section_subject_id' => $mathOffering->id, 'assignment_type' => 'subject_teacher', 'is_active' => true]);
         app(ConfirmSectionAssignmentAction::class)->execute($enrollment, $this->faith, $registrar, false);
 
-        $this->actingAs($guardianUser)->get(route('guardian.enrollment.progress'))->assertOk()->assertSee('Confirmed section: Faith')->assertDontSee('Capacity override');
-        $this->actingAs($guardianUser)->get(route('portal.section.print', $enrollment))->assertOk()->assertSee('Confirmed section and schedule')->assertSee('images/reporting/jca-reports-header.png')->assertSee('Section Faith')->assertDontSee('Capacity override')->assertDontSee('Restricted rationale');
-        $this->actingAs($otherGuardian)->get(route('guardian.enrollment.progress'))->assertOk()->assertDontSee('Portal Student')->assertDontSee('Confirmed section: Faith');
+        $this->actingAs($guardianUser)->get(route('guardian.enrollment.progress'))
+            ->assertOk()
+            ->assertSee('Confirmed section')
+            ->assertSee('>Faith</h3>', false)
+            ->assertSee('Capacity 2')
+            ->assertSeeInOrder(['<li>Monday-Thursday: Math and Reading enhancement</li>', '<li>Friday: HGP</li>'], false)
+            ->assertSeeInOrder(['Mathematics', 'Monday-Friday 08:20-09:05', 'Gloria Mathteacher', 'English', 'Monday-Friday 10:50-11:35', 'To be assigned'])
+            ->assertDontSee('Capacity override');
+        $this->actingAs($guardianUser)->get(route('portal.section.print', $enrollment))->assertOk()->assertSee('Confirmed section and schedule')->assertSee('images/reporting/JCA-reports-header.png')->assertSee('Section Faith')
+            ->assertSee('>Teacher</th>', false)->assertSeeInOrder(['Mathematics', 'Gloria Mathteacher'])->assertSee('To be assigned')
+            ->assertDontSee('Capacity override')->assertDontSee('Restricted rationale');
+        $this->actingAs($otherGuardian)->get(route('guardian.enrollment.progress'))->assertOk()->assertDontSee('Portal Student')->assertDontSee('>Faith</h3>', false)->assertDontSee('Mathematics');
         $this->actingAs($otherGuardian)->get(route('portal.section.print', $enrollment))->assertNotFound();
-        $this->actingAs($studentUser)->get(route('student.enrollment.progress'))->assertOk()->assertSee('Confirmed section: Faith')->assertDontSee('Capacity override');
+        $this->actingAs($studentUser)->get(route('student.enrollment.progress'))->assertOk()->assertSee('Confirmed section: Faith')->assertSee('>Teacher</span>', false)->assertSee('Gloria Mathteacher')->assertSee('To be assigned')->assertDontSee('Capacity override');
         $this->actingAs($studentUser)->get(route('portal.section.print', $enrollment))->assertOk()->assertSee('Section Faith');
         $current = $enrollment->fresh()->currentSectionAssignment;
         app(TransferSectionAssignmentAction::class)->execute($current, $this->hope, $registrar, 'Portal update transfer', false);
-        $this->actingAs($guardianUser)->get(route('guardian.enrollment.progress'))->assertOk()->assertSee('Confirmed section: Hope')->assertDontSee('Confirmed section: Faith');
+        $this->actingAs($guardianUser)->get(route('guardian.enrollment.progress'))->assertOk()->assertSee('>Hope</h3>', false)->assertDontSee('>Faith</h3>', false)->assertDontSee('Mathematics');
         $this->actingAs($studentUser)->get(route('student.enrollment.progress'))->assertOk()->assertSee('Confirmed section: Hope')->assertDontSee('Confirmed section: Faith');
         $this->actingAs($otherStudentUser)->get(route('student.enrollment.progress'))->assertOk()->assertDontSee('Portal Student')->assertDontSee('Confirmed section: Hope');
         auth()->logout();
         $this->get(route('student.enrollment.progress'))->assertRedirect(route('identity.login'));
+    }
+
+    public function test_a_soft_copy_only_verification_is_not_carried_into_the_promoted_enrollment(): void
+    {
+        // Enrollment requirements are hard copy only (supersedes D-025). An old verified soft copy
+        // without a received hard copy is not proof, so the promoted year asks for the document again.
+        $registrar = $this->user(['registrar']);
+        $source = $this->enrollment('enrolled');
+        $birthCertificate = DocumentType::query()->create(['code' => 'P5-SOFT-BIRTH', 'name' => 'Fictional Birth Certificate']);
+        EnrollmentRequirement::query()->create([
+            'enrollment_id' => $source->id,
+            'document_type_id' => $birthCertificate->id,
+            'rule_snapshot' => ['is_required' => true, 'is_blocking' => true, 'name' => $birthCertificate->name],
+            'status' => 'missing',
+            'soft_copy_status' => 'verified',
+            'soft_copy_reviewed_by' => $registrar->id,
+            'soft_copy_reviewed_at' => now()->subMonth(),
+        ]);
+
+        $recommendation = app(RecommendPromotionAction::class)->execute($source, $registrar, $this->futureYear);
+        $draft = app(CreatePromotionDraftAction::class)->execute($recommendation, $registrar);
+
+        $this->assertSame(0, $draft->requirements()->whereNotNull('carried_from_requirement_id')->count());
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'requirements.hard_copy.carried_forward']);
     }
 
     public function test_promotion_creates_one_predecessor_linked_draft_without_mutating_history(): void
@@ -272,6 +315,8 @@ class SectionAssignmentTest extends TestCase
             'subject_id' => $carried->id,
         ]);
 
+        // The next school year opens enrollment before promoted drafts are submitted.
+        $this->futureYear->update(['status' => 'open', 'enrollment_is_open' => true]);
         app(TransitionEnrollmentAction::class)->execute($draft, 'submitted', $registrar);
         app(TransitionEnrollmentAction::class)->execute($draft->fresh(), 'under_review', $registrar);
         $this->actingAs($registrar)

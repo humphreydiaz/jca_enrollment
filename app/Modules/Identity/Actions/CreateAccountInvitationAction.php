@@ -4,9 +4,9 @@ namespace App\Modules\Identity\Actions;
 
 use App\Models\User;
 use App\Modules\Identity\Models\AccountInvitation;
+use App\Modules\Identity\Support\InvitationCode;
 use App\Modules\Shared\Audit\AuditRecorder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class CreateAccountInvitationAction
 {
@@ -25,7 +25,9 @@ class CreateAccountInvitationAction
                     'revoked_by' => $actor?->id,
                 ]);
 
-            $token = Str::random(64);
+            // A grouped, unambiguous 80-bit code is practical to type while
+            // remaining strong enough for a short-lived, rate-limited invitation.
+            $token = InvitationCode::generate();
             $invitation = AccountInvitation::query()->create([
                 'user_id' => $user->id,
                 'purpose' => $purpose,

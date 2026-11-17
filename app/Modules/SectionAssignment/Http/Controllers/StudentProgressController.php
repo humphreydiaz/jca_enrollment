@@ -2,6 +2,7 @@
 
 namespace App\Modules\SectionAssignment\Http\Controllers;
 
+use App\Modules\Academics\Models\SectionSubject;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\People\Support\StudentAccountIdentityMatcher;
 use Illuminate\Http\Request;
@@ -45,8 +46,8 @@ class StudentProgressController
             'connectionState' => 'connected',
             'studentApplications' => collect(),
             'enrollments' => Enrollment::query()->where('student_id', $student->id)->with([
-                'academicYear', 'gradeLevel', 'requirements.documentType', 'requirements.activeUpload', 'currentSectionAssignment.section.sectionSubjects.subject',
-                'currentSectionAssignment.section.teachingAssignments' => fn ($query) => $query->active()->where('assignment_type', 'adviser')->with('staffProfile.user'),
+                'academicYear', 'gradeLevel', 'requirements.documentType', 'requirements.activeUpload', 'currentSectionAssignment.section.sectionSubjects' => SectionSubject::scheduleWithTeachers(),
+                'currentSectionAssignment.section.teachingAssignments' => fn ($query) => $query->where('is_active', true)->where('assignment_type', 'adviser')->with('staffProfile.user'),
             ])->latest()->get(),
         ]);
     }

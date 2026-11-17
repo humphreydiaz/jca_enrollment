@@ -1,133 +1,90 @@
 <x-layouts.app title="Communications">
-    <div class="mx-auto max-w-6xl space-y-6">
-        <header>
-            <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-brand-orange-500">Admin workspace</p>
-            <h1 class="mt-2 text-3xl font-black text-brand-navy-900">Communications</h1>
-            <p class="mt-2 max-w-3xl text-muted">Publish safe, audience-targeted announcements and manage SMS template versions. Live SMS remains disabled until JCA approves its production sender, consent wording, and templates.</p>
-        </header>
+    <div class="mx-auto max-w-6xl space-y-6" data-preserve-scroll data-ajax-config data-communications>
+        @php
+            $smsEnabled = (bool) config('communications.sms.enabled');
+            $smsDriver = (string) config('communications.sms.driver');
+            $smsLive = $smsEnabled && $smsDriver === 'semaphore' && filled(config('communications.sms.semaphore.api_key'));
+            $smsTest = $smsEnabled && $smsDriver === 'log';
+            $smsSender = (string) config('communications.sms.semaphore.sender_name');
+            $routeLabel = $route === 'standard' ? 'standard queue (1 credit per 160-character part)' : 'priority queue (2 credits per 160-character part)';
+        @endphp
 
-        <div class="grid gap-6 xl:grid-cols-2">
-            <section class="jca-card p-5 sm:p-6" aria-labelledby="announcement-form-title">
-                <h2 id="announcement-form-title" class="text-xl font-black text-brand-navy-900">New announcement</h2>
-                <p class="mt-1 text-sm text-muted">Portal announcements may be saved as drafts or published immediately.</p>
+        <x-ui.page-header title="Communications" description="Post announcements on the portal, by text message, or both, and text specific people directly." eyebrow="Admin workspace" />
 
-                <form class="mt-5 space-y-4" method="POST" action="{{ route('communications.store') }}" x-data="{ audience: @js(old('audiences.0.type', 'all')) }">
-                    @csrf
-
-                    <x-ui.field for="announcement_title" label="Title">
-                        <input id="announcement_title" name="title" type="text" maxlength="160" required value="{{ old('title') }}" class="jca-input" autocomplete="off">
-                    </x-ui.field>
-
-                    <x-ui.field for="announcement_body" label="Message" hint="Keep school-wide messages general. Do not include support, document, or financial details.">
-                        <textarea id="announcement_body" name="body" class="jca-input min-h-32" rows="5" maxlength="1000" required>{{ old('body') }}</textarea>
-                    </x-ui.field>
-
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <x-ui.field for="announcement_status" label="Publication">
-                            <select id="announcement_status" name="status" class="jca-input" required>
-                                <option value="draft" @selected(old('status', 'draft') === 'draft')>Save draft</option>
-                                <option value="published" @selected(old('status') === 'published')>Publish now</option>
-                            </select>
-                        </x-ui.field>
-
-                        <x-ui.field for="sms_template_public_id" label="Optional SMS template" hint="Only consented guardians in the selected audience are queued.">
-                            <select id="sms_template_public_id" name="sms_template_public_id" class="jca-input">
-                                <option value="">Do not send SMS</option>
-                                @foreach($templates->where('purpose', 'announcement')->where('is_active', true) as $template)
-                                    <option value="{{ $template->public_id }}" @selected(old('sms_template_public_id') === $template->public_id)>{{ $template->code }} v{{ $template->version }}</option>
-                                @endforeach
-                            </select>
-                        </x-ui.field>
-                    </div>
-
-                    <fieldset class="rounded-xl border border-border p-4">
-                        <legend class="px-1 text-sm font-bold text-brand-navy-900">Audience</legend>
-                        <div class="mt-1 flex flex-col gap-3 sm:flex-row sm:gap-6">
-                            <label class="flex items-center gap-2 text-sm font-semibold">
-                                <input type="radio" name="audiences[0][type]" value="all" x-model="audience">
-                                All authenticated school portals
-                            </label>
-                            <label class="flex items-center gap-2 text-sm font-semibold">
-                                <input type="radio" name="audiences[0][type]" value="role" x-model="audience">
-                                One portal role
-                            </label>
-                        </div>
-                        <div class="mt-4" x-show="audience === 'role'">
-                            <label class="jca-label" for="audience_role">Portal role</label>
-                            <select id="audience_role" class="jca-input mt-1" name="audiences[0][role_code]">
-                                @foreach(['guardian' => 'Guardians', 'student' => 'Students', 'teacher' => 'Teachers', 'registrar' => 'Registrars', 'accounting' => 'Accounting'] as $value => $label)
-                                    <option value="{{ $value }}" @selected(old('audiences.0.role_code', 'guardian') === $value)>{{ $label }}</option>
-                                @endforeach
-                            </select>
-                        </div>
-                    </fieldset>
-
-                    <x-ui.button type="submit">Save announcement</x-ui.button>
-                </form>
-            </section>
-
-            <section class="jca-card p-5 sm:p-6" aria-labelledby="template-title">
-                <h2 id="template-title" class="text-xl font-black text-brand-navy-900">Create SMS template version</h2>
-                <p class="mt-1 text-sm text-muted">Saving creates a new immutable version. Activating it deactivates older versions with the same code.</p>
-
-                <form class="mt-5 space-y-4" method="POST" action="{{ route('communications.templates.store') }}">
-                    @csrf
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <x-ui.field for="template_code" label="Template code" hint="Letters, numbers, dashes, and underscores only.">
-                            <input id="template_code" name="code" type="text" maxlength="80" required value="{{ old('code') }}" class="jca-input" autocomplete="off">
-                        </x-ui.field>
-                        <x-ui.field for="template_purpose" label="Purpose">
-                            <select id="template_purpose" name="purpose" class="jca-input" required>
-                                <option value="transactional" @selected(old('purpose', 'transactional') === 'transactional')>Transactional</option>
-                                <option value="announcement" @selected(old('purpose') === 'announcement')>Announcement</option>
-                            </select>
-                        </x-ui.field>
-                    </div>
-
-                    <x-ui.field for="template_content" label="SMS content" hint="Allowed placeholders: school_name, status, action_url, announcement_title, announcement_body.">
-                        <textarea id="template_content" name="content" class="jca-input min-h-28" rows="4" maxlength="480" placeholder="Example: JCA enrollment status updated. Open the portal for details." required>{{ old('content') }}</textarea>
-                    </x-ui.field>
-
-                    <input type="hidden" name="is_active" value="0">
-                    <label class="flex items-start gap-3 rounded-xl border border-border p-3 text-sm">
-                        <input type="checkbox" name="is_active" value="1" class="mt-1" @checked(old('is_active') === '1')>
-                        <span><span class="block font-bold text-brand-navy-900">Activate this version</span><span class="text-muted">Use it for future queued messages after an authorized workflow selects it.</span></span>
-                    </label>
-
-                    <x-ui.button type="submit">Save template version</x-ui.button>
-                </form>
-
-                <div class="mt-6 border-t border-border pt-5">
-                    <h3 class="font-black text-brand-navy-900">Existing versions</h3>
-                    <div class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
-                        @forelse($templates as $template)
-                            <div class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-3 text-sm">
-                                <div><p class="font-bold text-brand-navy-900">{{ $template->code }} v{{ $template->version }}</p><p class="text-xs text-muted">{{ str($template->purpose)->headline() }}</p></div>
-                                <x-ui.status-badge :status="$template->is_active ? 'active' : 'inactive'" />
-                            </div>
-                        @empty
-                            <p class="text-sm text-muted">No SMS templates have been created.</p>
-                        @endforelse
-                    </div>
+        @if ($smsLive)
+            <div class="flex gap-3 rounded-xl border border-success-700 bg-success-50 p-4 text-success-700" role="status">
+                <x-ui.icon name="check" class="mt-0.5" />
+                <div>
+                    <p class="font-bold">Live SMS is active</p>
+                    <p class="mt-1 text-sm leading-6">Texts are sent from &ldquo;{{ $smsSender !== '' ? $smsSender : 'SEMAPHORE (default sender)' }}&rdquo; on Semaphore's {{ $routeLabel }}. Announcement texts reach only people who <strong>opted in</strong>; texts to people you pick under Message people always go out. Live sending uses real credits.</p>
                 </div>
-            </section>
+            </div>
+        @elseif ($smsTest)
+            <div class="flex gap-3 rounded-xl border border-brand-orange-500 bg-warning-50 p-4 text-warning-800" role="note">
+                <x-ui.icon name="warning" class="mt-0.5" />
+                <div>
+                    <p class="font-bold">SMS is in test mode</p>
+                    <p class="mt-1 text-sm leading-6">Texts are recorded but <strong>not delivered</strong> to any phone.</p>
+                </div>
+            </div>
+        @else
+            <div class="flex gap-3 rounded-xl border border-brand-orange-500 bg-warning-50 p-4 text-warning-800" role="note">
+                <x-ui.icon name="warning" class="mt-0.5" />
+                <div>
+                    <p class="font-bold">Live SMS is disabled</p>
+                    <p class="mt-1 text-sm leading-6">Portal announcements work normally. Texts are recorded as not sent until SMS is enabled with a production sender.</p>
+                </div>
+            </div>
+        @endif
+
+        @include('communications.admin.partials.sms-status')
+
+        <div class="grid items-start gap-6 xl:grid-cols-2">
+            @include('communications.admin.partials.announcement-composer')
+            @include('communications.admin.partials.direct-message')
         </div>
 
-        <section class="jca-card p-5 sm:p-6" aria-labelledby="failed-sms-title">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div><h2 id="failed-sms-title" class="text-xl font-black text-brand-navy-900">Failed SMS deliveries</h2><p class="mt-1 text-sm text-muted">Retrying queues the existing notification; it does not create a duplicate notification.</p></div>
-                <x-ui.status-badge :status="$failedNotifications->isEmpty() ? 'clear' : 'failed'" :label="$failedNotifications->isEmpty() ? 'Queue clear' : $failedNotifications->count().' failed'" />
-            </div>
-            <div class="mt-4 space-y-3">
-                @forelse($failedNotifications as $notification)
-                    <article class="flex flex-col justify-between gap-4 rounded-xl border border-border p-4 sm:flex-row sm:items-center">
-                        <div><p class="font-bold text-brand-navy-900">{{ str($notification->purpose)->headline() }}</p><p class="mt-1 text-sm text-muted">Attempted {{ $notification->message?->attempt_count ?? 0 }} time(s); failure code: {{ $notification->message?->failure_code ?? 'unavailable' }}</p></div>
-                        <form method="POST" action="{{ route('communications.notifications.retry', $notification) }}">@csrf<x-ui.button variant="secondary" type="submit">Retry safely</x-ui.button></form>
-                    </article>
-                @empty
-                    <x-ui.empty-state title="No failed SMS deliveries" description="Failed queued messages will appear here with a safe retry action." icon="communications" />
-                @endforelse
-            </div>
-        </section>
+        @include('communications.admin.partials.history')
     </div>
+
+    {{-- Announcement preview modal (loaded over AJAX from communications.preview) --}}
+    <dialog id="announcement-preview" class="m-auto w-[min(40rem,calc(100%-2rem))] max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border-0 bg-white p-0 text-ink shadow-2xl backdrop:bg-slate-950/55">
+        <div class="flex items-start justify-between gap-4 border-b border-border bg-gradient-to-br from-white to-slate-50/80 p-5 sm:p-6">
+            <div class="min-w-0">
+                <p class="inline-flex items-center gap-2 text-xs font-extrabold uppercase tracking-[0.16em] text-brand-orange-500">
+                    <x-ui.icon name="announcement" size="size-4" /> <span data-preview-delivery>School announcement</span>
+                </p>
+                <h2 data-preview-title class="mt-2 text-xl font-black leading-tight text-brand-navy-900 sm:text-2xl">&nbsp;</h2>
+            </div>
+            <button type="button" data-preview-close class="grid size-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-brand-navy-900" aria-label="Close">
+                <x-ui.icon name="close" />
+            </button>
+        </div>
+
+        <div class="p-5 sm:p-6">
+            <div data-preview-loading class="hidden py-8 text-center text-sm text-muted">Loading announcement…</div>
+            <div data-preview-error class="hidden rounded-lg border border-brand-red-600 bg-red-50 p-4 text-sm font-semibold text-brand-red-600"></div>
+            <div data-preview-content class="hidden">
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+                    <span data-preview-status></span>
+                    <span data-preview-date class="inline-flex items-center gap-1.5"></span>
+                    <span data-preview-author class="inline-flex items-center gap-1.5"></span>
+                </div>
+                <div data-preview-body class="mt-5 whitespace-pre-line text-base leading-7 text-text"></div>
+                <div data-preview-sms-wrap class="mt-5 hidden rounded-xl bg-slate-50 p-4">
+                    <p class="text-xs font-bold uppercase tracking-[0.14em] text-muted">Text message</p>
+                    <p data-preview-sms class="mt-2 whitespace-pre-line text-sm leading-6 text-text"></p>
+                </div>
+                <div data-preview-audience-wrap class="mt-6 hidden border-t border-border pt-5">
+                    <p class="text-xs font-bold uppercase tracking-[0.14em] text-muted">Audience</p>
+                    <div data-preview-audiences class="mt-2 flex flex-wrap gap-2"></div>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <a data-preview-link href="#" class="inline-flex items-center gap-1.5 text-sm font-bold text-brand-navy-700 hover:underline">
+                        Open portal page <x-ui.icon name="arrow-right" size="size-4" />
+                    </a>
+                </div>
+            </div>
+        </div>
+    </dialog>
 </x-layouts.app>

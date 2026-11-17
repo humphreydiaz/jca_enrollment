@@ -13,15 +13,18 @@ class RequestReportExportAction
 {
     public function __construct(private readonly ReportCatalog $reports, private readonly AuditRecorder $audit) {}
 
-    /** @param array<string, mixed> $filters */
-    public function execute(string $reportCode, array $filters, User $actor): ExportJob
+    /**
+     * @param  array<string, mixed>  $filters
+     * @param  list<string>|null  $pickedColumns  allowlisted columns to include; null means all
+     */
+    public function execute(string $reportCode, array $filters, User $actor, ?array $pickedColumns = null): ExportJob
     {
-        return DB::transaction(function () use ($reportCode, $filters, $actor): ExportJob {
+        return DB::transaction(function () use ($reportCode, $filters, $actor, $pickedColumns): ExportJob {
             $export = ExportJob::query()->create([
                 'requested_by' => $actor->id,
                 'report_code' => $reportCode,
                 'filter_snapshot' => $filters ?: null,
-                'field_snapshot' => array_keys($this->reports->columns($reportCode, $actor)),
+                'field_snapshot' => array_keys($this->reports->selectedColumns($reportCode, $actor, $pickedColumns)),
                 'status' => 'queued',
                 'disk' => (string) config('reporting.disk'),
                 'download_name' => $reportCode.'-report-'.now()->format('Ymd-His').'.csv',

@@ -1,0 +1,82 @@
+
+<?php
+
+namespace App\Modules\Enrollment\Actions;
+
+use App\Modules\Enrollment\Models\Enrollment;
+use App\Modules\People\Models\StudentProfile;
+use App\Modules\Shared\Audit\AuditRecorder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+class SaveEnrollmentDraftAction
+{
+    public function __construct(private readonly AuditRecorder $audit) {}
+
+    /** @param array<string, mixed> $data */
+    public function execute(Enrollment $enrollment, array $data): Enrollment
+    {
+        return DB::transaction(function () use ($enrollment, $data): Enrollment {
+
+            $record = Enrollment::query()
+                ->lockForUpdate()
+                ->findOrFail($enrollment->id);
+
+            if ($record->status !== 'draft') {
+                throw ValidationException::withMessages([
+                    'application' => 'Only draft applications can be edited.',
+                ]);
+            }
+
+            // GLOBAL ENROLLMENT DEADLINE VALIDATION
+            $schoolYear = $record->academicYear;
+            $today = now('Asia/Manila')->toDateString();
+
+            if (! $schoolYear || $schoolYear->status !== 'open') {
+                throw ValidationException::withMessages([
+                    'application' => 'Enrollment is currently closed.',
+                ]);
+            }
+
+            // Check enrollment opening date.
+            if (
+                $schoolYear->enrollment_opens_on
+                && $today < $schoolYear->enrollment_opens_on->toDateString()
+            ) {
+                throw ValidationException::withMessages([
+                    'application' => 'Enrollment is not yet open.',
+                ]);
+            }
+
+            // Check enrollment closing date.
+            // The closing date itself is still allowed.
+            if (
+                $schoolYear->enrollment_closes_on
+                && $today > $schoolYear->enrollment_closes_on->toDateString()
+            ) {
+                throw ValidationException::withMessages([
+                    'application' => 'Enrollment is closed. The enrollment deadline has passed.',
+                ]);
+            }
+
+            // EXISTING APPLICATION SAVE LOGIC
+            $student = StudentProfile::query()
+                ->lockForUpdate()
+                ->findOrFail($record->student_id);
+
+            $student->update([
+                'middle_name' => $data['student_middle_name'] ?? null,
+            ]);
+
+            $record->update([
+                'guardian_relationship' => $data['guardian_relationship'],
+                'previous_school_name' => $data['previous_school_name'] ?? null,
+                'previous_school_address' => $data['previous_school_address'] ?? null,
+            ]);
+
+            $this->audit->record(null, 'enrollment.draft.saved', $record);
+
+            return $record;
+        });
+    }
+}

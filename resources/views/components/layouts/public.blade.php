@@ -25,10 +25,6 @@
                         <x-brand-mark :inverse="true" />
                         @auth
                             <a class="jca-button jca-button-secondary" href="{{ route('identity.dashboard') }}">My account</a>
-                        @else
-                            <div class="flex items-center gap-3">
-                                <a class="landing-header__link" href="{{ route('identity.login') }}">Sign in</a>
-                            </div>
                         @endauth
                     </div>
                 </header>
@@ -39,11 +35,7 @@
                         @auth
                             <a class="jca-button jca-button-secondary" href="{{ route('identity.dashboard') }}">My account</a>
                         @else
-                            @if (request()->routeIs('identity.staff.*'))
-                                <a class="jca-button jca-button-secondary" href="{{ route('identity.staff.login') }}">Staff sign in</a>
-                            @else
-                                <a class="jca-button jca-button-secondary" href="{{ route('identity.login') }}">Sign in</a>
-                            @endif
+                            <a class="jca-button jca-button-secondary" href="{{ route('identity.login') }}">Sign in</a>
                         @endauth
                     </div>
                 </header>

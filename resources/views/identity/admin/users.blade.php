@@ -6,7 +6,9 @@
         'contactType' => $user->email ? 'Email' : ($user->mobile ? 'Mobile' : 'Contact'),
         'status' => ucfirst($user->status->value),
         'roles' => $user->roles->pluck('code')->values()->all(),
-        'roleNames' => $user->roles->pluck('name')->values()->all(),
+        'roleNames' => $user->roles->map(fn ($role) => $role->code === 'guardian' ? 'Parent/Guardian' : $role->name)->values()->all(),
+        'staffNumber' => $user->staffProfile?->employee_number,
+        'parentLoginId' => $user->guardianProfile?->parent_login_id,
         'roleAction' => route('identity.admin.users.roles', $user),
         'recoveryAction' => route('identity.admin.users.recovery', $user),
         'disableAction' => route('identity.admin.users.disable', $user),
@@ -45,8 +47,13 @@
                         <x-ui.icon name="warning" size="size-5" />
                     </span>
                     <div class="min-w-0 flex-1">
-                        <h2 id="invitation-link-title" class="text-lg font-black text-brand-navy-900">One-time setup link ready</h2>
-                        <p class="mt-1 text-sm leading-6 text-muted">Copy it now and deliver it only through the verified contact channel. It will not be shown again.</p>
+                        <h2 id="invitation-link-title" class="text-lg font-black text-brand-navy-900">One-time account setup fallback</h2>
+                        <p class="mt-1 text-sm leading-6 text-muted">Use this only if the SMS does not arrive. Deliver it through the verified contact channel; it will not be shown again.</p>
+                        @if (session('invitation_code'))
+                            <p class="mt-3 text-sm text-muted">Account code</p>
+                            <input readonly value="{{ session('invitation_code') }}" class="jca-input mt-1 font-mono tracking-wider" aria-label="One-time account code" />
+                        @endif
+                        <p class="mt-3 text-sm text-muted">Direct setup link</p>
                         <input readonly value="{{ session('invitation_url') }}" class="jca-input mt-3 font-mono text-xs" aria-label="One-time invitation link" />
                     </div>
                 </div>
@@ -62,10 +69,14 @@
                 <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Active</p>
                 <p class="mt-2 text-2xl font-black text-emerald-700">{{ number_format($summary['active']) }}</p>
             </div>
-            <div class="jca-card p-4 sm:p-5">
+            <a
+                href="{{ route('identity.admin.users.index', ['status' => 'invited']) }}"
+                class="jca-card block p-4 sm:p-5"
+                title="View active and pending staff accounts"
+            >
                 <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Invited</p>
                 <p class="mt-2 text-2xl font-black text-brand-navy-700">{{ number_format($summary['invited']) }}</p>
-            </div>
+            </a>
             <div class="jca-card p-4 sm:p-5">
                 <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Needs attention</p>
                 <p class="mt-2 text-2xl font-black text-brand-red-600">{{ number_format($summary['attention']) }}</p>
@@ -82,10 +93,41 @@
             </summary>
 
             <div class="border-t border-border p-5 sm:p-6">
-                <p class="max-w-3xl text-sm leading-6 text-muted">Public registration is disabled. Create an account, assign compatible roles, and issue a single-use setup link.</p>
+                <p class="max-w-3xl text-sm leading-6 text-muted">Public registration is disabled. Create a staff account, select one staff role, and issue a single-use setup link.</p>
 
-                <form method="POST" action="{{ route('identity.admin.users.store') }}" class="mt-6 grid gap-5 md:grid-cols-2">
+                <form method="POST" action="{{ route('identity.admin.users.store') }}" class="mt-6 grid gap-5 md:grid-cols-2" x-data="{ staffRole: @js(old('roles.0', '')), employmentDate: @js(old('employed_on', '')) }">
                     @csrf
+                    <fieldset class="md:col-span-2">
+                        <legend class="text-sm font-bold text-ink">Staff role <span class="text-brand-red-600">*</span></legend>
+                        <p class="mt-1 text-sm text-muted">Select one role for this staff invitation.</p>
+                        <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            @foreach ($roles->whereIn('code', ['admin', 'registrar', 'accounting', 'teacher']) as $role)
+                                <label class="jca-check rounded-lg border border-border p-3">
+                                    <input type="radio" name="roles[]" value="{{ $role->code }}" required @checked(in_array($role->code, old('roles', []), true)) x-model="staffRole" />
+                                    {{ $role->name }}
+                                </label>
+                            @endforeach
+                        </div>
+                        @if (! $reopenAccount)
+                            @error('roles')<p class="mt-2 text-sm font-semibold text-brand-red-600">{{ $message }}</p>@enderror
+                            @error('roles.0')<p class="mt-2 text-sm font-semibold text-brand-red-600">{{ $message }}</p>@enderror
+                            @error('employed_on')<p class="mt-2 text-sm font-semibold text-brand-red-600">{{ $message }}</p>@enderror
+                        @endif
+                    </fieldset>
+
+                    <div x-show="staffRole !== ''" x-cloak class="md:col-span-2 rounded-xl border border-brand-blue-100 bg-brand-blue-100/30 p-4 sm:p-5" aria-live="polite">
+                        <p class="text-xs font-extrabold uppercase tracking-[0.12em] text-brand-navy-700">Automatic Staff ID preview</p>
+                        <p class="mt-2 font-mono text-xl font-black text-brand-navy-900"
+                           x-text="staffRole ? (/^\d{4}-\d{2}-\d{2}$/.test(employmentDate) ? employmentDate.slice(2, 4) : @js(today()->format('y'))) + '-JCA-###' : 'Select a staff role first'">
+                            Select a staff role first
+                        </p>
+                        <p class="mt-2 text-sm text-muted">Preview only. The final unique three digits are generated when you create the invitation. The year updates when you set the employment start date.</p>
+                    </div>
+
+                    <div class="md:col-span-2 mt-1">
+                        <h3 class="text-sm font-black text-brand-navy-900">Staff information</h3>
+                        <p class="mt-1 text-sm text-muted">Enter the staff details after selecting the role.</p>
+                    </div>
                     <x-ui.field for="name" label="Full name">
                         <input id="name" name="name" value="{{ old('name') }}" required class="jca-input mt-0" />
                     </x-ui.field>
@@ -101,22 +143,10 @@
                     <x-ui.field for="mobile" label="Mobile number">
                         <input id="mobile" name="mobile" value="{{ old('mobile') }}" inputmode="tel" autocomplete="tel" required class="jca-input mt-0" />
                     </x-ui.field>
+                    <x-ui.field for="employed_on" label="Employment start date" hint="Required for staff invitations; this date supplies the Staff ID year.">
+                        <input id="employed_on" name="employed_on" value="{{ old('employed_on') }}" type="date" max="{{ today()->toDateString() }}" required class="jca-input mt-0" x-model="employmentDate" />
+                    </x-ui.field>
 
-                    <fieldset class="md:col-span-2">
-                        <legend class="text-sm font-bold text-ink">Roles</legend>
-                        <p class="mt-1 rounded-lg bg-amber-50 p-3 text-sm leading-6 text-amber-950"><strong>Student invitations create a login only.</strong> They do not create a student profile, application, grade, or enrollment. Complete and approve the student's own enrollment first, then connect the matching login from People.</p>
-                        <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            @foreach ($roles as $role)
-                                <label class="jca-check rounded-lg border border-border p-3">
-                                    <input type="checkbox" name="roles[]" value="{{ $role->code }}" @checked(in_array($role->code, old('roles', []), true)) />
-                                    {{ $role->name }}
-                                </label>
-                            @endforeach
-                        </div>
-                        @if (! $reopenAccount)
-                            @error('roles')<p class="mt-2 text-sm font-semibold text-brand-red-600">{{ $message }}</p>@enderror
-                        @endif
-                    </fieldset>
 
                     <div class="md:col-span-2">
                         <x-ui.button type="submit">Create invitation</x-ui.button>
@@ -125,6 +155,19 @@
             </div>
         </details>
 
+        <details class="jca-card overflow-hidden" id="reissue-password">
+    <summary class="cursor-pointer p-5 font-black text-brand-navy-900 sm:p-6">
+        Reissue Temporary Password
+    </summary>
+    <div class="border-t border-border p-5 sm:p-6">
+        <p class="mb-4 text-sm text-muted">
+            Find an existing account using a Parent ID, Student ID, or Staff ID.
+        </p>
+        <a href="{{ route('identity.users.reissue.index') }}" class="jca-button jca-button-primary">
+            Open Reissue Temporary Password
+        </a>
+    </div>
+</details>
         <section class="jca-card overflow-hidden" aria-labelledby="accounts-title">
             <div class="border-b border-border p-5 sm:p-6">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -145,7 +188,7 @@
                         <select id="account-role" name="role" class="jca-input mt-0">
                             <option value="">All roles</option>
                             @foreach ($roles as $role)
-                                <option value="{{ $role->code }}" @selected($filters['role'] === $role->code)>{{ $role->name }}</option>
+                                <option value="{{ $role->code }}" @selected($filters['role'] === $role->code)>{{ $role->code === 'guardian' ? 'Parent/Guardian' : $role->name }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -161,8 +204,8 @@
                     <div>
                         <label for="account-sort" class="sr-only">Sort accounts</label>
                         <select id="account-sort" name="sort" class="jca-input mt-0">
-                            <option value="name_asc" @selected($filters['sort'] === 'name_asc')>Name A–Z</option>
-                            <option value="name_desc" @selected($filters['sort'] === 'name_desc')>Name Z–A</option>
+                            <option value="name_asc" @selected($filters['sort'] === 'name_asc')>Name A-Z</option>
+                            <option value="name_desc" @selected($filters['sort'] === 'name_desc')>Name Z-A</option>
                             <option value="newest" @selected($filters['sort'] === 'newest')>Newest accounts</option>
                             <option value="oldest" @selected($filters['sort'] === 'oldest')>Oldest accounts</option>
                             <option value="recent_login" @selected($filters['sort'] === 'recent_login')>Recent sign-in</option>
@@ -184,17 +227,17 @@
                         <span class="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Active filters</span>
                         @if (filled($filters['search']))
                             <a href="{{ route('identity.admin.users.index', request()->except(['search', 'page'])) }}" class="inline-flex min-h-9 items-center gap-2 rounded-full bg-brand-blue-100 px-3 text-xs font-bold text-brand-navy-700">
-                                Search: {{ Str::limit($filters['search'], 28) }} <span aria-hidden="true">×</span>
+                                Search: {{ Str::limit($filters['search'], 28) }} <span aria-hidden="true">x</span>
                             </a>
                         @endif
                         @if (filled($filters['role']))
                             <a href="{{ route('identity.admin.users.index', request()->except(['role', 'page'])) }}" class="inline-flex min-h-9 items-center gap-2 rounded-full bg-brand-blue-100 px-3 text-xs font-bold text-brand-navy-700">
-                                Role: {{ $roles->firstWhere('code', $filters['role'])?->name }} <span aria-hidden="true">×</span>
+                                Role: {{ $filters['role'] === 'guardian' ? 'Parent/Guardian' : $roles->firstWhere('code', $filters['role'])?->name }} <span aria-hidden="true">x</span>
                             </a>
                         @endif
                         @if (filled($filters['status']))
                             <a href="{{ route('identity.admin.users.index', request()->except(['status', 'page'])) }}" class="inline-flex min-h-9 items-center gap-2 rounded-full bg-brand-blue-100 px-3 text-xs font-bold text-brand-navy-700">
-                                Status: {{ ucfirst($filters['status']) }} <span aria-hidden="true">×</span>
+                                Status: {{ ucfirst($filters['status']) }} <span aria-hidden="true">x</span>
                             </a>
                         @endif
                         <a href="{{ route('identity.admin.users.index') }}" class="min-h-9 px-2 py-2 text-xs font-bold text-brand-navy-700 underline">Clear all</a>
@@ -222,6 +265,9 @@
                                         <span class="grid size-10 shrink-0 place-items-center rounded-full bg-brand-blue-100 text-sm font-black text-brand-navy-700" aria-hidden="true">{{ Str::upper(Str::substr($user->name, 0, 1)) }}</span>
                                         <div class="min-w-0">
                                             <p class="font-bold text-ink">{{ $user->name }}</p>
+                                            @if ($user->staffProfile?->employee_number)
+                                                <p class="mt-0.5 font-mono text-xs font-semibold text-brand-navy-700">{{ $user->staffProfile->employee_number }}</p>
+                                            @endif
                                             @if ($user->is(auth()->user()))
                                                 <p class="mt-0.5 text-xs font-semibold text-brand-navy-700">Your account</p>
                                             @endif
@@ -235,13 +281,19 @@
                                 <td class="px-5 py-4 sm:px-6">
                                     <div class="flex min-w-36 flex-wrap gap-1.5">
                                         @forelse ($user->roles as $role)
-                                            <span class="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">{{ $role->name }}</span>
+                                            <span class="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">{{ $role->code === 'guardian' ? 'Parent/Guardian' : $role->name }}</span>
                                         @empty
                                             <span class="text-xs font-semibold text-muted">No active role</span>
                                         @endforelse
                                     </div>
                                 </td>
-                                <td class="px-5 py-4 sm:px-6"><x-ui.status-badge :status="$user->status" /></td>
+                                <td class="px-5 py-4 sm:px-6">
+    @if ($user->status === \App\Modules\Identity\Enums\AccountStatus::Invited && $user->hasRole('guardian') && ! $user->roles->contains('is_staff', true))
+        <span class="font-semibold text-muted">Pending Setup</span>
+    @else
+<x-ui.status-badge :status="$user->status" />
+    @endif
+</td>
                                 <td class="hidden whitespace-nowrap px-5 py-4 text-muted xl:table-cell sm:px-6">
                                     {{ $user->last_login_at?->timezone(config('app.timezone'))->format('d M Y, g:i A') ?? 'Never' }}
                                 </td>
@@ -279,7 +331,7 @@
             @if ($users->hasPages() || $users->total() > 0)
                 <div class="flex flex-col gap-4 border-t border-border p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                     <p class="text-sm text-muted">
-                        Showing <span class="font-bold text-ink">{{ $users->firstItem() ?? 0 }}–{{ $users->lastItem() ?? 0 }}</span>
+                        Showing <span class="font-bold text-ink">{{ $users->firstItem() ?? 0 }}-{{ $users->lastItem() ?? 0 }}</span>
                         of <span class="font-bold text-ink">{{ number_format($users->total()) }}</span>
                     </p>
                     <div>{{ $users->onEachSide(1)->links() }}</div>
@@ -302,6 +354,7 @@
                         <p class="text-xs font-extrabold uppercase tracking-[0.14em] text-brand-orange-500">Account actions</p>
                         <h2 id="account-dialog-title" class="mt-1 truncate text-xl font-black text-brand-navy-900" x-text="selectedUser?.name"></h2>
                         <p class="mt-1 break-all text-sm text-muted"><span x-text="selectedUser?.contactType"></span>: <span x-text="selectedUser?.contact"></span></p>
+                        <p x-show="selectedUser?.staffNumber" class="mt-1 font-mono text-sm font-bold text-brand-navy-700" x-text="selectedUser?.staffNumber"></p>
                     </div>
                     <button type="button" class="grid size-10 shrink-0 place-items-center rounded-lg text-muted hover:bg-slate-100 hover:text-ink" @click="closeAccount()" aria-label="Close account actions">
                         <x-ui.icon name="close" />
@@ -316,34 +369,23 @@
                         </template>
                     </div>
 
-                    <section class="rounded-xl border border-border p-4 sm:p-5" aria-labelledby="account-roles-title">
-                        <h3 id="account-roles-title" class="font-black text-brand-navy-900">Roles and access</h3>
-                        <p class="mt-1 text-sm leading-6 text-muted">Choose at least one compatible role. Saving changes re-evaluates active access.</p>
-                        <form method="POST" :action="selectedUser?.roleAction" class="mt-4">
-                            @csrf
-                            @method('PUT')
-                            <input type="hidden" name="account_public_id" :value="selectedUser?.publicId" />
-                            <div class="grid gap-2 sm:grid-cols-2">
-                                @foreach ($roles as $role)
-                                    <label class="jca-check rounded-lg border border-border p-3">
-                                        <input type="checkbox" name="roles[]" value="{{ $role->code }}" x-model="selectedRoles" />
-                                        {{ $role->name }}
-                                    </label>
-                                @endforeach
-                            </div>
-                            @if ($reopenAccount)
-                                @error('roles')<p class="mt-2 text-sm font-semibold text-brand-red-600">{{ $message }}</p>@enderror
-                            @endif
-                            <div class="mt-4 flex justify-end">
-                                <x-ui.button type="submit">Save role changes</x-ui.button>
-                            </div>
-                        </form>
-                    </section>
 
+                    <template x-if="(selectedUser?.roles ?? []).includes('guardian') && selectedUser?.parentLoginId">
+                        <section class="rounded-xl border border-border p-4 sm:p-5">
+                            <h3 class="font-black text-brand-navy-900">Parent ID</h3>
+                            <p
+                                class="mt-2 font-mono text-xl font-black text-brand-navy-900"
+                                x-text="selectedUser?.parentLoginId"
+                            ></p>
+                            <p class="mt-1 text-xs text-muted">
+                                Grade 7–10 Parent/Guardian login identifier.
+                            </p>
+                        </section>
+                    </template>
                     <template x-if="selectedUser?.canRecover">
                         <section class="rounded-xl border border-border p-4 sm:p-5" aria-labelledby="account-recovery-title">
                             <h3 id="account-recovery-title" class="font-black text-brand-navy-900">Account recovery</h3>
-                            <p class="mt-1 text-sm leading-6 text-muted">Create a single-use recovery link after the school has verified this person’s identity.</p>
+                            <p class="mt-1 text-sm leading-6 text-muted">Create a single-use recovery link after the school has verified this person's identity.</p>
                             <form method="POST" :action="selectedUser?.recoveryAction" class="mt-4">
                                 @csrf
                                 <input type="hidden" name="account_public_id" :value="selectedUser?.publicId" />
@@ -355,7 +397,7 @@
                     <template x-if="selectedUser?.isDisabled">
                         <section class="rounded-xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5" aria-labelledby="reactivate-account-title">
                             <h3 id="reactivate-account-title" class="font-black text-brand-navy-900">Reactivate account</h3>
-                            <p class="mt-1 text-sm leading-6 text-muted">Reactivation returns the account to invited status and creates a new one-time setup link.</p>
+                            <p class="mt-1 text-sm leading-6 text-muted">Staff reactivation issues a setup link. Parent/Student reactivation issues a temporary password.</p>
                             <form method="POST" :action="selectedUser?.reactivateAction" class="mt-4">
                                 @csrf
                                 <input type="hidden" name="account_public_id" :value="selectedUser?.publicId" />

@@ -13,6 +13,7 @@ use App\Modules\Billing\Actions\ApprovePermitOverrideAction;
 use App\Modules\Billing\Actions\ApproveRefundAction;
 use App\Modules\Billing\Actions\ApproveReversalAction;
 use App\Modules\Billing\Actions\AwardDiscountAction;
+use App\Modules\Billing\Actions\CancelDraftFinancialRecordAction;
 use App\Modules\Billing\Actions\CreateAssessmentAction;
 use App\Modules\Billing\Actions\FinalizeAssessmentAction;
 use App\Modules\Billing\Actions\IssueExamPermitAction;
@@ -74,16 +75,17 @@ class BillingWorkflowTest extends TestCase
         app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
         $schedule->items()->with('feeType')->firstOrFail()->feeType->update(['name' => 'Updated Fictional Tuition']);
         $this->assertSame('28500.00', (string) $assessment->fresh()->net_total);
-        $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => '2026-06-01', 'amount' => '30000.00', 'method' => 'cash', 'payer_name' => 'Fictional Guardian', 'status' => 'draft', 'created_by' => $accounting->id]);
-        PaymentAllocation::query()->create(['payment_id' => $payment->id, 'assessment_item_id' => $assessment->items()->first()->id, 'amount' => '30000.00']);
+        // Payments may not exceed the remaining balance, so this pays the assessment in full.
+        $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => '2026-06-01', 'amount' => '28500.00', 'method' => 'cash', 'payer_name' => 'Fictional Guardian', 'status' => 'draft', 'created_by' => $accounting->id]);
+        PaymentAllocation::query()->create(['payment_id' => $payment->id, 'assessment_item_id' => $assessment->items()->first()->id, 'amount' => '28500.00']);
         app(PostPaymentAction::class)->execute($payment, $accounting);
         $this->assertMatchesRegularExpression('/^PAY-\d{4}-\d{6}$/', $payment->fresh()->payment_reference);
         $this->assertMatchesRegularExpression('/^JCA-REC-\d{4}-\d{6}$/', $payment->fresh()->receipt_reference);
         $reversal = PaymentReversal::query()->create(['payment_id' => $payment->id, 'amount' => '1000.00', 'reason' => 'Fictional correction', 'requested_by' => $accounting->id, 'requested_at' => now()]);
         app(ApproveReversalAction::class)->execute($reversal, $admin);
         $balance = app(BalanceCalculator::class)->calculate($assessment->fresh());
-        $this->assertSame('0.00', $balance['due']);
-        $this->assertSame('500.00', $balance['credit']);
+        $this->assertSame('1000.00', $balance['due']);
+        $this->assertSame('0.00', $balance['credit']);
         $tooMuch = PaymentReversal::query()->create(['payment_id' => $payment->id, 'amount' => '30000.00', 'reason' => 'Too much', 'requested_by' => $accounting->id, 'requested_at' => now()]);
         $this->expectException(ValidationException::class);
         app(ApproveReversalAction::class)->execute($tooMuch, $admin);
@@ -96,18 +98,19 @@ class BillingWorkflowTest extends TestCase
         $guardianUser = $this->user(['guardian']);
         $teacher = $this->user(['teacher']);
         $admin = $this->user(['admin']);
-        $adminAccounting = $this->user(['admin', 'accounting']);
         [$enrollment,$schedule] = $this->fixture($guardianUser);
         $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
         app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
         $this->actingAs($accounting)->get(route('billing.index'))->assertOk();
         $this->actingAs($registrar)->get(route('billing.index'))->assertOk();
         $this->actingAs($teacher)->get(route('billing.index'))->assertForbidden();
-        $this->actingAs($guardianUser)->get(route('billing.portal.show', $assessment))->assertOk();
+        // Financial records are staff-only: guardians are refused.
+        $this->actingAs($guardianUser)->get(route('billing.portal.show', $assessment))->assertForbidden();
         $draft = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => today(), 'amount' => '10.00', 'method' => 'cash', 'payer_name' => 'Fictional Payer', 'status' => 'draft', 'created_by' => $accounting->id]);
         PaymentAllocation::query()->create(['payment_id' => $draft->id, 'assessment_item_id' => $assessment->items()->first()->id, 'amount' => '10.00']);
         $this->actingAs($admin)->post(route('billing.payments.post', $draft))->assertForbidden();
-        $this->actingAs($adminAccounting)->post(route('billing.payments.post', $draft))->assertRedirect();
+        // One role per account: Accounting posts, Admin alone cannot.
+        $this->actingAs($accounting)->post(route('billing.payments.post', $draft))->assertRedirect();
         $this->assertSame('posted', $draft->fresh()->status);
         $this->get('/payment-gateway')->assertNotFound();
     }
@@ -146,6 +149,8 @@ class BillingWorkflowTest extends TestCase
 
     public function test_payment_plan_permit_print_and_portal_contracts(): void
     {
+        // Fixed 2026-2027 dates: permits can be issued from the first day of the exam month until before the exam.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-06-01 09:00', 'Asia/Manila'));
         $accounting = $this->user(['accounting']);
         $admin = $this->user(['admin']);
         $registrar = $this->user(['registrar']);
@@ -181,24 +186,28 @@ class BillingWorkflowTest extends TestCase
         }
         app(PostPaymentAction::class)->execute($payment, $accounting);
         $period = ExamPeriod::query()->where('code', 'Q1')->firstOrFail();
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-08-03 09:00', 'Asia/Manila'));
         $permit = app(IssueExamPermitAction::class)->execute($assessment->fresh(), $period, $accounting);
         $this->assertSame('issued', $permit->status);
 
-        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('ORIGINAL')->assertSee($payment->fresh()->receipt_reference)->assertSee('images/reporting/jca-reports-header.png');
-        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('REPRINT #1');
+        $this->actingAs($guardian)->get(route('billing.print.receipt', $payment->fresh()))->assertForbidden();
+        $this->actingAs($accounting)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('ORIGINAL')->assertSee($payment->fresh()->receipt_reference)->assertSee('images/reporting/JCA-reports-header.png');
+        $this->actingAs($accounting)->get(route('billing.print.receipt', $payment->fresh()))->assertOk()->assertSee('REPRINT #1');
         $permitResponse = $this->actingAs($guardian)->get(route('billing.print.permit', $permit));
-        $permitResponse->assertOk()->assertSee('AUTHORIZED')->assertSee('images/reporting/jca-reports-header.png')->assertDontSee('outstanding balance')->assertDontSee('hardship')->assertDontSee('payment history');
+        $permitResponse->assertOk()->assertSee('AUTHORIZED')->assertSee('images/reporting/JCA-reports-header.png')->assertDontSee('outstanding balance')->assertDontSee('hardship')->assertDontSee('payment history');
         $this->assertSame(2, ReceiptPrint::query()->where('payment_id', $payment->id)->count());
         $this->assertSame(1, ExamPermitPrint::query()->where('exam_permit_id', $permit->id)->count());
 
         $this->actingAs($registrar)->get(route('billing.portal.show', $assessment))->assertOk()->assertSee('Financial status')->assertDontSee('Tuition Fee');
         $this->actingAs($registrar)->get(route('billing.print.receipt', $payment->fresh()))->assertForbidden();
-        $this->actingAs($studentUser)->get(route('billing.portal.show', $assessment))->assertOk();
-        $this->actingAs($studentUser)->get(route('billing.portal.index'))->assertOk()->assertSee('Fictional Student');
-        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.show', $assessment))->assertNotFound();
-        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.index'))->assertOk()->assertDontSee($assessment->assessment_reference);
-        $this->actingAs($unrelatedStudent)->get(route('billing.portal.show', $assessment))->assertNotFound();
-        $this->actingAs($unrelatedGuardian)->get('/finance/assessments/'.Str::ulid())->assertNotFound();
+        $this->actingAs($studentUser)->get(route('billing.portal.show', $assessment))->assertForbidden();
+        $this->actingAs($studentUser)->get(route('billing.portal.index'))->assertForbidden();
+        $this->actingAs($guardian)->get(route('billing.portal.index'))->assertForbidden();
+        $this->actingAs($guardian)->get(route('billing.print.statement', $assessment))->assertForbidden();
+        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.show', $assessment))->assertForbidden();
+        $this->actingAs($unrelatedGuardian)->get(route('billing.portal.index'))->assertForbidden();
+        $this->actingAs($unrelatedStudent)->get(route('billing.portal.show', $assessment))->assertForbidden();
+        $this->assertContains($this->actingAs($unrelatedGuardian)->get('/finance/assessments/'.Str::ulid())->status(), [403, 404]);
         auth()->logout();
         $this->get(route('billing.portal.show', $assessment))->assertRedirect();
 
@@ -249,7 +258,8 @@ class BillingWorkflowTest extends TestCase
         $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => '2026-06-01', 'amount' => '100.00', 'method' => 'bank_transfer', 'payer_name' => 'Fictional Guardian', 'method_reference' => 'FICTIONAL-REF', 'status' => 'draft', 'created_by' => $accounting->id]);
 
         $this->actingAs($admin)->get(route('billing.configuration.index'))->assertOk()->assertSee('Financial configuration');
-        $this->actingAs($accounting)->get(route('billing.configuration.index'))->assertForbidden();
+        $this->actingAs($accounting)->get(route('billing.configuration.index'))->assertOk()->assertSee('Financial configuration');
+        $this->actingAs($guardian)->get(route('billing.configuration.index'))->assertForbidden();
         $this->actingAs($accounting)->post(route('billing.evidence.store', $payment), ['evidence' => UploadedFile::fake()->create('fictional-proof.pdf', 10, 'application/pdf')])->assertRedirect();
         $evidence = PaymentEvidence::query()->firstOrFail();
         Storage::disk('documents')->assertExists($evidence->storage_path);
@@ -263,6 +273,8 @@ class BillingWorkflowTest extends TestCase
 
     public function test_permit_eligibility_override_and_reversal_are_reproducible(): void
     {
+        // Fixed 2026-2027 dates: permits can be issued from the first day of the exam month until before the exam.
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-06-01 09:00', 'Asia/Manila'));
         $accounting = $this->user(['accounting']);
         $admin = $this->user(['admin']);
         [$enrollment, $schedule] = $this->fixture();
@@ -271,6 +283,7 @@ class BillingWorkflowTest extends TestCase
         app(SelectPaymentPlanAction::class)->execute($assessment, 'full', $accounting);
         app(ApprovePaymentToFollowAction::class)->execute($assessment, '2026-06-04', null, $accounting);
         $periodOne = ExamPeriod::query()->create(['academic_year_id' => $enrollment->academic_year_id, 'code' => 'Q1', 'name' => 'First Quarter', 'starts_on' => '2026-08-20', 'ends_on' => '2026-08-21', 'eligibility_cutoff_on' => '2026-08-10', 'status' => 'planned']);
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-08-03 09:00', 'Asia/Manila'));
         try {
             app(IssueExamPermitAction::class)->execute($assessment, $periodOne, $accounting);
             $this->fail('Payment-to-follow must not make an unpaid assessment eligible.');
@@ -289,10 +302,12 @@ class BillingWorkflowTest extends TestCase
         }
         app(PostPaymentAction::class)->execute($payment, $accounting);
         $periodTwo = ExamPeriod::query()->create(['academic_year_id' => $enrollment->academic_year_id, 'code' => 'Q2', 'name' => 'Second Quarter', 'starts_on' => '2026-10-20', 'ends_on' => '2026-10-21', 'eligibility_cutoff_on' => '2026-10-10', 'status' => 'planned']);
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2026-10-05 09:00', 'Asia/Manila'));
         $this->assertNull(app(IssueExamPermitAction::class)->execute($assessment, $periodTwo, $accounting)->override_id);
         $reversal = PaymentReversal::query()->create(['payment_id' => $payment->id, 'amount' => '1000.00', 'reason' => 'Fictional returned collection', 'requested_by' => $accounting->id, 'requested_at' => now()]);
         app(ApproveReversalAction::class)->execute($reversal, $admin);
         $periodThree = ExamPeriod::query()->create(['academic_year_id' => $enrollment->academic_year_id, 'code' => 'Q3', 'name' => 'Third Quarter', 'starts_on' => '2027-01-20', 'ends_on' => '2027-01-21', 'eligibility_cutoff_on' => '2027-01-10', 'status' => 'planned']);
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2027-01-05 09:00', 'Asia/Manila'));
         try {
             app(IssueExamPermitAction::class)->execute($assessment, $periodThree, $accounting);
             $this->fail('An approved reversal reducing coverage must change eligibility.');
@@ -336,13 +351,28 @@ class BillingWorkflowTest extends TestCase
         $this->actingAs($accounting)->post(route('billing.payments.create', $assessment), ['received_on' => '2026-06-01', 'amount' => '100.00', 'method' => 'cheque', 'payer_name' => 'Fictional Payer'])->assertSessionHasErrors(['method_reference', 'bank_name']);
         $this->actingAs($accounting)->post(route('billing.payments.create', $assessment), ['received_on' => '2026-06-01', 'amount' => '100.00', 'method' => 'cash', 'payer_name' => 'Fictional Payer', 'card_number' => '4111111111111111'])->assertSessionHasErrors('card_number');
 
-        $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => '2026-06-01', 'amount' => '30000.00', 'method' => 'cash', 'payer_name' => 'Fictional Guardian', 'status' => 'draft', 'created_by' => $accounting->id]);
+        // An overpayment is refused (payments may not exceed the remaining balance)...
+        $overpayment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => '2026-06-01', 'amount' => '30000.00', 'method' => 'cash', 'payer_name' => 'Fictional Guardian', 'status' => 'draft', 'created_by' => $accounting->id]);
+        try {
+            app(PostPaymentAction::class)->execute($overpayment, $accounting);
+            $this->fail('A payment above the remaining balance must be refused.');
+        } catch (ValidationException) {
+            $this->assertSame('draft', $overpayment->fresh()->status);
+        }
+        app(CancelDraftFinancialRecordAction::class)->payment($overpayment, 'Fictional overpayment draft', $accounting);
+
+        // ...so credit comes from an approved correction after full payment.
+        $payment = Payment::query()->create(['fee_assessment_id' => $assessment->id, 'received_on' => '2026-06-01', 'amount' => '28500.00', 'method' => 'cash', 'payer_name' => 'Fictional Guardian', 'status' => 'draft', 'created_by' => $accounting->id]);
         foreach ($assessment->items as $item) {
             PaymentAllocation::query()->create(['payment_id' => $payment->id, 'assessment_item_id' => $item->id, 'amount' => $item->net_amount]);
         }
         app(PostPaymentAction::class)->execute($payment, $accounting);
+        $correction = app(RequestAdjustmentAction::class)->execute($assessment, ['adjustment_type' => 'credit', 'amount' => '1500.00', 'reason' => 'Fictional sibling discount applied after payment'], $accounting);
+        app(ApproveAdjustmentAction::class)->execute($correction, $admin, true);
         $this->assertSame('1500.00', app(BalanceCalculator::class)->calculate($assessment)['credit']);
         $refund = app(RequestRefundAction::class)->execute($assessment, '1000.00', 'Fictional written request', $accounting);
+        // Configuration access (D-046) does not give Accounting the Admin's decision on its own requests.
+        $this->actingAs($accounting)->post(route('billing.refunds.decide', $refund), ['decision' => 'approve'])->assertForbidden();
         app(ApproveRefundAction::class)->execute($refund, $admin, true, 'FIC-RELEASE-1', '2026-06-02');
         $this->assertSame('500.00', app(BalanceCalculator::class)->calculate($assessment)['credit']);
         $credit = app(RequestAdjustmentAction::class)->execute($assessment, ['adjustment_type' => 'credit', 'amount' => '500.00', 'reason' => 'Fictional approved correction'], $accounting);
@@ -377,7 +407,8 @@ class BillingWorkflowTest extends TestCase
         $this->assertSame(1, PaymentPlanOption::query()->where('academic_year_id', $enrollment->academic_year_id)->whereNull('grade_level_id')->where('code', 'full')->count());
 
         $option = PaymentPlanOption::query()->where('grade_level_id', $enrollment->grade_level_id)->firstOrFail();
-        $this->actingAs($accounting)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional request'])->assertForbidden();
+        $registrar = $this->user(['registrar']);
+        $this->actingAs($registrar)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional request'])->assertForbidden();
         $this->actingAs($admin)->patch(route('billing.configuration.plan-options.status', $option), ['is_active' => '0', 'reason' => 'Fictional configuration correction'])->assertRedirect();
         $this->assertFalse($option->fresh()->is_active);
         $this->assertDatabaseHas('audit_logs', ['action' => 'billing.payment_plan_option.deactivated', 'subject_id' => $option->id]);
@@ -407,6 +438,46 @@ class BillingWorkflowTest extends TestCase
             ->assertOk()
             ->assertSee('Fictional Grade 1 Monthly')
             ->assertDontSee('Fictional Grade 1 Full');
+    }
+
+    public function test_exam_based_payment_plan_returns_validation_error_until_exam_dates_exist(): void
+    {
+        $accounting = $this->user(['accounting']);
+        [$enrollment, $schedule] = $this->fixture();
+        $assessment = app(CreateAssessmentAction::class)->execute($enrollment, $schedule, [], $accounting);
+        app(FinalizeAssessmentAction::class)->execute($assessment, $accounting);
+        PaymentPlanOption::query()->create([
+            'academic_year_id' => $enrollment->academic_year_id,
+            'grade_level_id' => $enrollment->grade_level_id,
+            'code' => 'quarterly',
+            'name' => 'Quarterly',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($accounting)
+            ->from(route('billing.portal.show', $assessment))
+            ->post(route('billing.plans.select', $assessment), ['plan_type' => 'quarterly'])
+            ->assertRedirect(route('billing.portal.show', $assessment))
+            ->assertSessionHasErrors('plan_type');
+        $this->assertDatabaseMissing('payment_plans', ['fee_assessment_id' => $assessment->id]);
+
+        foreach ([['Q1', '2026-08-20'], ['Q2', '2026-10-22'], ['Q3', '2027-01-21'], ['Q4', '2027-03-18']] as [$code, $startsOn]) {
+            ExamPeriod::query()->create([
+                'academic_year_id' => $enrollment->academic_year_id,
+                'code' => $code,
+                'name' => $code.' Examination',
+                'starts_on' => $startsOn,
+                'ends_on' => $startsOn,
+                'eligibility_cutoff_on' => date('Y-m-d', strtotime($startsOn.' -10 days')),
+                'status' => 'planned',
+            ]);
+        }
+
+        $this->actingAs($accounting)
+            ->post(route('billing.plans.select', $assessment), ['plan_type' => 'quarterly'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+        $this->assertSame(4, $assessment->fresh()->plan->scheduleItems()->count());
     }
 
     public function test_optional_fee_items_selected_by_string_ids_are_saved_to_draft_assessment(): void

@@ -182,7 +182,19 @@
                                 <td class="px-4 py-4">
                                     <span class="inline-flex items-center rounded-full bg-brand-blue-100 px-2.5 py-0.5 text-xs font-bold text-brand-navy-700">{{ $assessment->enrollment->gradeLevel?->name }}</span>
                                 </td>
-                                <td class="px-4 py-4"><x-ui.status-badge :status="$assessment->status" /></td>
+                                <td class="px-4 py-4">
+    @if (
+        $assessment->status === 'finalized'
+        && round((float) $balances[$assessment->id]['due'], 2) == 0
+    )
+        <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+              style="background-color: #dcfce7; color: #166534;">
+            Paid
+        </span>
+    @else
+        <x-ui.status-badge :status="$assessment->status" />
+    @endif
+</td>
                                 <td class="px-4 py-4 text-right font-bold tabular-nums {{ (float) $balances[$assessment->id]['due'] > 0 ? 'text-brand-orange-500' : 'text-brand-navy-900' }}">PHP {{ number_format((float) $balances[$assessment->id]['due'], 2) }}</td>
                                 <td class="px-4 py-4 text-right">
                                     @if ($assessment->status === 'draft')
@@ -239,6 +251,18 @@
                                 <x-ui.status-badge status="draft" />
                             </div>
 
+                            @php
+                                // A posted payment on the same assessment with the same amount and date is likely the same money entered twice.
+                                $possibleDuplicate = $payment->assessment->payments->first(fn ($posted) => $posted->id !== $payment->id
+                                    && (string) $posted->amount === (string) $payment->amount
+                                    && $posted->received_on?->isSameDay($payment->received_on));
+                            @endphp
+                            @if ($possibleDuplicate)
+                                <p class="mt-4 rounded-lg border border-amber-200 bg-warning-100 p-3 text-sm font-semibold text-warning-800" role="status">
+                                    Possible duplicate: receipt {{ $possibleDuplicate->receipt_reference }} already posted PHP {{ number_format((float) $possibleDuplicate->amount, 2) }} received {{ $possibleDuplicate->received_on->format('d M Y') }}. Cancel this draft if it is the same payment.
+                                </p>
+                            @endif
+
                             <form method="post" action="{{ route('billing.payments.update', $payment) }}" class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                 @csrf @method('PUT')
                                 <div>
@@ -292,6 +316,14 @@
                                         <input class="jca-input mt-1" type="file" name="evidence" accept=".pdf,.jpg,.jpeg,.png" required>
                                     </div>
                                     <button class="jca-button-secondary">Upload</button>
+                                </form>
+                                <form method="post" action="{{ route('billing.payments.cancel', $payment) }}" class="flex flex-wrap items-end gap-2">
+                                    @csrf
+                                    <div>
+                                        <label class="jca-label" for="cancel-reason-{{ $payment->public_id }}">Cancellation reason</label>
+                                        <input class="jca-input mt-1" id="cancel-reason-{{ $payment->public_id }}" name="reason" maxlength="2000" required placeholder="e.g. Duplicate entry">
+                                    </div>
+                                    <button class="jca-button-secondary text-brand-red-600">Cancel draft payment</button>
                                 </form>
                             </div>
                         </div>

@@ -26,7 +26,7 @@ users --< user_roles >-- roles
   |              
   +--0..1 guardian_profiles --< guardian_student >-- student_profiles
   +--0..1 staff_profiles
-  +--0..1 student_profiles (Grades 7-12 portal account by default)
+  +--0..1 student_profiles (Grades 7-10 portal account by default)
 
 student_profiles --< enrollments >-- academic_years
                          |  |  |
@@ -53,7 +53,7 @@ Rules:
 
 - At least one verified login/recovery identifier is required before activation.
 - Store normalized contact values and verification timestamps separately if multiple contact points are introduced.
-- `status`: `invited`, `active`, `locked`, `disabled`.
+- `status`: `invited`, `active`, `disabled` (D-055: no workflow ever locked an account, so the `locked` status was removed). `locked_at` is kept as a fail-closed guard that no screen sets; any non-null value still blocks sign-in, setup links, and reactivation.
 - Guardian/student and staff roles may not coexist on one account; enforce in the role-assignment service and tests.
 - Disabling records `disabled_at`, requires an audited reason, revokes sessions and every open invitation, and preserves the user row. Admin reactivation clears `disabled_at`, returns the account to `invited`, and creates a new hashed single-use setup invitation; locked accounts are not silently reactivated.
 
@@ -71,7 +71,7 @@ Do not add a paid permission package. Laravel policies map stable capabilities t
 
 Columns: `id`, `public_id`, `user_id`, `purpose`, hashed `token`, `sent_to`, `expires_at`, `consumed_at`, `revoked_at`, `created_by`, timestamps.
 
-Only the raw one-time token leaves the server. Never store it plaintext.
+Only the raw one-time token leaves the server. Never store it plaintext. New account-setup tokens are grouped, unambiguous activation codes with approximately 80 bits of entropy; the hash remains the only persisted form, and legacy opaque invitation links remain redeemable until they expire.
 
 ### Framework security tables
 
@@ -81,17 +81,17 @@ Use Laravel-compatible `password_reset_tokens` and `sessions`. Sessions must ref
 
 ### `student_profiles`
 
-Permanent student identity. Key columns: `id`, `public_id`, nullable `user_id`, school-issued unique nullable `student_number`, nullable 12-digit `lrn`, legal name components including extension, preferred name, sex as recorded by the school, birth date/place, mother tongue, optional religion and Indigenous Peoples group, 4Ps and learner-with-disability indicators with conditional detail, current/permanent address, parent names, status, timestamps. Age is derived from `birth_date` and is not stored.
+Permanent student identity. Key columns: `id`, `public_id`, nullable `user_id`, school-issued unique nullable `student_number`, nullable 12-digit `lrn`, legal name components including extension, preferred name, sex as recorded by the school, birth date/place, mother tongue, school-policy religion fixed to Christianity at enrollment, optional Indigenous Peoples group, 4Ps and learner-with-disability indicators with conditional detail, current/permanent address, parent names, status, timestamps. Age is derived from `birth_date` and is not stored.
 
-Online enrollment creates the applicant profile. Manual creation is restricted to verified legacy/offline records. D-024 permits audited deletion only for an unused mistaken profile with no login or historical relationship; pending duplicate-candidate pointers may be cleared with their own audit event, but any enrollment or other history blocks deletion.
+Phase 13 walk-in issuance creates the applicant profile only after Registrar identity and duplicate review. Manual creation is restricted to verified legacy/offline records. D-024 permits audited deletion only for an unused mistaken profile with no login or historical relationship; pending duplicate-candidate pointers may be cleared with their own audit event, but any enrollment or other history blocks deletion.
 
 Do not duplicate grade, section, or enrollment status here; those belong to school-year records.
 
-`user_id` remains null until the audited post-approval account-connection action succeeds. The action requires one approved/enrolled school-year record, permits Grades 7-12 by default, and stores an exception reason in audit metadata for younger students.
+`user_id` remains null for guardian-owned Nursery-Grade 6 access. Phase 13 records the Student owner through the enrollment while pre-approval access stays limited to that application; the existing audited post-approval connection action remains the gate for full Student-profile/section access and one-to-one profile ownership.
 
 ### `guardian_profiles`
 
-Key columns: `id`, `public_id`, nullable `user_id`, legal name components, normalized mobile/email, address, occupation only if required, preferred contact method, status, timestamps. Public enrollment captures the legal guardian's structured name and contact here rather than duplicating a free-form guardian name on the learner.
+Key columns: `id`, `public_id`, nullable `user_id`, legal name components, normalized mobile/email, address, occupation only if required, preferred contact method, status, timestamps. Registrar walk-in issuance captures the legal guardian's structured name and contact here rather than duplicating a free-form guardian name on the learner.
 
 ### `guardian_student`
 
@@ -102,6 +102,22 @@ Constraint: at most one active primary contact per student unless school policy 
 ### `staff_profiles`
 
 Key columns: `id`, unique `user_id`, optional employee/reference number, position title, active dates, timestamps. Staff permissions still come from roles and assignments.
+
+### Phase 11 People changes
+
+Phase 11 implements unique Student IDs as `JCA-YY-NNN` and Staff IDs as `YY-JCA-NNN` under D-036. `identifier_namespaces` supplies one lock row per identifier type/year so concurrent issuance is serialized before the unique profile-column constraint is reached. Internal numeric keys and opaque public IDs remain separate.
+
+Student profiles store structured father first/middle/last/suffix and mother first/middle/maiden-last/suffix components. Guardian profiles include an optional suffix. The older free-text parent columns remain deprecated compatibility columns and receive no new application writes; a later reviewed cleanup may remove them after deployed data has been reconciled.
+
+`student_profile_corrections` is append-only field-level evidence containing student, field, before/after values, reason, actor, and creation time. Student ID/LRN uses a separate validated action but writes the same durable history. `enrollment_corrections` is the Enrollment-owned equivalent for previous-school facts. Guardian identity and relationship changes remain in the guardian workflow. See D-029.
+
+### Phase 13 walk-in access changes
+
+`users.temporary_access_expires_at` marks the expiry of the Registrar-issued temporary password. `temporary_access_used_at` is claimed atomically on the first successful sign-in, making the credential single-use; both fields are cleared when the owner establishes a private password. The password column contains only Laravel's secure hash.
+
+`enrollments.access_issued_to_user_id` records the natural-person draft owner. `walk_in_verified_by` and `walk_in_verified_at` record the Registrar/Admin verification, while `access_issued_at` records the handoff. Foreign keys protect the issued-access and verification actors. Legacy public resume/contact-verification columns remain nullable compatibility fields but receive no new writes; the routes that exposed that flow are retired.
+
+The issuance transaction creates People and Identity facts through their owning Actions before Enrollment creates the draft. A Student ID is issued in the same transaction and is the applicant's only public login identifier. The verified guardian link has enrollment authority but SMS consent is false by default.
 
 ### Duplicate handling
 
@@ -117,7 +133,7 @@ Columns: `id`, opaque `public_id`, unique `code`, `name`, `starts_on`, `ends_on`
 
 ### `grade_levels`
 
-Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. The seeded progression is Nursery, Junior Kinder, Senior Kinder, Grades 1-6, Grades 7-10, and Grades 11-12; offerings remain editable and may be inactivated without deleting history.
+Columns: `id`, opaque `public_id`, unique `code`, `name`, `sequence`, `school_stage`, nullable `next_grade_level_id`, `is_active`, timestamps. The seeded progression is Nursery, Junior Kinder, Senior Kinder, Grades 1-6, and Grades 7-10; Grade 10 is the last grade and has a null `next_grade_level_id`. JCA does not offer Senior High School, so Grades 11-12 are not seeded. Offerings remain editable and may be inactivated without deleting history.
 
 ### `subjects`
 
@@ -131,11 +147,43 @@ Capacity is an application policy checked with a transaction/lock during confirm
 
 ### `section_subjects`
 
-Joins a section and subject for one year. Columns include schedule text/structured meeting data when confirmed, and timestamps.
+Joins a section and subject for one year. Columns: `section_id`, `subject_id`, nullable `curriculum_id` provenance (null means added by hand), `status` (`active`/`archived`, indexed), structured meeting data `days` (comma-separated ISO weekdays 1-6), `starts_at` and `ends_at` (TIME), the derived display `schedule_text`, and timestamps. Archived offerings stay for grade history and are excluded from current schedules. Migration `2026_10_06_000028` added `status` and the structured columns and backfilled them from recognized `schedule_text`; rolling back drops only the added columns.
 
 ### `teaching_assignments`
 
 Columns: `id`, opaque `public_id`, `staff_profile_id`, `section_id`, nullable `section_subject_id`, `assignment_type` (`adviser`, `subject_teacher`), effective dates, `is_active`, timestamps. Teacher authorization derives from active assignments whose effective dates include the current date.
+
+### Phase 14 versioned curriculum tables
+
+`curricula` stores an opaque public reference, effective `academic_year_id`, unique version within the year, name, draft/published state, source note, and publishing actor/time. A year lock serializes draft version creation and publication. Only one version may be published for a school year; a published version is immutable in the application.
+
+`curriculum_grade_subjects` normalizes each grade-to-subject mapping. `curriculum_section_templates` stores stable grade/section names, capacity, order, and optional preschool/co-curricular activity notes. `curriculum_template_schedules` stores a subject's reviewed class time for a section template as `days`, `starts_at`, `ends_at`, and the derived `schedule_text`. The unique keys prevent duplicate mappings and names; foreign keys restrict removal while referenced.
+
+An Admin-confirmed deletion may remove an unpublished draft and its three draft-only child tables in one audited transaction, provided no actual `sections` or `section_subjects` link to it. Published versions and applied records remain immutable.
+
+The owner-supplied 2026-2027 program is also held as a reusable configured default template, separate from `curricula`. The seeder and Admin draft creation both materialize its grade-subject mappings, section templates, and timetable notes into new year-specific draft rows; deleting all draft versions does not remove this default option. No actual sections or teacher assignments are created until separate authorized steps.
+
+Publication creates or links year-specific `sections` and `section_subjects` in one transaction. Both keep a nullable `curriculum_id` provenance foreign key; their schedule/activity values are copied so later version changes cannot recalculate older years. Existing manually entered schedule values are retained. Teaching assignments remain explicit and year-specific. Structured class times (and recognized older text such as `Mon-Fri 8:20-9:00`) are checked for a teacher's overlapping active subject assignments on shared weekdays; unrecognized free-text notes are displayed for manual review.
+
+Catalog rows are deleted only when unused (D-042); the application counts referencing enrollments, sections, placements, grades, curricula, finance configuration, and teaching assignments before deleting, and MySQL `restrict` foreign keys remain the final guard.
+
+The owner-supplied 35-page 2026-2027 program is imported as a draft only. Preschool activity programs stay distinct from numeric subject curricula until P-010 is resolved. P-003 remains open for timetable and teacher confirmation. See `ACADEMICS_2026_CLASS_PROGRAM.md`.
+
+## 6.1 Grading tables (Phase 15)
+
+Implemented for JCA-approved numeric Grades 1–10. Quarter and final values are whole-number 0–100; the final value is null until all four are present and is the nearest whole-number average (half upward). Passing/promotion thresholds and preschool assessment remain P-010.
+
+### `grading_periods`
+
+Four ordered quarter records per academic year are created when grading begins. Dates are nullable data pending JCA's timetable review and never embedded in calculation code. Submission/release controls live on each subject-grade result.
+
+### `student_subject_grades`
+
+One enrollment/subject result contains four nullable quarter values, server-derived nullable final value, draft/submitted/finalized state, offering and original teaching-assignment provenance, immutable subject name/code snapshot, and timestamps. Enrollment plus subject is unique so a section transfer cannot create a second grade for the same school year. MySQL checks guard quarter ranges and final arithmetic.
+
+### `grade_revisions`
+
+Append-only quarter and transition evidence includes affected quarter, old/new values, actor, optional reason, and timestamp. `grade_correction_requests` records teacher reason, prior state, Admin decision/note, and timestamps. Approval returns the grade to draft and hides it from family/report views until refinalization. No revision edits the calculated final value independently of its quarter inputs.
 
 ## 7. Enrollment tables
 
@@ -175,11 +223,13 @@ Columns: source enrollment, target academic year/grade, eligibility result, reas
 
 ### `document_types`
 
-Catalog such as Birth Certificate, Report Card/Form 138, Form 137, Certificate of LOV. Columns: code, name, sensitivity class, allowed formats/size policy reference, retention policy key, active flag.
+Catalog such as Birth Certificate, School Form 9 (SF9), Form 137, Certificate of LOV. Columns: code, name, sensitivity class, allowed formats/size policy reference, retention policy key, active flag.
 
 ### `requirement_rules`
 
 Columns: `id`, `academic_year_id`, `student_category`, `document_type_id`, `is_required`, `is_blocking`, validity/notes, effective dates. Freeze the applicable rules into enrollment checklist rows when an enrollment is submitted.
+
+Under D-039, the confirmed minimum rule rows are installed when an academic year is saved and are backfilled idempotently for all existing years, including closed/archived years. Existing per-year values are never overwritten, and historical enrollment checklist snapshots are not recalculated.
 
 ### `enrollment_requirements`
 
@@ -284,15 +334,19 @@ Optional append history if assignment rows alone do not fully express recommenda
 
 ### `announcements`
 
-Title, body, publish window, status, author, timestamps. The related `announcement_audiences` rows hold `all`, role, section, student, or guardian targeting. Sensitive support/financial details are prohibited in school-wide content.
+Title, body, `delivery` (`portal`, `sms`, `portal_sms`), `sms_body`, publish window, status, author, timestamps. The related `announcement_audiences` rows hold `all` or role targeting (D-052; older rows may hold section, student, or guardian targeting). Sensitive support/financial details are prohibited in school-wide content.
 
 ### `notification_templates`
 
-Code, channel, purpose, content, version, active flag. Templates use a restricted set of placeholders and are versioned rather than overwritten.
+Retired by D-052: no longer created or used. Existing rows remain only so historical notifications keep their reference.
 
 ### `notifications`
 
-Application-level intent: template/purpose, related subject type/id, recipient user/profile, encrypted rendered body, status, idempotency key, scheduled/sent timestamps.
+Application-level intent: purpose (`announcement` or `direct`), related subject (announcement or direct message), recipient guardian, learner (`recipient_student_id`), or user, encrypted rendered body, status, idempotency key (one per number per send), scheduled/sent timestamps.
+
+### `direct_messages`
+
+D-052: one Admin "Message people" send: encrypted body, recipient count, sender, timestamps. Its notifications are the per-person texts.
 
 ### `sms_messages`
 
@@ -302,7 +356,7 @@ Unique idempotency key prevents duplicate sends for the same business event and 
 
 ### `sms_consents`
 
-Guardian/contact, purpose, consent state/source, effective and withdrawn timestamps. Transactional messages and optional announcements must remain distinguishable if JCA's approved policy requires it.
+Exactly one owner (guardian profile, learner record `student_id`, or staff account `user_id`), purpose, consent state/source (`portal_preferences` or `enrollment_application`), effective and withdrawn timestamps. Announcement texts require a granted `announcement` consent; Admin direct messages do not (D-052). `student_profiles.mobile` holds the optional learner number from the application.
 
 ## 13. Reporting and audit tables
 
@@ -310,7 +364,7 @@ Guardian/contact, purpose, consent state/source, effective and withdrawn timesta
 
 ### `audit_logs`
 
-Append-oriented: `id`, actor user, action code, subject type/public identifier, outcome, reason, request ID, IP/user agent subject to policy, safe before/after metadata, occurred_at. Never store passwords, invitation/reset tokens, raw documents, or unnecessary support notes.
+Append-only (the model refuses updates and deletes, D-059): `id`, actor user, action code, subject type/public identifier, outcome, reason, request ID, IP/user agent subject to policy, safe before/after metadata, occurred_at. Change events store `metadata.fields` (changed field names) and `metadata.changes` (`{field: {old, new}}` for allowlisted fields only; mobile numbers and emails masked by `AuditValueMask`). Never store passwords, invitation/reset tokens, raw documents, full contact values, or unnecessary support notes.
 
 ### `export_jobs`
 

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Billing\Http\Controllers;
 
+use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Billing\Actions\AllocateStudentCreditAction;
 use App\Modules\Billing\Actions\ApproveAdjustmentAction;
 use App\Modules\Billing\Actions\ApprovePaymentToFollowAction;
@@ -35,7 +36,6 @@ use App\Modules\Billing\Models\FinancialAdjustment;
 use App\Modules\Billing\Models\Payment;
 use App\Modules\Billing\Models\PaymentReversal;
 use App\Modules\Billing\Models\Refund;
-use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Enrollment\Models\Enrollment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -98,6 +98,7 @@ class BillingController
                 // are void, so those students reappear here to be re-assessed.
                 ->whereDoesntHave('feeAssessments', fn ($query) => $query->whereIn('status', ['draft', 'finalized']))
                 ->with(['student', 'gradeLevel', 'academicYear'])
+                ->orderByRaw("CASE WHEN status = 'enrolled' THEN 0 ELSE 1 END")
                 ->orderBy('approved_at');
             $filterByStudent($enrollmentQuery, 'student');
             if ($gradeFilter) {
@@ -117,7 +118,7 @@ class BillingController
             'gradeLevels' => $gradeLevels,
             'canViewAssessmentQueue' => $canViewAssessmentQueue,
             'canManageAssessments' => $canManageAssessments,
-            'draftPayments' => $request->user()->hasRole('accounting') ? Payment::query()->where('status', 'draft')->with('assessment.enrollment.student')->get() : collect(),
+            'draftPayments' => $request->user()->hasRole('accounting') ? Payment::query()->where('status', 'draft')->with(['assessment.enrollment.student', 'assessment.payments' => fn ($payments) => $payments->where('status', 'posted')])->oldest()->get() : collect(),
             'assessableEnrollments' => $assessableEnrollments,
             'publishedSchedules' => $publishedSchedules,
             'pendingReversals' => $request->user()->hasRole('admin') ? PaymentReversal::query()->where('status', 'requested')->with('payment')->get() : collect(),

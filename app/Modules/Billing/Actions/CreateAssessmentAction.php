@@ -24,6 +24,12 @@ class CreateAssessmentAction
 
         return DB::transaction(function () use ($enrollment, $schedule, $selectedIds, $actor, $revisionReason) {
             if (! in_array($enrollment->status, ['approved', 'enrolled'], true)) {
+                $enrollment = Enrollment::query()
+    ->lockForUpdate()
+    ->findOrFail($enrollment->id);
+
+$schedule = FeeSchedule::query()
+    ->findOrFail($schedule->id);
                 throw ValidationException::withMessages(['enrollment' => 'Only approved or enrolled records may be assessed.']);
             }
             if ($schedule->academic_year_id !== $enrollment->academic_year_id || ($schedule->grade_level_id !== null && $schedule->grade_level_id !== $enrollment->grade_level_id)) {
@@ -41,7 +47,14 @@ class CreateAssessmentAction
                 throw ValidationException::withMessages(['assessment' => 'This enrollment already has a draft assessment. Edit or cancel it before creating another.']);
             }
             $previous = FeeAssessment::query()->where('enrollment_id', $enrollment->id)->where('status', 'finalized')->lockForUpdate()->latest('revision_number')->first();
-            if ($previous?->payments()->where('status', 'posted')->exists()) {
+           $hasPostedPayment = FeeAssessment::query()
+    ->where('enrollment_id', $enrollment->id)
+    ->whereHas('payments', function ($query) {
+        $query->where('status', 'posted');
+    })
+    ->exists();
+
+if ($hasPostedPayment) {
                 throw ValidationException::withMessages(['assessment' => 'A posted payment exists; use an approved adjustment instead of replacing the assessment.']);
             }
             $revision = (int) FeeAssessment::query()->where('enrollment_id', $enrollment->id)->max('revision_number') + 1;

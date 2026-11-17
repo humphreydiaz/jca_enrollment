@@ -9,7 +9,10 @@ class AuditFilterRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->hasRole('admin') ?? false;
+        return $this->user()?->hasAnyRole([
+            'admin',
+            'registrar',
+        ]) ?? false;
     }
 
     public function rules(): array
@@ -24,14 +27,24 @@ class AuditFilterRequest extends FormRequest
         ];
     }
 
-    /** @return list<callable> */
     public function after(): array
     {
         return [function (Validator $validator): void {
-            $allowed = ['action', 'actor', 'subject_reference', 'date_from', 'date_to', 'page'];
+            $allowed = [
+                'action',
+                'actor',
+                'subject_reference',
+                'date_from',
+                'date_to',
+                'page',
+            ];
+
             foreach (array_keys($this->query->all()) as $key) {
                 if (! in_array($key, $allowed, true)) {
-                    $validator->errors()->add('filters', 'An unsupported audit filter was supplied.');
+                    $validator->errors()->add(
+                        'filters',
+                        'An unsupported audit filter was supplied.'
+                    );
                 }
             }
         }];

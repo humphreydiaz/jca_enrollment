@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reporting;
 
+use App\Models\User;
 use App\Modules\Reporting\Console\PruneExpiredReportExports;
 use App\Modules\Reporting\Models\ExportJob;
 use App\Modules\Reporting\Policies\AuditLogPolicy;
@@ -22,6 +23,8 @@ class ReportingServiceProvider extends ServiceProvider
     {
         Gate::policy(ExportJob::class, ExportJobPolicy::class);
         Gate::policy(AuditLog::class, AuditLogPolicy::class);
+        // D-060: backups hold every record and document, so only an active Admin may see or download them.
+        Gate::define('manage-backups', fn (User $user): bool => $user->hasRole('admin') && $user->isActive());
         Route::middleware('web')->group(base_path('routes/modules/reporting.php'));
     }
 }

@@ -32,6 +32,7 @@ class StoreSectionRequest extends AcademicCatalogRequest
             'capacity' => ['required', 'integer', 'min:1', 'max:100'],
             'sort_order' => ['nullable', 'integer', 'min:0', 'max:999'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
+            'activity_schedule' => ['nullable', 'string', 'max:4000'],
         ];
     }
 }

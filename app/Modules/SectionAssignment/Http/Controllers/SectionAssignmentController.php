@@ -6,6 +6,7 @@ use App\Modules\Academics\Models\AcademicYear;
 use App\Modules\Academics\Models\GradeLevel;
 use App\Modules\Academics\Models\Section;
 use App\Modules\Enrollment\Models\Enrollment;
+use App\Modules\Grading\Queries\PromotionGradeReadinessQuery;
 use App\Modules\SectionAssignment\Actions\ConfirmSectionAssignmentAction;
 use App\Modules\SectionAssignment\Actions\CreatePromotionDraftAction;
 use App\Modules\SectionAssignment\Actions\RecommendPromotionAction;
@@ -13,9 +14,9 @@ use App\Modules\SectionAssignment\Actions\RecommendSectionAction;
 use App\Modules\SectionAssignment\Actions\TransferSectionAssignmentAction;
 use App\Modules\SectionAssignment\Http\Requests\ConfirmSectionAssignmentRequest;
 use App\Modules\SectionAssignment\Http\Requests\ListSectionAssignmentsRequest;
+use App\Modules\SectionAssignment\Http\Requests\MassPromotionRequest;
 use App\Modules\SectionAssignment\Http\Requests\RecommendPromotionRequest;
 use App\Modules\SectionAssignment\Http\Requests\TransferSectionAssignmentRequest;
-use App\Modules\SectionAssignment\Http\Requests\MassPromotionRequest;
 use App\Modules\SectionAssignment\Models\PromotionRecommendation;
 use App\Modules\SectionAssignment\Models\SectionAssignment;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,7 +26,7 @@ use Illuminate\View\View;
 
 class SectionAssignmentController
 {
-    public function index(ListSectionAssignmentsRequest $request, RecommendSectionAction $recommend): View
+    public function index(ListSectionAssignmentsRequest $request, RecommendSectionAction $recommend, PromotionGradeReadinessQuery $gradeReadiness): View
     {
         Gate::authorize('viewAny', SectionAssignment::class);
         $filters = $request->validated();
@@ -81,6 +82,7 @@ class SectionAssignmentController
             ->paginate($perPage, ['*'], 'promotion_page')
             ->withQueryString()
             ->fragment('promotion-review');
+        $promotionGrades = $gradeReadiness->forMany($enrolledForPromotion->getCollection());
 
         return view('section-assignment.index', [
             'approvedEnrollments' => $approved,
@@ -97,6 +99,7 @@ class SectionAssignmentController
                 ->orderBy('name')
                 ->get(),
             'enrolledForPromotion' => $enrolledForPromotion,
+            'promotionGrades' => $promotionGrades,
             'futureYears' => AcademicYear::query()->whereIn('status', ['planned', 'open'])->orderBy('starts_on')->get(),
             'filterYears' => AcademicYear::query()->orderByDesc('starts_on')->get(),
             'filterGrades' => GradeLevel::query()->where('is_active', true)->orderBy('sequence')->get(),
@@ -174,6 +177,7 @@ class SectionAssignmentController
             'unreviewed' => $query->whereDoesntHave('promotionRecommendation'),
             'eligible' => $query->whereHas('promotionRecommendation', fn (Builder $recommendation) => $recommendation->where('eligibility_status', 'eligible')->whereNull('created_enrollment_id')),
             'ineligible' => $query->whereHas('promotionRecommendation', fn (Builder $recommendation) => $recommendation->where('eligibility_status', 'ineligible')),
+            'grades_pending' => $query->whereHas('promotionRecommendation', fn (Builder $recommendation) => $recommendation->where('eligibility_status', 'grades_pending')),
             'draft_created' => $query->whereHas('promotionRecommendation', fn (Builder $recommendation) => $recommendation->whereNotNull('created_enrollment_id')),
             default => null,
         };
@@ -186,7 +190,7 @@ class SectionAssignmentController
         $section = Section::query()->where('public_id', $data['section_public_id'])->firstOrFail();
         $confirm->execute($enrollment, $section, $request->user(), $request->boolean('support_suitability_confirmed'), $request->boolean('override_capacity'), $data['override_reason'] ?? null);
 
-        return back()->with('status', 'Section confirmed and academic enrollment finalized.');
+        return $this->backToTab('awaiting-placement')->with('status', 'Section confirmed and academic enrollment finalized.');
     }
 
     public function transfer(SectionAssignment $assignment, TransferSectionAssignmentRequest $request, TransferSectionAssignmentAction $transfer): RedirectResponse
@@ -196,24 +200,28 @@ class SectionAssignmentController
         $section = Section::query()->where('public_id', $data['section_public_id'])->firstOrFail();
         $transfer->execute($assignment, $section, $request->user(), $data['reason'], $request->boolean('support_suitability_confirmed'), $request->boolean('override_capacity'), $data['override_reason'] ?? null);
 
-        return back()->with('status', 'Section transfer completed with history preserved.');
+        return $this->backToTab('current-assignments')->with('status', 'Section transfer completed with history preserved.');
     }
 
-    public function recommendPromotion(Enrollment $enrollment, RecommendPromotionRequest $request, RecommendPromotionAction $recommend): RedirectResponse
+    public function recommendPromotion(Enrollment $enrollment, RecommendPromotionRequest $request, RecommendPromotionAction $recommend, PromotionGradeReadinessQuery $gradeReadiness): RedirectResponse
     {
-        Gate::authorize('update', $enrollment);
+        Gate::authorize('create', SectionAssignment::class);
         $year = $request->validated('target_academic_year_public_id') ? AcademicYear::query()->where('public_id', $request->validated('target_academic_year_public_id'))->firstOrFail() : null;
-        $recommend->execute($enrollment, $request->user(), $year);
+        $result = $recommend->execute($enrollment, $request->user(), $year);
 
-        return back()->with('status', 'Promotion recommendation reviewed.');
+        return $this->backToTab('promotion-review')
+            ->with('status', $this->reviewOutcome($enrollment, $result, $gradeReadiness))
+            ->with('promotion_reviewed', $enrollment->public_id);
     }
 
     public function createPromotionDraft(PromotionRecommendation $recommendation, CreatePromotionDraftAction $create): RedirectResponse
     {
-        Gate::authorize('update', $recommendation->sourceEnrollment);
+        Gate::authorize('create', SectionAssignment::class);
         $create->execute($recommendation, request()->user());
 
-        return back()->with('status', 'Next-school-year enrollment draft created for Registrar review.');
+        return $this->backToTab('promotion-review')
+            ->with('status', 'Next-school-year enrollment draft created for Registrar review.')
+            ->with('promotion_reviewed', $recommendation->sourceEnrollment->public_id);
     }
 
     public function massRecommendPromotion(MassPromotionRequest $request, RecommendPromotionAction $recommend): RedirectResponse
@@ -226,6 +234,7 @@ class SectionAssignmentController
 
         $eligible = 0;
         $ineligible = 0;
+        $gradesPending = 0;
         $skipped = 0;
 
         foreach ($data['enrollment_public_ids'] as $publicId) {
@@ -246,6 +255,8 @@ class SectionAssignmentController
                 $result = $recommend->execute($enrollment, $request->user(), $targetYear);
                 if ($result->eligibility_status === 'eligible') {
                     $eligible++;
+                } elseif ($result->eligibility_status === 'grades_pending') {
+                    $gradesPending++;
                 } else {
                     $ineligible++;
                 }
@@ -254,9 +265,9 @@ class SectionAssignmentController
             }
         }
 
-        $total = $eligible + $ineligible + $skipped;
+        $total = $eligible + $ineligible + $gradesPending + $skipped;
 
-        return back()->with('status', "Reviewed {$total} students: {$eligible} eligible, {$ineligible} ineligible, {$skipped} skipped.");
+        return $this->backToTab('promotion-review')->with('status', "Reviewed {$total} students: {$eligible} eligible, {$gradesPending} waiting for approved final grades, {$ineligible} ineligible, {$skipped} skipped.");
     }
 
     public function massCreatePromotionDrafts(MassPromotionRequest $request, CreatePromotionDraftAction $create): RedirectResponse
@@ -293,6 +304,37 @@ class SectionAssignmentController
             }
         }
 
-        return back()->with('status', "Created {$created} promotion drafts. {$skipped} skipped (already created or not eligible).");
+        return $this->backToTab('promotion-review')->with('status', "Created {$created} promotion drafts. {$skipped} skipped (already created, not eligible, or final grades not yet approved).");
+    }
+
+    /**
+     * Return to the workspace on the tab the action came from. back() alone loses the
+     * #tab fragment (browsers never send it to the server), which reopened the page on
+     * Awaiting placement. Filters and page numbers from the previous URL are kept, but
+     * only when that URL is this workspace, so the redirect never leaves the page.
+     */
+    private function backToTab(string $tab): RedirectResponse
+    {
+        $index = route('section-assignment.index');
+        $previous = strtok(url()->previous(), '#');
+        $target = is_string($previous) && strtok($previous, '?') === $index ? $previous : $index;
+
+        return redirect()->to($target.'#'.$tab);
+    }
+
+    private function reviewOutcome(Enrollment $enrollment, PromotionRecommendation $result, PromotionGradeReadinessQuery $gradeReadiness): string
+    {
+        $result->loadMissing(['targetGradeLevel', 'targetAcademicYear']);
+        $name = $enrollment->student->full_name;
+
+        return match ($result->eligibility_status) {
+            'eligible' => "{$name} is eligible for promotion to ".collect([$result->targetGradeLevel?->name, $result->targetAcademicYear?->name])->filter()->join(' · ').'.',
+            'grades_pending' => (function () use ($name, $enrollment, $gradeReadiness): string {
+                $readiness = $gradeReadiness->forEnrollment($enrollment);
+
+                return "{$name} is waiting for approved final grades ({$readiness->approvedCount()} of {$readiness->requiredCount()} subjects approved).";
+            })(),
+            default => "{$name} is not eligible for promotion. {$result->reason}",
+        };
     }
 }

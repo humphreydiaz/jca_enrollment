@@ -36,6 +36,20 @@ final class SelectPaymentPlanAction
             $other = $locked->items->where('fee_code', '!=', 'TUI');
             $examStarts = ExamPeriod::query()->where('academic_year_id', $locked->enrollment->academic_year_id)->orderBy('starts_on')->pluck('starts_on')->map(fn ($date) => CarbonImmutable::parse($date)->toDateString())->all();
             $holidays = SchoolNonBusinessDay::query()->where('academic_year_id', $locked->enrollment->academic_year_id)->pluck('calendar_date')->map(fn ($date) => CarbonImmutable::parse($date)->toDateString())->all();
+
+            $requiredExamPeriods = match ($planType) {
+                'quarterly' => 4,
+                'semiannual' => 3,
+                default => 0,
+            };
+            if (count($examStarts) < $requiredExamPeriods) {
+                $label = $planType === 'quarterly' ? 'Quarterly' : 'Semiannual';
+
+                throw ValidationException::withMessages([
+                    'plan_type' => "{$label} schedules require configured examination periods. Ask an Admin to enter the official examination dates before generating this due schedule.",
+                ]);
+            }
+
             $rows = $this->calculator->calculate(
                 $planType,
                 Money::sum($tuition->pluck('net_amount')),

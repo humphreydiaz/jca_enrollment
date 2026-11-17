@@ -37,7 +37,7 @@ class SupportReviewController
         DB::table('support_access_logs')->insert(['support_case_id' => $supportCase->id, 'actor_user_id' => $request->user()->id, 'action' => 'view_raw', 'occurred_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
         $audit->record($request->user(), 'support.raw.viewed', $supportCase);
 
-        return view('support.show', ['case' => $supportCase->load(['enrollment.student', 'assessments', 'observations', 'summaries', 'events'])]);
+        return view('support.show', ['case' => $supportCase->load(['enrollment.student', 'enrollment.gradeLevel', 'enrollment.academicYear', 'assessments', 'observations', 'summaries', 'events'])]);
     }
 
     public function create(string $enrollment, Request $request, CreateSupportCaseAction $create): RedirectResponse

@@ -10,25 +10,43 @@ class AssertEnrollmentRequirementsSatisfiedAction
     public function execute(Enrollment $enrollment): void
     {
         $enrollment->loadMissing('requirements');
-        $required = $enrollment->requirements->filter(fn ($requirement): bool => (bool) ($requirement->rule_snapshot['is_required'] ?? false));
+
+        $required = $enrollment->requirements->filter(
+            fn ($requirement): bool =>
+                (bool) ($requirement->rule_snapshot['is_required'] ?? false)
+        );
+
         if ($required->isEmpty()) {
-            throw ValidationException::withMessages(['status' => 'The applicable requirement checklist has not been configured.']);
+            throw ValidationException::withMessages([
+                'status' => 'The applicable hard-copy requirement checklist has not been configured.',
+            ]);
         }
 
         $unresolved = $enrollment->requirements
-            ->filter(fn ($requirement): bool => (bool) ($requirement->rule_snapshot['is_blocking'] ?? false))
+            ->filter(
+                fn ($requirement): bool =>
+                    (bool) ($requirement->rule_snapshot['is_blocking'] ?? false)
+            )
             ->reject(function ($requirement): bool {
-                $hardCopyAccepted = $requirement->status === 'verified'
-                    || ($requirement->status === 'submitted' && $requirement->received_at !== null);
+                $hardCopyReceived =
+                    $requirement->received_at !== null
+                    && in_array(
+                        $requirement->status,
+                        ['submitted', 'verified'],
+                        true
+                    );
 
-                return $hardCopyAccepted
-                    || $requirement->soft_copy_status === 'verified'
-                    || $requirement->status === 'waived';
+                $officiallyWaived =
+                    $requirement->status === 'waived'
+                    && $requirement->waived_by !== null;
+
+                return $hardCopyReceived || $officiallyWaived;
             });
 
         if ($unresolved->isNotEmpty()) {
             throw ValidationException::withMessages([
-                'status' => 'Each blocking requirement needs either a verified soft copy or a recorded hard-copy receipt before approval.',
+                'status' =>
+                    'All blocking requirements must have a recorded hard-copy receipt or an authorized waiver before approval.',
             ]);
         }
     }

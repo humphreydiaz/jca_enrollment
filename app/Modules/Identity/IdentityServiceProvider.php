@@ -5,6 +5,7 @@ namespace App\Modules\Identity;
 use App\Models\User;
 use App\Modules\Identity\Console\BootstrapAdminCommand;
 use App\Modules\Identity\Policies\UserPolicy;
+use App\Modules\People\Console\BackfillStudentNumbers;
 use App\Modules\People\Models\GuardianProfile;
 use App\Modules\People\Models\StudentProfile;
 use App\Modules\People\Policies\GuardianProfilePolicy;
@@ -35,7 +36,7 @@ class IdentityServiceProvider extends ServiceProvider
         Route::middleware('web')->group(base_path('routes/modules/identity.php'));
 
         if ($this->app->runningInConsole()) {
-            $this->commands([BootstrapAdminCommand::class]);
+            $this->commands([BootstrapAdminCommand::class, BackfillStudentNumbers::class]);
         }
     }
 }

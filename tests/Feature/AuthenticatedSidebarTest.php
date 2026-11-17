@@ -67,8 +67,9 @@ class AuthenticatedSidebarTest extends TestCase
             ->assertSee('Reports')
             ->assertDontSee('Financial configuration')
             ->assertDontSee('Communications')
+            ->assertSee('Family links')
             ->assertDontSee('Users')
-            ->assertDontSee('People')
+            ->assertDontSee('People foundation')
             ->assertDontSee('Audit');
     }
 
@@ -82,7 +83,7 @@ class AuthenticatedSidebarTest extends TestCase
             ->assertSee('Financial configuration')
             ->assertSee('Communications')
             ->assertSee('Users')
-            ->assertSee('People')
+            ->assertSee('Family links')
             ->assertSee('Audit');
     }
 
@@ -118,8 +119,8 @@ class AuthenticatedSidebarTest extends TestCase
         $this->actingAs($admin)
             ->get(route('billing.configuration.index'))
             ->assertOk()
-            ->assertSee('Admin workspace')
-            ->assertSee('Production approval is still required')
+            ->assertSee('Finance workspace')
+            ->assertSee('Manage school-year fee rules')
             ->assertSee('jca-input', false)
             ->assertSee('School non-business days')
             ->assertDontSee('Development fixtures are not production policy');

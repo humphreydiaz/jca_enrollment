@@ -82,7 +82,7 @@ The server decides what navigation is rendered; hiding an item is not authorizat
 - Internal engineering phase names are not presented as workspace titles. Unapproved production policy remains visible only as a clearly worded operational warning where it affects safe use.
 - Empty queues explain what will appear and avoid decorative charts or invented operational data.
 - Section Assignment uses queue summaries, anchored workspace sections, status text, deliberate tables, and history-preserving actions.
-- Financial Configuration uses anchored configuration areas, labeled controls, policy warnings, and compact summaries while retaining the existing audited server actions.
+- Financial Configuration (sidebar for Admin and Accounting, D-046) uses anchored configuration areas, labeled controls, policy warnings, and compact summaries while retaining the existing audited server actions.
 
 ## 6. Core patterns
 
@@ -105,6 +105,8 @@ Use a vertical stepper on mobile and horizontal stepper where space permits:
 6. Enrollment complete
 
 Payment standing appears as a separate panel so an unpaid balance does not visually imply rejected academic enrollment.
+
+For an authorized Guardian with a confirmed section, show section name, capacity, adviser, and any school activity note above a compact two-column subject/time list. Order subjects by the first recorded meeting time, put missing times last, and stack the columns on narrow screens. Keep the existing print link and never expose another family's section.
 
 ### Status badges
 
@@ -140,6 +142,7 @@ Presentation varies by urgency to avoid a wall of identical pills: attention and
 - Student applicants and authorized Guardians receive private PDF/JPG/PNG upload controls only while the application is actively under review; show the 5 MB limit before upload.
 - Registrar/Admin sees one audited preview modal for the current soft copy, plus a separate Verify or Reject/replace decision.
 - Registrar/Admin can record receipt, receiving notes, and a correction back to Not Received before review.
+- After a requirement receipt or review is saved, the Registrar queue reopens the same enrollment and scrolls to the affected requirement. A persistent confirmation appears inside that card as well as the shared success toast. Validation errors return to the same open review context.
 - Verification and rejection are available only after receipt; rejection explains that a replacement hard copy is required.
 - Only Admin can waive an item, with a required reason. Preserve receipt and review history in audit records.
 
@@ -162,38 +165,76 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 
 ### Login and invitation setup
 
-- The parent/student `/login` page uses a focused two-column card: a short credential form and audience explanation beside the approved school collage. On small screens the image becomes a compact banner and the form remains the primary content.
-- Staff use the separate `/staff/login` page, which clearly names the Admin, Registrar, Accounting, and Teacher audience and links back to the parent/student entry point.
-- Both sign-in pages keep real labels, visible keyboard focus, password reveal, recovery help, and a neutral failure message that does not reveal an account's existence or role.
+- The unified `/login` page uses the approved focused two-column card: a short credential form and audience explanation beside the school collage. On small screens the image becomes a compact banner and the form remains the primary content.
+- Guardian, Student, Admin, Registrar, Accounting, and Teacher users share the page and endpoint. The interface never asks the user to choose or reveal a role before authentication.
+- The sign-in page keeps real labels, visible keyboard focus, password reveal, recovery help, and a neutral failure message that does not reveal an account's existence or role.
 - Use “Application reference,” “Mobile/email,” or school-issued identifier according to the flow; do not expose whether an arbitrary account exists.
 - Invitation setup explains expiry and password requirements.
 - Do not emulate the PSU page's tiny centered form or send permanent temporary passwords.
 - Account recovery is a neutral staff-contact page; it must not ask for an identifier or reveal whether an account exists.
 - User management shows reactivation only for disabled accounts. Reactivation and disabling both require visible reason fields; a successful reactivation displays the replacement one-time setup link once.
 
+**Phase 12 implementation:** one focused login page serves every role and accepts only the approved D-036 Student/Staff identifiers. A verified guardian may enter a linked child's Student ID but still authenticates the guardian-owned account with a private password. Email/mobile remain contact data, not login identifiers. One neutral failure message is used, and role-scoped dashboard content is selected only after authentication.
+
+The login page's only secondary link is “Need help signing in?”. Code entry for staff onboarding and Admin-issued recovery/reactivation is a small footer line (“School staff with a one-time account code? Set up your staff account”) because an SMS may carry the code without a link; the code page is titled “Staff account setup” and tells parents, guardians, and students to use the Student ID and the Registrar's temporary password instead.
+
+**Phase 13 walk-in setup:** Registrar uses a dedicated issuance form after offline review. The result card clearly names the natural-person account owner, Student ID, represented application, three-day expiry, and forced private-password step; the temporary password is available for print/copy only in that response. Nursery-Grade 6 identify the parent/guardian owner and Grades 7-10 identify the Student owner. No enrollment SMS verification or public resume link is presented.
+
+**Walk-in speed (D-047):** the Parent or guardian card appears only when a guardian-owned grade (Nursery–Grade 6) is selected and asks only for name and relationship; suffix and contacts sit behind “+ Add suffix or contact details now (optional)”. Hidden guardian fields are disabled so they are never submitted. On the application, Registrar-recorded guardian name/relationship are read-only with a note; otherwise the guardian fields are blank and editable; mobile or email is required.
+
+**Family links (D-048):** one card per learner: badge for parent-managed (Nursery–Grade 6) or student-managed (Grades 7–10) grade; a "Signs in with this Student ID" list (Student row, then each parent/guardian with Verified/Verify); collapsible "+ Grant student account" (reason + in-person checkbox, button "Grant and show slip") and "+ Connect a parent who already has an account (siblings)"; Admin-only "Repair tools (Admin)" in red. After a grant, a green display-once card shows the Student ID and temporary password with "Print slip", which prints only the Student account slip.
+
+**Unfinished applications (D-049):** the walk-in access owner's dashboard starts with an orange-bordered "Next step · Finish the enrollment application" card. On the student's My enrollment page each record shows its stage before any placement: an orange "Your application form is not finished yet" box with Complete application (owner only), "Application being prepared" (granted child), "Your application is with the Registrar" with View application, and the section/placement block only after approval. In Enrollment review an unfilled draft shows a "Waiting for the application form" note listing what is missing, and the status select omits Submitted.
+
+**Fee schedule templates (D-050):** the "Create draft schedule" form starts with a full-width "Start from" select ("Blank schedule — add the fees yourself", then versions grouped by school year as "Grade · name · vN (status) — N fees, PHP total"). Choosing one fills an empty Schedule name with the source name. Each version card with fees has a secondary "Use as template" button that selects it and scrolls to the form.
+
+**Examination periods by school year:** one tab per school year that has exams (newest first, plus the current year), each with an exam count and a gold "Current" badge; the current year opens first. Each year shows its date range, exam count, and whether Quarterly (4 exams) and Semiannual (3) plans are available (green) or how many exams are missing (amber). Exams are compact rows: name, code chip, "Next exam" chip on the nearest upcoming one, status badge, then Exam days / Payment cutoff / Permits issued (three columns, stacked on phones); past exams are muted. "Add an examination period" is collapsed; its school-year field follows the selected tab, and after saving the section stays on that year.
+
+**Communications (D-052):** two cards side by side (stacked below xl) and a Sent history card. New announcement: a three-way segmented "Send as" control (Portal only / SMS only / Portal + SMS), Title, "Message on the portal" (hidden for SMS only), "Text message" with a live "N / 160 characters · 1 SMS" counter (red over 3 parts), "Who receives it" with an Everyone tick plus one tick per group, then "Publish" (label changes to "Send SMS" / "Publish & send SMS") and "Save draft". Sending SMS always opens a confirmation listing each group's opted in / not opted in / no number counts and the estimated credits. Message people: search box plus group filter, a scrollable list of people with a number (name, who they are, masked number `0917•••4567`) with tick boxes and "Tick all shown", selected people as removable chips, the text box with counter, and "Send to N people" with a confirmation. Sent history: Announcements / Direct messages tabs; each row shows Portal / SMS badges, audience, date, author, delivery counts (sent / not sent yet / failed), Publish (drafts, with a recipient-count confirmation), "Retry N failed", and Open (preview modal including the text message). SMS preferences are in everyone's sidebar and show each number on file (as a parent, as a student, as school staff) with its own opt-in tick.
+
+**Credentials slip:** after issuing, “Print credentials” (or Ctrl+P) prints only a one-page A4 slip: letterhead, learner, grade and school year, application reference, account owner, Student ID, temporary password, expiry, the four sign-in steps, a keep-private note, and who issued it. Pages opt in through the layout's `printSlip` slot; when it is present, printing hides the whole app shell. The slip exists only on the response right after issuance (flash data), so the password is never re-printable later.
+
+**Continuing students:** a promotion draft (created from Section assignment → Promotion review) shows “Continuing” instead of “Legacy” in Enrollment review, with the grade and year it was promoted from. Its identity was verified through that previous enrollment, so it needs no walk-in access and the Registrar can submit it directly.
+
 ### Guardian portal
 
 - Child switcher clearly identifies the selected child.
 - Each child card shows enrollment status, grade/year, missing requirements, section when assigned, and next action.
 - Financial view is a summary/ledger within permitted guardian relationship settings.
+- Final grades show only Admin-finalized subject results for actively verified and enrollment-authorized child links; reopened results disappear until finalized again.
 - Do not expose another guardian's private contact information.
 
 ### Student portal
 
 - A Student-role account must be connected one-to-one to a student profile before private student-profile, section, schedule, or financial records are available.
-- Before profile connection, a signed-in Student who owns an application sees only that application's reference, grade/year, status timeline, dual requirement statuses, and private upload controls during active review. Drafts show Resume draft; active non-drafts show View application status; a new-application action returns only after the prior application is rejected, withdrawn, or cancelled.
+- Before profile connection, a signed-in Student who owns a Registrar-issued application sees only that application's reference, grade/year, status timeline, dual requirement statuses, and private upload controls during active review. Drafts show Resume draft; active non-drafts show View application status. A closed application directs the family back to the Registrar rather than exposing a public new-application action.
 - Admin connects an existing unlinked Student account from People management only after enrollment approval; the server rejects non-Student accounts, accounts already connected elsewhere, and students without an approved/enrolled record. Grades 1-6 require a visible exception reason and the material identity link is audited.
 - People management must show the student profile, approved grade/year, and connected login as separate facts. Account linking requires an explicit identity confirmation, rejects clearly mismatched names, and supports an Admin-only audited disconnect that revokes sessions without deleting the profile or enrollment. Placeholder exception reasons such as `N/A` are rejected.
-- People management explains that Grades 1-6 use guardian-assisted enrollment and Grades 7-12 may self-apply from an invited Student login. The manual student-profile form is labeled for existing/legacy records and warns staff not to use it before online enrollment.
+- People management explains that Grades 1-6 use guardian-assisted enrollment and Grades 7-10 may self-apply from an invited Student login. The manual student-profile form is labeled for existing/legacy records and warns staff not to use it before online enrollment.
 - An unused mistaken student profile exposes a reasoned, confirmed Admin deletion control. The server hides or rejects deletion once login, enrollment, guardian, communication, or closed duplicate-review history exists.
 - Missing profile linkage remains fail-closed with no student data rendered. Staff roles do not inherit Student portal access.
+- A connected Student sees only their own Admin-finalized subject results after identity matching; an unlinked or mismatched account sees none.
 
 ### Registrar workspace
 
 - Queue-first dashboard: submitted, incomplete, assessment pending, ready for approval, section pending.
 - Review layout keeps student summary, checklist, and history visible without opening multiple windows.
-- Section assignment uses independently paginated tables for awaiting placement, current assignments, transfer history, and promotion review. Shared server-validated filters narrow student, school year, grade, and promotion status; focused row actions open one reusable placement, transfer, or promotion dialog instead of rendering a full form in every row.
+- Section assignment uses independently paginated tables for awaiting placement, current assignments, transfer history, and promotion review. Shared server-validated filters narrow student, school year, grade, and promotion status; focused row actions open one reusable placement, transfer, or promotion dialog instead of rendering a full form in every row. After an action the page returns to the tab it came from (`#awaiting-placement`, `#current-assignments`, `#promotion-review`) with the previous filters and page kept; a single promotion review names the student and outcome in the toast (for example “… is waiting for approved final grades (0 of 8 subjects approved)”), scrolls to that row, and marks it “Just updated”.
 - Raw support documents are separated behind an explicit sensitive-content boundary and audited access.
+- The planned student-correction form groups editable demographic, address, parent-name, indicator, and prior-school facts. It always requires a correction reason and shows that Student ID/LRN, guardian relationships, enrollment state, section, finance, requirements, support, and grades use separate controlled workflows.
+
+### Grade approval (Registrar and Admin)
+
+The Grade approval page (sidebar: “Grade approval”) is built for deadline week, when every class submits at once. It works on one school year at a time and filters by grade level, section, subject, teacher, student, and “Only classes with grades to check”; on phones the filters and tracker start collapsed.
+
+- **Summary tiles:** classes fully submitted (x / y), grades waiting for the reviewer, grades not submitted yet, and grades approved this year.
+- **Submission tracker:** one row per section, one chip per class (subject code plus submitted/total), coloured navy = waiting for you, orange = teacher still entering, grey = not started, green = all approved. Every chip opens the class.
+- **Queues (tabs, each paginated, no row cap):** Waiting for approval (one compact row per class, oldest submission first: teacher, progress, final-grade range, ⚑ count of grades to check, Review); Not submitted yet (grouped by teacher, most missing first); Reopen requests; Approved.
+- **Class review dialog** (full page without JavaScript): every current student with Q1–Q4, final, status, and per-student Approve. Rows are flagged for a second look when a quarter is below 60, quarters differ by 20+ points, or the final is 100 — review hints only, not a passing mark (P-010). A sticky “Approve all N” bar approves the grades shown.
+- **At a glance and Review all (D-045):** each waiting class lists every waiting final grade as “Last, F. 87” chips (⚑ and warning colour for grades to check; hover shows Q1–Q4). “Review all on this page” marks the shown classes as reviewed and pre-selects them; “Approve selected” then approves only the grades that were shown, unchanged. A class can also be reviewed by opening it. Anything edited or submitted after the review stays waiting. After either action the page returns to the waiting list.
+- **Without JavaScript** every “Open”/student link opens the full page instead of the dialog.
+
+The promotion review shows “Final grades approved: x / y” in the table and, in the dialog, each subject's final grade and state; the next-year draft button appears only when every grade is approved.
 
 ### Accounting workspace
 
@@ -215,9 +256,13 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 
 ### Teacher workspace
 
+- Teacher pages (My teaching and Grades) show one school year at a time through `x-teaching.year-tabs` (only years with the teacher's active classes, newest first; the current-dated year opens by default and is labelled “Current”). My teaching shows one section at a time (section pills when there are several): roles as chips, a class schedule list (Subject · Days · Time · Teacher; the teacher's own classes highlighted with an “Enter grades” link), and a numbered, alphabetical student list (Last, First M.; Student ID). Selecting a student opens the student summary dialog (D-044); a “Support notes” label marks students who have an approved summary. Grades groups the teacher's Grades 1–10 classes by section with a progress bar per class (approved, waiting for Registrar approval, ready to submit, in progress, not started) and an “Enter grades”/“View grades” button.
 - Default to current assigned sections.
 - Student page contains only instructional and contact/escalation information allowed by policy.
 - Approved support summary is clearly labeled with effective date and authorizing staff; raw source documents are absent.
+- The Grades workspace defaults to current assigned sections and subjects. Each student/subject row exposes four clearly labeled quarter inputs and a read-only calculated final grade. Missing quarters display `Incomplete`; the interface never previews a missing value as zero.
+- Draft, Submitted, Finalized, and Reopened/Corrected status must use text plus visual treatment. Submission explains the lock. A direct final-grade input is never rendered.
+- Large classes use an accessible table or repeated row pattern with sticky identity/context where practical, visible validation, keyboard navigation, mobile horizontal containment, and server-preserved values after errors.
 
 ## 8. Print and downloadable output
 
@@ -235,6 +280,26 @@ For payment reversals, capacity overrides, waivers, role changes, and document d
 - Authenticated role journeys still require the signed P-008 UAT matrix; automated authorization coverage does not replace school-user acceptance.
 - Include “Confidential” and intended audience where appropriate.
 - Export only fields authorized for the report and actor.
+
+## Phase 14 curriculum workspace
+
+- Keep one school-year curriculum version visible at a time, with its draft or published status stated in text.
+- Group subject mappings and reusable section templates by grade level so the Admin can review one grade at a time without a year-wide flat list.
+- The subject catalog asks only for code and name; do not ask staff to manually encode a subject description. Curriculum and section assignment forms select existing subjects from dropdowns.
+- The selected unpublished draft has an Admin-only Delete draft disclosure with a clear permanence warning and required confirmation checkbox. Published versions have no delete control.
+- The Copy from selector always offers Start empty and Default curriculum (JCA class program), even with no saved versions; published year-specific versions appear as additional options. A default copy is labeled as a draft and reminds Admin to review that year's timetable and staff before publishing.
+- Explain that publishing fills missing sections and subject offerings but does not replace existing teacher assignments or manually adjusted schedules.
+- Show scheduling conflicts as field-level validation errors. The Registrar may view the published curriculum and year-specific offerings but cannot edit or publish them.
+
+## Academics workspace (Phase 14.1)
+
+- Academics has three tabs: Class schedules (default), Curriculum, and Setup. Each opens on the current school year (dates include today, else newest open, else newest) and offers a School year filter; Class schedules also filters by Grade level and Section. The filters are a plain GET form; Alpine only submits on change and clears dependent choices.
+- Class schedules shows a year readiness strip (class program status, sections, advisers, subject offerings, subject teachers), then either a grade-grouped section table or one section's subjects as Subject / Days / Time / Teacher rows. Each row's Edit control is a CSS-only disclosure (visually hidden checkbox) holding the class-time form, the teacher form, and Admin-only archive/delete.
+- Class times use weekday checkboxes (default Monday-Friday) and 24-hour From/To time inputs; never ask staff to type a schedule string.
+- Delete appears only for the Admin and only for unused records, inside a confirmation disclosure. Used records show “Can't be deleted” with what uses them and point to archiving instead. Registrar sees add/edit only.
+- Sections show “Matches curriculum”, “Changed from curriculum”, or “Added manually”. A section's school year and grade are shown locked once it came from a curriculum or has students or teachers.
+- Old `/academics#school-years`, `#grade-levels`, `#subjects`, and `#sections` links open the matching Setup section.
+- Scrollable tables wrap in a `relative overflow-x-auto` container so visually hidden text inside them cannot widen the page on phones.
 
 ## 9. Alpine.js boundaries
 

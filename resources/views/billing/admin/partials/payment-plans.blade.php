@@ -3,7 +3,7 @@
     <div class="p-5 sm:p-6">
         <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="note">
             <p class="font-bold">A payment plan is only one part of billing.</p>
-            <p class="mt-1">Before Accounting can bill a student, Admin must also publish a fee schedule for the same school year and grade. Accounting then creates and finalizes the student's assessment before selecting a plan.</p>
+            <p class="mt-1">Before a student can be billed, a fee schedule must also be published for the same school year and grade. Accounting then creates and finalizes the student's assessment before selecting a plan.</p>
         </div>
 
         <div class="mt-5 overflow-x-auto rounded-xl border border-border">

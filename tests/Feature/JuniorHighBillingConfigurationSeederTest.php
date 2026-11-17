@@ -43,7 +43,6 @@ class JuniorHighBillingConfigurationSeederTest extends TestCase
             ['G7', 'Grade 7', 7, 'Junior High School'],
             ['G8', 'Grade 8', 8, 'Junior High School'],
             ['G9', 'Grade 9', 9, 'Junior High School'],
-            ['G11', 'Grade 11', 11, 'Senior High School'],
         ] as [$code, $name, $sequence, $stage]) {
             GradeLevel::query()->create([
                 'code' => $code,
@@ -75,9 +74,6 @@ class JuniorHighBillingConfigurationSeederTest extends TestCase
 
         $this->assertDatabaseMissing('fee_schedules', [
             'grade_level_id' => GradeLevel::query()->where('code', 'G2')->value('id'),
-        ]);
-        $this->assertDatabaseMissing('fee_schedules', [
-            'grade_level_id' => GradeLevel::query()->where('code', 'G11')->value('id'),
         ]);
         $this->assertDatabaseHas('discount_campaigns', [
             'code' => 'DEV-JHS-FIRST-100',

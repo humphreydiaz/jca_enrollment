@@ -1,0 +1,123 @@
+                                                </form>
+                                            @endcan
+                                        </div>
+
+                                        <div class="p-4 sm:p-5">
+                                            @if ($gradeMappings->isEmpty())
+                                                {{-- Preschool: retain the existing activity-program table component. --}}
+                                                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                                    <h5 class="text-sm font-bold text-brand-navy-900">Activity program and class times</h5>
+                                                </div>
+                                                @if ($template->activity_schedule)
+                                                    <x-academics.activity-program-table :schedule="$template->activity_schedule" :name="$template->name" class="mt-3" />
+                                                @else
+                                                    <p class="mt-3 text-sm text-muted">No activity program recorded yet.</p>
+                                                @endif
+                                            @elseif ($template->activity_schedule)
+                                                <p class="mb-4 whitespace-pre-line rounded-lg bg-canvas p-3 text-sm text-muted">{{ $template->activity_schedule }}</p>
+                                            @endif
+
+                                            @if ($gradeMappings->isNotEmpty() || $sectionSchedules->isNotEmpty())
+                                                <div class="flex flex-wrap items-baseline justify-between gap-2">
+                                                    <h5 class="text-sm font-bold text-brand-navy-900">Subjects and class times</h5>
+                                                    <span class="text-xs text-muted">{{ $sectionSchedules->count() }} scheduled {{ Str::plural('entry', $sectionSchedules->count()) }}</span>
+                                                </div>
+                                                <div class="mt-3 overflow-x-auto rounded-lg border border-border">
+                                                    <table class="w-full min-w-[700px] border-collapse text-left text-sm">
+                                                        <caption class="sr-only">{{ $gradeItem->name }} section {{ $template->name }} class times</caption>
+                                                        <thead class="bg-canvas text-xs font-bold uppercase tracking-wide text-muted">
+                                                            <tr>
+                                                                <th scope="col" class="px-3 py-3">Subject</th>
+                                                                <th scope="col" class="px-3 py-3">Days</th>
+                                                                <th scope="col" class="px-3 py-3">Time</th>
+                                                                <th scope="col" class="px-3 py-3">Teacher</th>
+                                                                <th scope="col" class="px-3 py-3 text-right">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="divide-y divide-border">
+                                                            @foreach ($sectionSchedules as $schedule)
+                                                                @php $time = $schedule->classSchedule(); @endphp
+                                                                <tr>
+                                                                    <td class="px-3 py-3 font-semibold text-brand-navy-900">{{ $schedule->subject->name }}</td>
+                                                                    <td class="px-3 py-3 text-muted">{{ $time?->daysLabel() ?? '—' }}</td>
+                                                                    <td class="px-3 py-3 tabular-nums text-muted">{{ $time ? $time->startsAt.' – '.$time->endsAt : ($schedule->schedule_text ?: 'Time to confirm') }}</td>
+                                                                    <td class="px-3 py-3 text-muted">—</td>
+                                                                    <td class="px-3 py-3 text-right">
+                                                                        @if ($selected->status === 'published')
+                                                                            <a href="{{ route('academics.admin.index', ['year' => $selected->academicYear->public_id]) }}" class="font-semibold text-brand-navy-700 hover:underline">Class schedules</a>
+                                                                        @else
+                                                                            @can('update', $selected)
+                                                                                <a href="#curriculum-time-{{ $template->id }}"
+                                                                                   onclick="document.getElementById('curriculum-time-{{ $template->id }}').open = true; document.getElementById('schedule_subject_{{ $template->id }}').value = '{{ (int) $schedule->subject_id }}';"
+                                                                                   class="font-semibold text-brand-navy-700 hover:underline">Set time</a>
+                                                                            @else
+                                                                                <span class="text-xs text-muted">—</span>
+                                                                            @endcan
+                                                                        @endif
+                                                                    </td>
+                                                                </tr>
+                                                            @endforeach
+                                                            @foreach ($unscheduledMappings as $mapping)
+                                                                <tr>
+                                                                    <td class="px-3 py-3 font-semibold text-brand-navy-900">{{ $mapping->subject->name }}</td>
+                                                                    <td class="px-3 py-3 text-muted">—</td>
+                                                                    <td class="px-3 py-3 text-muted">Time to confirm</td>
+                                                                    <td class="px-3 py-3 text-muted">—</td>
+                                                                    <td class="px-3 py-3 text-right">
+                                                                        @can('update', $selected)
+                                                                            <a href="#curriculum-time-{{ $template->id }}"
+                                                                               onclick="document.getElementById('curriculum-time-{{ $template->id }}').open = true; document.getElementById('schedule_subject_{{ $template->id }}').value = '{{ (int) $mapping->subject_id }}';"
+                                                                               class="font-semibold text-brand-navy-700 hover:underline">Set time</a>
+                                                                        @else
+                                                                            <span class="text-xs text-muted">Not scheduled</span>
+                                                                        @endcan
+                                                                    </td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                                <p class="mt-2 text-xs text-muted">Teacher assignments are managed on the Class schedules tab after publishing; they are not stored in the curriculum template.</p>
+                                            @endif
+
+                                            @can('update', $selected)
+                                                @if ($gradeMappings->isNotEmpty())
+                                                    {{-- Preserves the existing schedule-saving route and fields. --}}
+                                                    <details id="curriculum-time-{{ $template->id }}" class="mt-4 scroll-mt-28 rounded-lg border border-dashed border-border p-3">
+                                                        <summary class="cursor-pointer text-sm font-bold text-brand-navy-700">+ Set a class time for {{ $template->name }}</summary>
+                                                        <form method="POST" action="{{ route('academics.admin.curricula.schedules.store', [$selected, $template]) }}" class="mt-3 space-y-3">
+                                                            @csrf
+                                                            <x-ui.field for="schedule_subject_{{ $template->id }}" label="Subject">
+                                                                <select id="schedule_subject_{{ $template->id }}" name="subject_id" required class="jca-input">
+                                                                    @foreach ($gradeMappings as $mapping)
+                                                                        <option value="{{ $mapping->subject_id }}">{{ $mapping->subject->name }}</option>
+                                                                    @endforeach
+                                                                </select>
+                                                            </x-ui.field>
+                                                            <x-academics.schedule-fields :id-prefix="'template_'.$template->id" compact />
+                                                            <x-ui.button type="submit" variant="secondary">Save class time</x-ui.button>
+                                                        </form>
+                                                    </details>
+                                                @endif
+                                            @endcan
+                                        </div>
+                                    </section>
+                                @empty
+                                    <p class="mt-3 text-sm text-muted">There are no sections for this grade level yet.</p>
+                                @endforelse
+                            </div>
+                        </section>
+                    @endif
+                @endforeach
+
+            @elseif ($allYears->isEmpty())
+
+                <x-ui.empty-state icon="academics" title="No school year yet" description="Create the first school year in the Setup tab, then come back here to load its class program." />
+
+            @endif
+
+        </section>
+
+    </div>
+
+</x-layouts.app>

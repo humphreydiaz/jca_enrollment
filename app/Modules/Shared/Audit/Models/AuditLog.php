@@ -8,6 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AuditLog extends Model
 {
+    /** D-059: the audit trail is append-only; an entry is never edited or deleted through the application. */
+    protected static function booted(): void
+    {
+        static::updating(fn () => throw new \LogicException('Audit log entries are append-only and cannot be changed.'));
+        static::deleting(fn () => throw new \LogicException('Audit log entries are append-only and cannot be deleted.'));
+    }
+
     /**
      * @var list<string>
      */

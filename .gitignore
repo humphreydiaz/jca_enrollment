@@ -32,3 +32,8 @@ Thumbs.db
 /jca_enrollment.sql
 /jca_student_credentials.md
 /ITE322_Final_Modules/
+
+# Local deployment packages, database snapshots, and scanned source documents
+/deploy/
+/*.sql
+/public/images/school_fees_scanned/

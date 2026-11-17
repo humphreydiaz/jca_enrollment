@@ -14,7 +14,13 @@ class TeacherAssignmentsQuery
         return TeachingAssignment::query()
             ->active()
             ->forUser($user)
-            ->with(['section.academicYear', 'section.gradeLevel', 'sectionSubject.subject'])
+            ->with([
+                'section.academicYear',
+                'section.gradeLevel',
+                'section.sectionSubjects.subject',
+                'section.teachingAssignments' => fn ($query) => $query->active()->with('staffProfile.user'),
+                'sectionSubject.subject',
+            ])
             ->orderBy('section_id')
             ->get();
     }

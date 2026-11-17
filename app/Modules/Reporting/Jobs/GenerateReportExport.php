@@ -49,7 +49,8 @@ class GenerateReportExport implements ShouldQueue
 
                 return;
             }
-            $columns = $reports->columns($export->report_code, $export->requester);
+            // Only the columns chosen when the export was requested, re-checked against today's allowlist.
+            $columns = $reports->selectedColumns($export->report_code, $export->requester, $export->field_snapshot ?? null);
             $stream = fopen('php://temp', 'w+b');
             if ($stream === false) {
                 throw new \RuntimeException('Temporary export stream unavailable.');
@@ -57,7 +58,7 @@ class GenerateReportExport implements ShouldQueue
             fwrite($stream, "\xEF\xBB\xBF");
             fputcsv($stream, array_values($columns));
             foreach ($rows as $row) {
-                fputcsv($stream, array_map(fn (string $field): string => $this->safeCsvValue(data_get($row, $field)), array_keys($columns)));
+                fputcsv($stream, array_map(fn (string $field): string => $this->safeCsvValue(ReportCatalog::displayValue($field, data_get($row, $field))), array_keys($columns)));
             }
             rewind($stream);
             $contents = stream_get_contents($stream);

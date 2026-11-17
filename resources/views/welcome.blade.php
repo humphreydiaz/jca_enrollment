@@ -16,7 +16,7 @@
         <div class="landing-hero__content">
             <div class="landing-hero__badge" aria-hidden="true">
                 <svg class="landing-hero__badge-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.06l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
-                Now accepting enrollment applications
+                Walk-in enrollment at the Registrar
             </div>
 
             <img
@@ -35,13 +35,9 @@
             </p>
 
             <div class="landing-hero__actions">
-                <a href="{{ route('identity.login') }}" class="landing-cta landing-cta--guardian" id="cta-guardian-login">
+                <a href="{{ route('identity.login') }}" class="landing-cta landing-cta--guardian" id="cta-login">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M7.5 6.5C7.5 8.981 9.519 11 12 11s4.5-2.019 4.5-4.5S14.481 2 12 2 7.5 4.019 7.5 6.5zM20 21h1.5v-1.5c0-3.426-2.574-6-6-6h-7c-3.426 0-6 2.574-6 6V21H20z"/></svg>
-                    Guardian / Student Sign In
-                </a>
-                <a href="{{ route('identity.staff.login') }}" class="landing-cta landing-cta--staff" id="cta-staff-login">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-                    Admin / Staff Sign In
+                    Sign in
                 </a>
             </div>
         </div>
@@ -63,7 +59,7 @@
                 Everything your school needs,<br class="hidden lg:inline"> in one secure place
             </h2>
             <p class="landing-section__description">
-                From the moment a family submits an application to the day a student is enrolled and placed in a section —
+                From the family's first visit to the Registrar to the day a student is enrolled and placed in a section —
                 this system keeps every step organized, transparent, and private.
             </p>
         </div>
@@ -85,9 +81,9 @@
                     <div class="landing-feature-card__icon landing-feature-card__icon--navy">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="28" height="28"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
                     </div>
-                    <h3 class="landing-feature-card__title">Online Enrollment</h3>
+                    <h3 class="landing-feature-card__title">Guided Enrollment</h3>
                     <p class="landing-feature-card__text">
-                        Families apply online with guided forms. Upload documents securely, track application status in real time, and never wonder where things stand.
+                        Families begin enrollment in person with the Registrar, receive school-issued access, and then complete the guided application securely.
                     </p>
                 </div>
 
@@ -109,7 +105,7 @@
                     </div>
                     <h3 class="landing-feature-card__title">Guardian & Student Portals</h3>
                     <p class="landing-feature-card__text">
-                        Parents see their children's enrollment progress, requirements, section, and financial summary. Students in Grades 7–12 get their own portal too.
+                        Parents see their children's enrollment progress, requirements, section, and financial summary. Eligible students in Grades 7–10 get their own portal too.
                     </p>
                 </div>
 
@@ -162,26 +158,26 @@
             <div class="landing-steps">
                 <div class="landing-step">
                     <div class="landing-step__number">1</div>
-                    <h3 class="landing-step__title">Apply</h3>
-                    <p class="landing-step__text">Submit an online application and upload required documents securely.</p>
+                    <h3 class="landing-step__title">Visit</h3>
+                    <p class="landing-step__text">Visit the Registrar for identity and duplicate-record checking.</p>
                 </div>
                 <div class="landing-step__connector" aria-hidden="true"></div>
                 <div class="landing-step">
                     <div class="landing-step__number">2</div>
-                    <h3 class="landing-step__title">Review</h3>
-                    <p class="landing-step__text">The registrar verifies documents, checks requirements, and reviews eligibility.</p>
+                    <h3 class="landing-step__title">Receive access</h3>
+                    <p class="landing-step__text">The Registrar provides temporary access for the approved parent, guardian, or student.</p>
                 </div>
                 <div class="landing-step__connector" aria-hidden="true"></div>
                 <div class="landing-step">
                     <div class="landing-step__number">3</div>
-                    <h3 class="landing-step__title">Approve</h3>
-                    <p class="landing-step__text">Once complete, the application is approved and fee assessment is prepared.</p>
+                    <h3 class="landing-step__title">Complete</h3>
+                    <p class="landing-step__text">Sign in, set a private password, complete the application, and provide requirements.</p>
                 </div>
                 <div class="landing-step__connector" aria-hidden="true"></div>
                 <div class="landing-step">
                     <div class="landing-step__number">4</div>
-                    <h3 class="landing-step__title">Enroll</h3>
-                    <p class="landing-step__text">The student is placed in a section and officially enrolled for the school year.</p>
+                    <h3 class="landing-step__title">Review &amp; enroll</h3>
+                    <p class="landing-step__text">The school reviews the application before approval, section placement, and enrollment.</p>
                 </div>
             </div>
         </div>
@@ -254,14 +250,14 @@
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
                     </div>
                     <h3 class="landing-role-card__title">Parents & Guardians</h3>
-                    <p class="landing-role-card__text">Apply for enrollment, upload requirements, track progress, view financial summary, and receive school updates.</p>
+                    <p class="landing-role-card__text">Use Registrar-issued access to complete enrollment, upload requirements, track progress, view financial summaries, and receive school updates.</p>
                 </div>
                 <div class="landing-role-card">
                     <div class="landing-role-card__icon">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="32" height="32"><path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"/></svg>
                     </div>
                     <h3 class="landing-role-card__title">Students</h3>
-                    <p class="landing-role-card__text">Grades 7–12 can apply directly, view their enrollment status, section assignment, schedule, and school announcements.</p>
+                    <p class="landing-role-card__text">Eligible Grades 7–10 students can use Registrar-issued access to complete enrollment and view their status, section, schedule, and announcements.</p>
                 </div>
                 <div class="landing-role-card">
                     <div class="landing-role-card__icon">
@@ -297,16 +293,12 @@
                     Ready to get started?
                 </h2>
                 <p class="landing-bottom-cta__text">
-                    Sign in to your portal to begin enrollment, check your child's status, or manage school records.
+                    New applicants must first visit the Registrar for temporary access. If you already have a JCA account, sign in to continue.
                 </p>
                 <div class="landing-hero__actions">
-                    <a href="{{ route('identity.login') }}" class="landing-cta landing-cta--guardian" id="cta-guardian-login-bottom">
+                    <a href="{{ route('identity.login') }}" class="landing-cta landing-cta--guardian" id="cta-login-bottom">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M7.5 6.5C7.5 8.981 9.519 11 12 11s4.5-2.019 4.5-4.5S14.481 2 12 2 7.5 4.019 7.5 6.5zM20 21h1.5v-1.5c0-3.426-2.574-6-6-6h-7c-3.426 0-6 2.574-6 6V21H20z"/></svg>
-                        Guardian / Student Sign In
-                    </a>
-                    <a href="{{ route('identity.staff.login') }}" class="landing-cta landing-cta--staff" id="cta-staff-login-bottom">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg>
-                        Admin / Staff Sign In
+                        Sign in
                     </a>
                 </div>
             </div>

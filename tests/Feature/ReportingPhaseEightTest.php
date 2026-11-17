@@ -25,6 +25,7 @@ use App\Modules\SectionAssignment\Models\SectionAssignment;
 use App\Modules\Shared\Audit\AuditRecorder;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -50,7 +51,7 @@ class ReportingPhaseEightTest extends TestCase
         $teacher = $this->user(['teacher']);
         $guardian = $this->user(['guardian']);
         $student = $this->user(['student']);
-        $this->assertCount(9, app(ReportCatalog::class)->definitions());
+        $this->assertCount(12, app(ReportCatalog::class)->definitions());
         $this->actingAs($admin)->get(route('reporting.index'))->assertOk()->assertSee('Enrollment')->assertSee('Communications');
         $this->actingAs($registrar)->get(route('reporting.show', 'enrollments'))->assertOk();
         $this->actingAs($registrar)->get(route('reporting.show', 'payments'))->assertForbidden();
@@ -79,7 +80,7 @@ class ReportingPhaseEightTest extends TestCase
         $this->actingAs($teacher)->get(route('reporting.show', 'students'))->assertOk()->assertSee('Student, Assigned')->assertDontSee('Student, Unrelated')->assertSee($firstSection->name)->assertDontSee($secondSection->name);
         $this->actingAs($teacher)->get(route('reporting.show', 'sections'))->assertOk()->assertSee($firstSection->name)->assertSee('1')->assertDontSee($secondSection->name);
         $print = $this->actingAs($admin)->get(route('reporting.print', ['enrollments'] + $filters));
-        $print->assertOk()->assertSee('Development operational layout')->assertSee('images/reporting/jca-reports-header.png')->assertSee($first->application_number)->assertDontSee('Primary navigation')->assertDontSee('support_observations')->assertDontSee('payment_evidence');
+        $print->assertOk()->assertSee('JCSGO CHRISTIAN ACADEMY R1 INC.')->assertSee('Enrolment Data')->assertSee('GRAND TOTAL')->assertDontSee('Primary navigation')->assertDontSee('support_observations')->assertDontSee('payment_evidence');
         $this->assertDatabaseHas('audit_logs', ['action' => 'reporting.report.printed']);
     }
 
@@ -134,19 +135,78 @@ class ReportingPhaseEightTest extends TestCase
         $this->actingAs($registrar->fresh())->get(route('reporting.exports.download', $revoked))->assertNotFound();
     }
 
+    public function test_completed_export_whose_file_is_gone_is_not_offered_and_explains_instead_of_404(): void
+    {
+        Storage::fake('reports');
+        Queue::fake();
+        $admin = $this->user(['admin']);
+        [$year, $grade, $section] = $this->catalogFixture();
+        $this->enrollmentFixture($year, $grade, $section, $admin, 'Fictional', 'Learner');
+        $export = app(RequestReportExportAction::class)->execute('enrollments', [], $admin);
+        (new GenerateReportExport($export->id))->handle(app(ReportCatalog::class), app(AuditRecorder::class));
+        $export->refresh();
+
+        $this->actingAs($admin)->get(route('reporting.index'))->assertOk()->assertSee('Download CSV');
+
+        // e.g. the database was copied to a new server without storage/app/private/reports.
+        Storage::disk('reports')->delete($export->storage_path);
+
+        $this->actingAs($admin)->get(route('reporting.index'))
+            ->assertOk()
+            ->assertDontSee('Download CSV')
+            ->assertSee('File missing');
+        $this->actingAs($admin)->get(route('reporting.exports.download', $export))
+            ->assertRedirect(route('reporting.index'))
+            ->assertSessionHasErrors('export');
+        $this->assertSame(0, $export->fresh()->download_count);
+    }
+
     public function test_audit_search_is_admin_only_and_omits_sensitive_context(): void
     {
         $admin = $this->user(['admin']);
         $registrar = $this->user(['registrar']);
         $subject = StudentProfile::query()->create(['first_name' => 'Audit', 'last_name' => 'Subject']);
         $log = app(AuditRecorder::class)->record($admin, 'fictional.sensitive.action', $subject, ['private_reason' => 'DO-NOT-EXPOSE']);
-        $log->update(['ip_address' => '192.0.2.10', 'user_agent' => 'PRIVATE-USER-AGENT']);
+        // Entries are append-only through the model (D-059); set the request context directly for this fixture.
+        DB::table('audit_logs')->where('id', $log->id)->update(['ip_address' => '192.0.2.10', 'user_agent' => 'PRIVATE-USER-AGENT']);
         $index = $this->actingAs($admin)->get(route('reporting.audit.index', ['action' => 'fictional.sensitive']));
         $index->assertOk()->assertSee('fictional.sensitive.action')->assertSee($subject->public_id)->assertDontSee('DO-NOT-EXPOSE')->assertDontSee('192.0.2.10')->assertDontSee('PRIVATE-USER-AGENT');
         $detail = $this->actingAs($admin)->get(route('reporting.audit.show', $log));
         $detail->assertOk()->assertSee('fictional.sensitive.action')->assertDontSee('DO-NOT-EXPOSE')->assertDontSee('192.0.2.10')->assertDontSee('PRIVATE-USER-AGENT');
         $this->actingAs($registrar)->get(route('reporting.audit.index'))->assertForbidden();
         $this->actingAs($admin)->get(route('reporting.audit.index', ['metadata' => 'private_reason']))->assertRedirect()->assertSessionHasErrors('filters');
+    }
+
+    public function test_information_updates_lists_only_self_profile_changes_for_registrar_and_admin(): void
+    {
+        $admin = $this->user(['admin']);
+        $registrar = $this->user(['registrar']);
+        $teacher = $this->user(['teacher']);
+        $learner = $this->user(['student']);
+        $learner->update(['name' => 'Selfupdate Learner']);
+        $subject = StudentProfile::query()->create(['first_name' => 'Audit', 'last_name' => 'Subject']);
+        $recorder = app(AuditRecorder::class);
+        $recorder->record($learner, 'people.student.self_profile_updated', $subject, ['fields' => ['mobile']]);
+        $recorder->record($admin, 'billing.payment.posted', $subject, ['private_reason' => 'NOT-A-PROFILE-UPDATE']);
+
+        $this->get(route('reporting.information-updates.index'))->assertRedirect(route('identity.login'));
+        $this->actingAs($teacher)->get(route('reporting.information-updates.index'))->assertForbidden();
+
+        foreach ([$registrar, $admin] as $viewer) {
+            $this->actingAs($viewer)->get(route('reporting.information-updates.index'))
+                ->assertOk()
+                ->assertSee('Information updates')
+                ->assertDontSee('All Users Activity Log')
+                ->assertSee('Selfupdate Learner')
+                ->assertSee('Mobile number')
+                ->assertDontSee('NOT-A-PROFILE-UPDATE')
+                ->assertDontSee('billing.payment.posted');
+        }
+
+        $this->actingAs($registrar)->get(route('reporting.information-updates.index', ['account' => 'guardian']))
+            ->assertOk()->assertDontSee('Selfupdate Learner');
+        $this->actingAs($registrar)->get(route('reporting.information-updates.index', ['action' => 'billing']))
+            ->assertRedirect()->assertSessionHasErrors('filters');
     }
 
     public function test_phase_eight_schema_and_private_disk_contract(): void

@@ -28,13 +28,23 @@ class StartEnrollmentAction
             throw ValidationException::withMessages(['application' => 'Only a Student account can own a student application.']);
         }
 
-        if ($studentApplicant !== null) {
-            $grade = GradeLevel::query()->findOrFail($data['grade_level_id']);
-            if (! $grade->allowsStudentAccountByDefault()) {
-                throw ValidationException::withMessages([
-                    'grade_level_id' => 'Pre-elementary and elementary applications must be completed with a parent or guardian. Ask your guardian to start the application.',
-                ]);
-            }
+        $grade = GradeLevel::query()->find($data['grade_level_id']);
+        if ($grade === null || ! $grade->is_active) {
+            throw ValidationException::withMessages([
+                'grade_level_id' => 'Select an available grade level.',
+            ]);
+        }
+
+        if ($studentApplicant !== null && ! $grade->allowsStudentAccountByDefault()) {
+            throw ValidationException::withMessages([
+                'grade_level_id' => 'Pre-elementary and elementary applications must be completed with a parent or guardian. Ask your guardian to start the application.',
+            ]);
+        }
+
+        if ($studentApplicant === null && $grade->allowsStudentAccountByDefault()) {
+            throw ValidationException::withMessages([
+                'grade_level_id' => 'Junior High School applications require an invited Student login.',
+            ]);
         }
 
         $lockIdentity = $studentApplicant === null
@@ -121,6 +131,7 @@ class StartEnrollmentAction
                     'first_name' => trim($data['guardian_first_name']),
                     'middle_name' => filled($data['guardian_middle_name'] ?? null) ? trim($data['guardian_middle_name']) : null,
                     'last_name' => trim($data['guardian_last_name']),
+                    'extension_name' => filled($data['guardian_extension_name'] ?? null) ? trim($data['guardian_extension_name']) : null,
                     'mobile' => $mobile,
                     'email' => $email,
                 ]);
@@ -142,8 +153,14 @@ class StartEnrollmentAction
                     'disability_type' => (bool) $data['is_learner_with_disability'] ? $data['disability_type'] : null,
                     'current_address' => trim($data['current_address']),
                     'permanent_address' => (bool) $data['same_as_current_address'] ? trim($data['current_address']) : trim($data['permanent_address']),
-                    'father_name' => filled($data['father_name'] ?? null) ? trim($data['father_name']) : null,
-                    'mother_maiden_name' => filled($data['mother_maiden_name'] ?? null) ? trim($data['mother_maiden_name']) : null,
+                    'father_first_name' => filled($data['father_first_name'] ?? null) ? trim($data['father_first_name']) : null,
+                    'father_middle_name' => filled($data['father_middle_name'] ?? null) ? trim($data['father_middle_name']) : null,
+                    'father_last_name' => filled($data['father_last_name'] ?? null) ? trim($data['father_last_name']) : null,
+                    'father_extension_name' => filled($data['father_extension_name'] ?? null) ? trim($data['father_extension_name']) : null,
+                    'mother_first_name' => filled($data['mother_first_name'] ?? null) ? trim($data['mother_first_name']) : null,
+                    'mother_middle_name' => filled($data['mother_middle_name'] ?? null) ? trim($data['mother_middle_name']) : null,
+                    'mother_maiden_last_name' => filled($data['mother_maiden_last_name'] ?? null) ? trim($data['mother_maiden_last_name']) : null,
+                    'mother_extension_name' => filled($data['mother_extension_name'] ?? null) ? trim($data['mother_extension_name']) : null,
                 ]);
                 $resumeToken = Str::random(64);
                 $verificationCode = (string) random_int(100000, 999999);

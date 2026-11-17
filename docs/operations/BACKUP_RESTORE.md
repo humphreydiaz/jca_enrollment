@@ -2,6 +2,26 @@
 
 The database and `storage/app/private` form one recovery unit. A database-only backup is incomplete because it omits requirement documents and payment evidence. Ephemeral reports may be included but remain subject to expiry.
 
+## Built-in encrypted backups (D-060)
+
+The application backs itself up with PHP only, so it works on Windows and on Hostinger shared hosting without `mysqldump`, shell access from PHP, or extra packages. It needs the PHP `sodium` and `zip` extensions (`php -m`).
+
+- `php artisan jca:backup [--label=before-hotfix]` writes one encrypted file, `jca-backup-YYYYMMDD-HHMMSS[-label].jcabak`, to `BACKUP_PATH` (default `storage/app/backups`, which the root `.htaccess` never serves; the folder also gets its own deny-all `.htaccess`). Inside: `database.sql` (every table from one consistent snapshot; session, cache, and queue rows are left out), every file under `storage/app/private` (requirement documents and payment evidence), and `manifest.json` with row counts, migration count, and a SHA-256 checksum for each part.
+- Encryption: libsodium secretstream (XChaCha20-Poly1305). The key is `BACKUP_ENCRYPTION_KEY` when set, otherwise derived from `APP_KEY`. Keep a copy of the key outside the server and away from the backup files; without it a backup cannot be restored, and encrypted database fields need the same `APP_KEY` anyway.
+- Backups are manual only (owner decision of 2026-10-28): an Admin clicks "Back up now" in Admin > Backups, or someone runs `php artisan jca:backup` over SSH. Nothing is scheduled. A restore also takes its own safety backup first. The newest `BACKUP_KEEP` files (default 14) are kept and older ones are removed. The result is written to `status.json` beside the backups.
+- Admin > Backups shows the last successful backup (with a reminder when none exists or the newest is more than `BACKUP_REMIND_AFTER_DAYS`, default 7, days old), lists the files, offers "Back up now", downloads a file for offsite keeping (audited), and restores a file. Restore opens a pop-up that lists what will happen and requires ticking "I understand", typing RESTORE, and the Admin's own password (a no-JavaScript confirmation page asks the same). The same live-restore steps as the command run, then everyone is signed out and the sign-in page names the backup time and the safety backup.
+- `php artisan jca:restore <file> --inspect` decrypts and checks every checksum without changing anything.
+- `php artisan jca:restore <file> --drill-database=<empty database> [--drill-files=<empty folder>]` rehearses a restore into a separate empty database and folder; the live system is not touched. On Hostinger, create the drill database in hPanel first and give the site's database user access to it.
+- `php artisan jca:restore <file>` restores in place after typing `RESTORE` (or `--force`): it verifies the file and key, records the request, takes a `-pre-restore` safety backup, puts the site in maintenance mode, moves the current documents to `storage/app/restore-previous-<time>`, replaces every table, unpacks the backed-up documents, compares row counts, clears caches, and brings the site back. If anything fails part-way, the safety backup is restored automatically and the site comes back as it was; only if that also fails does the site stay in maintenance mode with the exact SSH command to finish. Only one restore can run at a time. A backup made with a different `APP_KEY` is refused unless `--allow-different-app-key` is passed. After restoring an older backup onto newer code, run `php artisan migrate --force`. Everyone is signed out because sessions are not part of a backup.
+
+Offsite copy: at least weekly, an Admin downloads the newest backup from Admin > Backups (or over SFTP) to the school's encrypted storage. Hostinger's own hPanel backups remain a second, independent layer.
+
+### Verified local rehearsal (2026-10-27)
+
+`jca:backup` on the development database produced a 28 MB file (89 tables, 2,517 rows, 29 documents). A drill restore into a separate database matched every table's row count and the CHECKSUM of `student_profiles`, `enrollments`, `payments`, and `student_subject_grades`; all 29 documents matched their SHA-256. (`audit_logs` differed by the single `operations.backup.created` entry written after the snapshot, as designed.) An in-place restore of the same file then completed with a safety backup, matching row counts, maintenance mode off, and the previous documents kept aside. This is development evidence; repeat the drill on the Hostinger host after deployment.
+
+## PowerShell bundle (original Phase 9 tooling)
+
 ## Backup contract
 
 - Use a restricted MySQL client defaults file outside the repository; do not put passwords on the command line.

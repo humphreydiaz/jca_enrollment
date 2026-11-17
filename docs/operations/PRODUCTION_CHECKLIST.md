@@ -12,10 +12,14 @@ Every box needs an owner, date, and evidence link in the protected launch record
 - [ ] P-006 reports, columns, layouts, signatories, and controls signed.
 - [ ] P-007 host, MySQL version, encrypted/offsite backup, monitoring, RPO/RTO, and restore drill signed.
 - [ ] P-008 role owners, UAT, training, incident contacts, support coverage, launch/rollback authority signed.
+- [x] P-009 Student ID and Staff ID formats, issuance points, and retained-identifier treatment resolved by D-036 on 2026-10-03.
+- [ ] P-010 grading range, precision/rounding, passing/promotion rules, reopening authority, and preschool assessment policy signed.
+- [ ] P-011 guardian/student account ownership and approved guardian login identifier signed.
 
 ## Technical gates
 
 - [ ] Reviewed release commit; clean dependency/security review; no secrets or development data.
+- [ ] Post-baseline Phases 11-17 are implemented and the readiness command/checklist covers their new policy gates.
 - [ ] Production `.env` uses debug off, HTTPS, secure/encrypted database sessions, database queue/cache, daily redacted logs, least-privilege MySQL, and private non-serving disks.
 - [ ] Original `APP_KEY` stored in approved secret custody and excluded from backups/source.
 - [ ] `composer validate`, full tests, production asset build, Pint, routes, and whitespace checks pass.

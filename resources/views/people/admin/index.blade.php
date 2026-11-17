@@ -1,203 +1,769 @@
-<x-layouts.app title="People foundation">
-    <div class="space-y-8">
-        <section class="jca-card p-6 sm:p-8" aria-labelledby="people-title">
-            <p class="text-sm font-bold uppercase tracking-[0.18em] text-brand-orange-500">Identity foundation</p>
-            <h1 id="people-title" class="mt-2 text-3xl font-black text-brand-navy-900">Guardian and student relationships</h1>
-            <p class="mt-3 text-sm leading-6 text-muted">Create profile foundations and verify the relationships that scope portal access. Enrollment details are managed from the enrollment workspace.</p>
-            <nav class="mt-5 flex flex-wrap gap-2 border-t border-border pt-5" aria-label="Jump to section">
-                <span class="self-center text-xs font-bold uppercase tracking-[0.12em] text-muted">Jump to</span>
-                <a href="#student-connections" class="jca-button-secondary text-sm"><x-ui.icon name="users" size="size-4" /> Student &amp; login connections</a>
-                <a href="#relationship-verification" class="jca-button-secondary text-sm"><x-ui.icon name="people" size="size-4" /> Relationship verification</a>
-            </nav>
+<x-layouts.app title="Family links">
+    @if (session('granted_access'))
+        @php $slip = session('granted_access'); @endphp
+        <x-slot:printSlip>
+            <x-print.access-slip
+                :slip="$slip"
+                title="Student account slip"
+                steps-title="How to sign in"
+                next-step="Use the student pages to see grades, class schedule, and announcements. The parent or guardian keeps their own account and password."
+            />
+        </x-slot:printSlip>
+    @endif
+    <div class="space-y-6">
+        <x-ui.page-header
+            eyebrow="Registrar workspace"
+            title="Family links"
+            description="Manage student accounts and parent/guardian relationships for Nursery through Grade 10."
+        />
+        {{-- Junior high account status guidance; actions below operate on existing learner records. --}}
+        <section class="rounded-xl border border-brand-navy-700/15 bg-brand-blue-100/40 px-4 py-3 text-sm text-brand-navy-900">
+            <p class="font-bold">Grade 7–10: separate student and parent logins</p>
+            <p class="mt-1 text-muted">
+                Student enrollment remains student-managed. Parent/guardian accounts are linked to
+                the learner's record for authorized portal access. Verify identity before linking.
+            </p>
         </section>
 
-        <section class="jca-card p-6 sm:p-8" aria-labelledby="enrollment-start-guide-title">
-            <h2 id="enrollment-start-guide-title" class="text-xl font-black text-brand-navy-900">Choose the correct enrollment starting point</h2>
-            <div class="mt-5 grid gap-4 lg:grid-cols-2">
-                <div class="rounded-xl border border-border bg-slate-50 p-5">
-                    <p class="text-xs font-extrabold uppercase tracking-[0.12em] text-brand-orange-500">Grades 1–6</p>
-                    <h3 class="mt-1 font-black text-brand-navy-900">Guardian-assisted application</h3>
-                    <p class="mt-2 text-sm leading-6 text-muted">A parent or guardian starts the enrollment application. The application creates the learner profile; do not create a separate student profile here first.</p>
-                </div>
-                <div class="rounded-xl border border-border bg-brand-blue-50 p-5">
-                    <p class="text-xs font-extrabold uppercase tracking-[0.12em] text-brand-orange-500">Grades 7–12</p>
-                    <h3 class="mt-1 font-black text-brand-navy-900">Student self-application</h3>
-                    <p class="mt-2 text-sm leading-6 text-muted">Invite the Student login from User management, then let the student sign in and apply. The student is linked to the permanent learner profile only after approval; the guardian account is connected through enrollment review.</p>
-                </div>
-            </div>
-        </section>
-
-        <div class="grid gap-8 xl:grid-cols-2">
-            <section class="jca-card p-6" aria-labelledby="guardian-create-title">
-                <h2 id="guardian-create-title" class="text-xl font-black text-brand-navy-900">Create guardian profile</h2>
-                <form method="POST" action="{{ route('people.admin.guardians.store') }}" class="mt-5 grid gap-4 sm:grid-cols-2">
-                    @csrf
-                    <x-ui.field for="guardian_user_public_id" label="Linked guardian account (optional)"><select id="guardian_user_public_id" name="user_public_id" class="block w-full rounded-lg border-border px-3 py-3"><option value="">No account yet</option>@foreach($guardianUsers as $user)<option value="{{ $user->public_id }}">{{ $user->name }}</option>@endforeach</select></x-ui.field>
-                    <x-ui.field for="guardian_first_name" label="First name"><input id="guardian_first_name" name="first_name" required class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <x-ui.field for="guardian_last_name" label="Last name"><input id="guardian_last_name" name="last_name" required class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <x-ui.field for="guardian_mobile" label="Mobile number"><input id="guardian_mobile" name="mobile" inputmode="tel" class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <x-ui.field for="guardian_email" label="Email address"><input id="guardian_email" name="email" type="email" class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <div class="sm:col-span-2"><x-ui.button type="submit">Save guardian</x-ui.button></div>
-                </form>
+        {{-- Granted account --}}
+        @if (session('granted_access'))
+            @php $access = session('granted_access'); @endphp
+            <section class="rounded-2xl border-2 border-success-700 bg-emerald-50 p-5 sm:p-7" aria-labelledby="granted-title">
+                <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-success-700">
+                    Display once — give directly to the learner or parent
+                </p>
+                <h2 id="granted-title" class="mt-2 text-2xl font-black text-brand-navy-900">
+                    Student account issued
+                </h2>
+                <dl class="mt-5 grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <dt class="text-sm font-semibold text-muted">Student</dt>
+                        <dd class="font-black text-ink">{{ $access['learner_name'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-semibold text-muted">Expires</dt>
+                        <dd class="font-bold text-ink">{{ $access['expires_at'] }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-semibold text-muted">Student ID</dt>
+                        <dd class="select-all font-mono text-xl font-black tracking-wide text-brand-navy-900">
+                            {{ $access['student_number'] }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-semibold text-muted">Temporary password</dt>
+                        <dd class="select-all font-mono text-xl font-black tracking-wide text-brand-navy-900">
+                            {{ $access['temporary_password'] }}
+                        </dd>
+                    </div>
+                </dl>
+                <p class="mt-5 text-sm leading-6 text-ink">
+                    The student signs in using their Student ID and temporary password, then sets a new password.
+                    The parent or guardian uses a separate portal account.
+                </p>
+                <button type="button" class="jca-button jca-button-secondary mt-4 print:hidden" onclick="window.print()">
+                    Print slip
+                </button>
             </section>
-
-            <section class="jca-card p-6" aria-labelledby="student-create-title">
-                <h2 id="student-create-title" class="text-xl font-black text-brand-navy-900">Add an existing student record</h2>
-                <p class="mt-2 text-sm leading-6 text-muted">Use this only for a verified existing or legacy school record that did not come through online enrollment. New applicants must use the enrollment application, which creates their learner profile automatically.</p>
-                <p class="mt-3 rounded-lg bg-amber-50 p-3 text-sm font-semibold text-amber-950">Do not use this form before inviting a Grade 7–12 applicant. Create only the Student login in User management.</p>
-                <form method="POST" action="{{ route('people.admin.students.store') }}" class="mt-5 grid gap-4 sm:grid-cols-2">
-                    @csrf
-                    <x-ui.field for="student_first_name" label="First name"><input id="student_first_name" name="first_name" required class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <x-ui.field for="student_last_name" label="Last name"><input id="student_last_name" name="last_name" required class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <x-ui.field for="student_number" label="Student number"><input id="student_number" name="student_number" class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <x-ui.field for="birth_date" label="Birth date"><input id="birth_date" name="birth_date" type="date" class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                    <div class="sm:col-span-2"><x-ui.button type="submit">Save student</x-ui.button></div>
-                </form>
-            </section>
-        </div>
-
-        <section id="student-connections" class="jca-card scroll-mt-24 overflow-hidden" aria-labelledby="student-account-link-title">
-            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-border p-6">
-                <div>
-                    <h2 id="student-account-link-title" class="text-xl font-black text-brand-navy-900">Student profile and login connections</h2>
-                    <p class="mt-2 max-w-4xl text-sm leading-6 text-muted">A login account does not own a grade or enrollment. It only opens the student profile connected here. Verify the profile name and enrollment before connecting; disconnecting a mistake preserves every enrollment record.</p>
-                </div>
-                <span class="shrink-0 rounded-full bg-brand-blue-100 px-3 py-1 text-xs font-bold text-brand-navy-700">{{ $students->total() }} {{ Str::plural('profile', $students->total()) }}</span>
+        @endif
+        {{-- Search --}}
+        <form method="GET"
+              action="{{ route('people.admin.index') }}"
+              role="search"
+              class="jca-card flex flex-wrap items-end gap-3 p-4">
+            <div class="min-w-[14rem] flex-1 space-y-1.5">
+                <label for="family_search" class="block text-xs font-extrabold uppercase tracking-wider text-muted">
+                    Find a learner or parent
+                </label>
+                <input id="family_search"
+                       type="search"
+                       name="search"
+                       value="{{ $search }}"
+                       maxlength="100"
+                       autocomplete="off"
+                       placeholder="Learner name, Student ID, or parent name"
+                       class="jca-input">
             </div>
-            <div class="divide-y divide-border">
-                @forelse ($students as $student)
-                    @php($eligibleEnrollment = $student->enrollments->whereIn('status', ['approved', 'enrolled'])->sortByDesc('approved_at')->first())
-                    <article class="p-5 sm:p-6">
-                        <div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                            <div>
-                                <p class="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Student profile</p>
-                                <h3 class="mt-1 text-lg font-black text-brand-navy-900">{{ $student->full_name }}</h3>
-                                <p class="mt-1 text-sm text-muted">Student number: {{ $student->student_number ?: 'Not assigned' }}</p>
-                                @if($eligibleEnrollment)
-                                    <p class="mt-3 rounded-lg bg-brand-blue-100 p-3 text-sm font-semibold text-brand-navy-900">{{ $eligibleEnrollment->gradeLevel?->name }} &middot; {{ $eligibleEnrollment->academicYear?->name }} &middot; {{ str($eligibleEnrollment->status)->headline() }}</p>
-                                @else
-                                    <p class="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-950"><strong>No approved enrollment.</strong> Complete enrollment before connecting a Student login.</p>
+            <x-ui.button type="submit">
+                <x-ui.icon name="search" size="size-4" />
+                Search
+            </x-ui.button>
+            @if ($search !== '')
+                <a href="{{ route('people.admin.index') }}" class="jca-button-secondary">
+                    Clear
+                </a>
+            @endif
+        </form>
+        {{-- Learners --}}
+        <section class="space-y-4" aria-labelledby="learners-title">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="learners-title" class="text-lg font-black text-brand-navy-900">
+                    Learners
+                </h2>
+                <p class="text-sm font-semibold text-muted">
+                    {{ $learners->total() }}
+                    {{ Str::plural('learner', $learners->total()) }}
+                    {{ $search !== '' ? ' for “'.$search.'”' : '' }}
+                </p>
+            </div>
+            @forelse ($learners as $learner)
+                @php
+                    $current = $learner->enrollments->first(
+                        fn ($enrollment) => ! in_array(
+                            $enrollment->status,
+                            $terminal,
+                            true
+                        )
+                    ) ?? $learner->enrollments->first();
+                    $guardianOwned = $current
+                        && ! $current->gradeLevel?->allowsStudentAccountByDefault();
+                    $parentLinks = $learner->guardianLinks->filter(
+                        fn ($link) => $link->guardian?->user_id !== null
+                    );
+                    $otherLinks = $learner->guardianLinks->filter(
+                        fn ($link) => $link->guardian?->user_id === null
+                    );
+                    $linkedGuardianIds = $learner->guardianLinks
+                        ->pluck('guardian_id')
+                        ->all();
+
+                    $canGrant = ! $learner->user
+                        && filled($learner->student_number)
+                        && $current
+                        && ! in_array($current->status, $terminal, true);
+                    $form = 'sibling-'.$learner->public_id;
+                    $siblingErrors = $errors->getBag($form);
+                    $choices = session('sibling_choices')[$learner->public_id] ?? [];
+                    $isJuniorHigh = $current && in_array(
+                        $current->gradeLevel?->code,
+                        ['G7', 'G8', 'G9', 'G10'],
+                        true
+                    );
+                    $parentLinkErrors = old('link_for') === $learner->public_id
+                        && $errors->getBag('default')->any();
+                @endphp
+                <article class="jca-card overflow-hidden" aria-labelledby="learner-{{ $learner->public_id }}">
+                    {{-- Learner header --}}
+                    <header class="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+                        <div>
+                            <h3 id="learner-{{ $learner->public_id }}" class="text-lg font-black text-brand-navy-900">
+                                {{ $learner->full_name }}
+                            </h3>
+                            <p class="text-sm text-muted">
+                                <span class="font-mono font-bold text-ink">
+                                    {{ $learner->student_number ?: 'No Student ID yet' }}
+                                </span>
+                                @if ($current)
+                                    · {{ $current->gradeLevel?->name }}
+                                    · {{ $current->academicYear?->name }}
+                                    · {{ Str::headline($current->status) }}
                                 @endif
-
-                                @if($student->status === 'active' && ! $student->user && $student->enrollments->isEmpty() && $student->guardian_links_count === 0)
-                                    <details class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
-                                        <summary class="cursor-pointer list-none font-bold text-brand-red-600">Remove mistaken unused profile</summary>
-                                        <form method="POST" action="{{ route('people.admin.students.destroy', $student) }}" class="mt-3 space-y-3">
-                                            @csrf @method('DELETE')
-                                            <label class="jca-label">Removal reason
-                                                <textarea name="reason" required minlength="10" maxlength="2000" class="jca-input" placeholder="Explain how this duplicate or mistaken profile was created"></textarea>
-                                            </label>
-                                            <label class="jca-check rounded-lg border border-red-200 bg-white p-3">
-                                                <input type="checkbox" name="deletion_confirmed" value="1" required>
-                                                I verified that this profile has no enrollment, login, or guardian relationship history.
-                                            </label>
-                                            @if($student->potential_duplicate_enrollments_count > 0)
-                                                <p class="text-xs leading-5 text-brand-red-600">This profile is only a pending duplicate candidate for {{ $student->potential_duplicate_enrollments_count }} application(s). Those candidate references will be cleared and audited; the applications will not be deleted.</p>
-                                            @else
-                                                <p class="text-xs leading-5 text-muted">The removal is audited. Any protected history would block this action on the server.</p>
-                                            @endif
-                                            <x-ui.button type="submit" variant="danger">Delete mistaken profile</x-ui.button>
-                                        </form>
-                                    </details>
+                            </p>
+                        </div>
+                        @if ($current)
+                            <span class="rounded-full px-2.5 py-0.5 text-xs font-extrabold {{ $guardianOwned ? 'bg-brand-gold-500/25 text-brand-navy-900' : 'bg-brand-blue-100 text-brand-navy-700' }}">
+                                {{ $guardianOwned ? 'Parent-managed grade' : 'Student-managed grade' }}
+                            </span>
+                        @endif
+                    </header>
+                    {{-- D-067: siblings at JCA this school year and the sibling discount confirmation. --}}
+                    @php
+                        $currentEnrollment = $currentEnrollments[$learner->id] ?? null;
+                        $sibling = $currentEnrollment ? ($siblingDiscounts[$currentEnrollment->id] ?? null) : null;
+                    @endphp
+                    @if ($sibling && ($sibling['siblings'] !== [] || $sibling['confirmation']))
+                        <div class="flex flex-wrap items-start justify-between gap-3 border-b border-border bg-brand-blue-50/60 px-5 py-3 text-sm sm:px-6">
+                            <div class="min-w-0">
+                                <p class="font-bold text-brand-navy-900">Siblings at JCA this school year</p>
+                                <p class="text-muted">{{ $sibling['siblings'] !== [] ? implode(', ', $sibling['siblings']) : ($sibling['confirmation']?->sibling_summary ?? '') }}</p>
+                                @if ($sibling['confirmation'])
+                                    <p class="mt-1 font-semibold text-success-700">Sibling discount confirmed by {{ $sibling['confirmation']->confirmer?->name }} on {{ $sibling['confirmation']->confirmed_at->timezone('Asia/Manila')->format('d M Y') }}. Accounting applies it to the assessment.</p>
                                 @endif
                             </div>
-
-                            <div>
-                                @if($student->user)
-                                    <div class="rounded-xl border border-border p-4">
-                                        <p class="text-xs font-extrabold uppercase tracking-[0.12em] text-muted">Connected login account</p>
-                                        <p class="mt-1 font-black text-brand-navy-900">{{ $student->user->name }}</p>
-                                        @if(Str::lower($student->user->name) !== Str::lower($student->full_name))
-                                            <p class="mt-2 rounded-lg bg-red-50 p-3 text-sm font-semibold text-brand-red-600">Warning: the login name and student profile name do not match. Student data is blocked in the portal until corrected.</p>
-                                        @endif
-                                        <details class="mt-3">
-                                            <summary class="jca-button-secondary cursor-pointer list-none">Disconnect incorrect account</summary>
-                                            <form method="POST" action="{{ route('people.admin.students.account.disconnect', $student) }}" class="mt-3 rounded-lg bg-slate-50 p-3">@csrf @method('DELETE')
-                                                <label class="jca-label">Correction reason<textarea name="reason" required minlength="10" maxlength="2000" class="jca-input" placeholder="Explain why this login is being disconnected"></textarea></label>
-                                                <p class="mt-2 text-xs text-muted">The login's sessions will be revoked. The profile and enrollment history will stay unchanged.</p>
-                                                <x-ui.button type="submit" variant="danger" class="mt-3">Confirm disconnection</x-ui.button>
+                            @if ($sibling['confirmation'])
+                                <form method="POST" action="{{ route('billing.sibling-discount.destroy', $sibling['confirmation']) }}" class="flex flex-wrap items-end gap-2">
+                                    @csrf @method('DELETE')
+                                    <label class="text-xs font-bold text-brand-navy-900" for="withdraw-{{ $learner->public_id }}">Reason to withdraw
+                                        <input id="withdraw-{{ $learner->public_id }}" name="reason" required minlength="5" maxlength="500" class="jca-input mt-1 py-1 text-sm" placeholder="e.g. Sibling transferred out">
+                                    </label>
+                                    <button type="submit" class="jca-button jca-button-secondary">Withdraw</button>
+                                </form>
+                            @else
+                                <form method="POST" action="{{ route('billing.sibling-discount.store', $currentEnrollment) }}">
+                                    @csrf
+                                    <button type="submit" class="jca-button jca-button-primary">Confirm sibling discount</button>
+                                </form>
+                            @endif
+                        </div>
+                    @endif
+                    <div class="grid gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                        {{-- LEFT: Linked accounts --}}
+                        <div>
+                            <h4 class="text-xs font-extrabold uppercase tracking-wider text-brand-navy-700">
+                                Student and Parent/Guardian portal accounts
+                            </h4>
+                            <ul class="mt-2 divide-y divide-border rounded-xl border border-border text-sm">
+                                <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                                    <span>
+                                        <span class="font-bold text-brand-navy-900">
+                                            Student
+                                        </span>
+                                        <span class="block text-xs text-muted">
+                                            {{ $learner->user ? $learner->user->name : 'No student account' }}
+                                        </span>
+                                    </span>
+                                    @if ($learner->user)
+                                        <span class="rounded-full px-2 py-0.5 text-xs font-extrabold {{ $learner->user->must_change_password ? 'bg-warning-100 text-warning-800' : 'bg-success-50 text-success-700' }}">
+                                            {{ $learner->user->must_change_password ? 'Waiting for first sign-in' : 'Active' }}
+                                        </span>
+                                    @else
+                                        <span class="text-xs font-semibold text-muted">—</span>
+                                    @endif
+                                </li>
+                                @forelse ($parentLinks as $link)
+                                    <li class="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+                                        <span>
+                                            <span class="font-bold text-brand-navy-900">
+                                                {{ $link->guardian->full_name }}
+@if ($isJuniorHigh && filled($link->guardian->parent_login_id))
+    <span class="mt-1 block font-mono text-xs font-bold text-brand-navy-700">
+        Parent Login ID: {{ $link->guardian->parent_login_id }}
+    </span>
+@endif
+                                            </span>
+                                            <span class="block text-xs text-muted">
+                                                {{ $relationships[$link->relationship_type] ?? Str::headline($link->relationship_type) }}
+                                                · Separate Parent/Guardian login
+                                            </span>
+                                        </span>
+                                        @if (! $link->verified_at)
+                                            <form method="POST"
+                                                  action="{{ route('people.admin.links.verify', ['guardian' => $link->guardian, 'student' => $learner]) }}">
+                                                @csrf
+                                                <button type="submit"
+                                                        class="rounded-lg border border-brand-navy-700/30 px-3 py-1 text-xs font-bold text-brand-navy-700 hover:bg-brand-blue-100">
+                                                    Verify
+                                                </button>
                                             </form>
-                                        </details>
-                                    </div>
-                                @elseif($eligibleEnrollment)
-                                    <form method="POST" action="{{ route('people.admin.students.account', $student) }}" class="rounded-xl border border-border p-4">
-                                        @csrf @method('PUT')
-                                        <label class="jca-label">Login account for {{ $student->full_name }}
-                                            <select name="user_public_id" required class="jca-input">
-                                                <option value="">Select a Student login not connected elsewhere</option>
-                                                @foreach ($studentUsers as $user)
-                                                    <option value="{{ $user->public_id }}">{{ $user->name }} &middot; {{ $user->email ?? $user->mobile }}</option>
+                                        @elseif ($link->may_manage_enrollment)
+                                            <span class="rounded-full bg-success-50 px-2 py-0.5 text-xs font-extrabold text-success-700">
+                                                Verified
+                                            </span>
+                                        @else
+                                            <span class="rounded-full bg-canvas px-2 py-0.5 text-xs font-extrabold text-muted">
+                                                Verified · View Only
+                                            </span>
+                                        @endif
+                                    </li>
+                                @empty
+                                    <li class="px-3 py-2.5 text-xs text-muted">
+                                        No parent/guardian portal account is connected.
+                                    </li>
+                                @endforelse
+                            </ul>
+                            @if ($otherLinks->isNotEmpty())
+                                <div class="mt-3 rounded-lg border border-border bg-canvas p-3">
+                                    <p class="text-xs font-bold text-brand-navy-900">
+                                        Guardians on record without a portal account
+                                    </p>
+                                    <ul class="mt-2 space-y-1 text-xs text-muted">
+                                        @foreach ($otherLinks as $link)
+                                            @if ($link->guardian)
+                                                <li>
+                                                    {{ $link->guardian->full_name }}
+@if ($isJuniorHigh && filled($link->guardian->parent_login_id))
+    <span class="mt-1 block font-mono text-xs font-bold text-brand-navy-700">
+        Parent Login ID: {{ $link->guardian->parent_login_id }}
+    </span>
+@endif
+                                                    · {{ $relationships[$link->relationship_type] ?? Str::headline($link->relationship_type) }}
+                                                    · No Account Yet
+                                                </li>
+                                            @endif
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+                        </div>
+                        {{-- RIGHT: Actions --}}
+                        <div class="space-y-3">
+                            {{-- 1. Grant Student Account --}}
+                            @if ($canGrant)
+                                <details class="rounded-xl border border-border"
+                                    @if (
+                                        $errors->hasAny(['reason', 'requested_in_person', 'student'])
+                                        && old('grant_for') === $learner->public_id
+                                    ) open @endif>
+                                    <summary class="cursor-pointer list-none px-4 py-3 font-bold text-brand-navy-700 hover:bg-canvas">
+                                        + Grant student account
+                                    </summary>
+                                    <form method="POST"
+                                          action="{{ route('people.family.grant-account', $learner) }}"
+                                          class="space-y-3 border-t border-border p-4">
+                                        @csrf
+                                        <input type="hidden"
+                                               name="grant_for"
+                                               value="{{ $learner->public_id }}">
+                                        <p class="text-sm text-muted">
+                                            {{ $guardianOwned ? 'For a parent who wants their child to have a separate login.' : 'This learner has no Student login yet.' }}
+                                            The parent's account does not change.
+                                        </p>
+                                        <label class="jca-label">
+                                            Who asked, and why
+                                            <textarea name="reason"
+                                                      required
+                                                      minlength="10"
+                                                      maxlength="500"
+                                                      rows="2"
+                                                      class="jca-input">{{ old('grant_for') === $learner->public_id ? old('reason') : '' }}</textarea>
+                                        </label>
+                                        @if (old('grant_for') === $learner->public_id)
+                                            @foreach (['reason', 'requested_in_person', 'student'] as $field)
+                                                @error($field)
+                                                    <p class="text-sm text-red-700">
+                                                        {{ $message }}
+                                                    </p>
+                                                @enderror
+                                            @endforeach
+                                        @endif
+                                        <label class="jca-check text-sm">
+                                            <input type="checkbox"
+                                                   name="requested_in_person"
+                                                   value="1"
+                                                   required>
+                                            The parent or guardian asked for this in person.
+                                        </label>
+                                        <x-ui.button type="submit">
+                                            Grant and show slip
+                                        </x-ui.button>
+                                    </form>
+                                </details>
+                            @endif
+                            {{-- 2. Existing parent account for siblings --}}
+                            <details class="rounded-xl border border-border"
+                                     @if ($siblingErrors->any() || $choices) open @endif>
+                                <summary class="cursor-pointer list-none px-4 py-3 font-bold text-brand-navy-700 hover:bg-canvas">
+                                    + Connect a parent who already has an account
+                                    <span class="font-semibold text-muted">
+                                        (siblings)
+                                    </span>
+                                </summary>
+                                <form method="POST"
+                                      action="{{ route('people.family.connect-guardian', $learner) }}"
+                                      class="space-y-3 border-t border-border p-4">
+                                    @csrf
+                                    <p class="text-sm text-muted">
+                                        Connect the parent account of another child
+                                        to this learner after identity verification.
+                                    </p>
+                                    <div class="grid gap-3 sm:grid-cols-2">
+                                        <label class="jca-label">
+                                            Other child's Student ID
+                                            <input name="sibling_student_number"
+                                                   required
+                                                   maxlength="30"
+                                                   class="jca-input font-mono"
+                                                   placeholder="JCA-26-123"
+                                                   value="{{ $siblingErrors->any() || $choices ? old('sibling_student_number') : '' }}">
+                                        </label>
+                                        <label class="jca-label">
+                                            Relationship to {{ $learner->first_name }}
+                                            <select name="relationship_type"
+                                                    required
+                                                    class="jca-input">
+                                                <option value="">Select</option>
+                                                @foreach ($relationships as $value => $label)
+                                                    <option value="{{ $value }}"
+                                                        @selected(($siblingErrors->any() || $choices) && old('relationship_type') === $value)>
+                                                        {{ $label }}
+                                                    </option>
                                                 @endforeach
                                             </select>
                                         </label>
-                                        <label class="jca-label mt-3">Elementary exception reason
-                                            <textarea name="exception_reason" minlength="10" maxlength="2000" class="jca-input" placeholder="Required only for approved Grades 1-6; do not enter N/A"></textarea>
+                                    </div>
+                                    @if ($choices)
+                                        <fieldset class="space-y-1.5">
+                                            <legend class="text-sm font-bold text-brand-navy-900">
+                                                Which parent is here?
+                                            </legend>
+                                            @foreach ($choices as $choice)
+                                                <label class="jca-check text-sm">
+                                                    <input type="radio"
+                                                           name="guardian"
+                                                           value="{{ $choice['id'] }}"
+                                                           required>
+                                                    {{ $choice['name'] }}
+                                                </label>
+                                            @endforeach
+                                        </fieldset>
+                                    @endif
+                                    @foreach ($siblingErrors->all() as $message)
+                                        <p class="text-sm text-red-700">
+                                            {{ $message }}
+                                        </p>
+                                    @endforeach
+                                    <label class="jca-check text-sm">
+                                        <input type="checkbox"
+                                               name="confirmed_in_person"
+                                               value="1"
+                                               required>
+                                        I checked the parent's identity in person.
+                                    </label>
+                                    <x-ui.button type="submit" variant="secondary">
+                                        Connect parent
+                                    </x-ui.button>
+                                </form>
+                            </details>
+                            {{-- Grade 7-10 account readiness, based only on existing records. --}}
+                            @if ($isJuniorHigh)
+                                <div class="rounded-xl border border-border bg-canvas p-3 text-xs text-muted">
+                                    <p class="font-bold text-brand-navy-900">Grade 7–10 account status</p>
+                                    @if (! $learner->user && $parentLinks->isEmpty())
+                                        <p class="mt-1">Student and Parent/Guardian portal accounts are not connected yet.</p>
+                                    @elseif (! $learner->user)
+                                        <p class="mt-1">Parent account connected. Student login still needs issuance.</p>
+                                    @elseif ($parentLinks->isEmpty())
+                                        <p class="mt-1">Student account exists. Parent/Guardian portal account still needs to be connected.</p>
+                                    @else
+                                        <p class="mt-1">Student and Parent/Guardian portal accounts are connected. Check verification status on the left.</p>
+                                    @endif
+                                </div>
+                            @endif
+                            {{-- 3. Grade 7-10 Parent/Guardian Linking --}}
+                            @if ($isJuniorHigh && ($parentLinks->isEmpty() || $parentLinkErrors))
+                                <details class="rounded-xl border border-border"
+                                         @if ($parentLinkErrors) open @endif>
+                                    <summary class="cursor-pointer list-none px-4 py-3 font-bold text-brand-navy-700 hover:bg-canvas">
+                                        + Link Parent/Guardian Account
+                                    </summary>
+                                    <form method="POST"
+                                          action="{{ route('people.family.link-parent', $learner) }}"
+                                          class="space-y-3 border-t border-border p-4">
+                                        @csrf
+                                        <input type="hidden"
+                                               name="link_for"
+                                               value="{{ $learner->public_id }}">
+                                        <p class="text-sm text-muted">
+                                            Select a parent/guardian for {{ $learner->full_name }}.
+                                            All names can be selected. Student enrollment remains student-managed.
+                                        </p>
+                                        <label class="jca-label">
+                                            Parent/Guardian on Record
+                                            <select name="guardian_public_id"
+                                                    class="jca-input"
+                                                    required>
+                                                <option value="">
+                                                    Select Parent/Guardian
+                                                </option>
+                                                @foreach ($availableGuardians as $guardian)
+                                                    @php
+                                                        $alreadyLinked = in_array($guardian->id, $linkedGuardianIds, true);
+                                                        $hasPortalAccount = $guardian->user_id !== null;
+                                                    @endphp
+                                                    <option
+                                                        value="{{ $guardian->public_id }}"
+                                                        @selected(
+                                                            old('link_for') === $learner->public_id
+                                                            && old('guardian_public_id') === $guardian->public_id
+                                                        )
+                                                    >
+                                                        {{ $guardian->full_name }}
+                                                        @if ($alreadyLinked)
+                                                            — Already Linked
+                                                        @elseif ($hasPortalAccount)
+                                                            — Has Account
+                                                        @else
+                                                            — No Account Yet
+                                                        @endif
+                                                    </option>
+                                                @endforeach
+                                            </select>
                                         </label>
-                                        <label class="jca-check mt-3 rounded-lg border border-border p-3"><input type="checkbox" name="identity_confirmed" value="1" required> I verified that the selected login belongs to {{ $student->full_name }}.</label>
-                                        <x-ui.button type="submit" class="mt-3" :disabled="$studentUsers->isEmpty()"><x-ui.icon name="users" /> Connect verified account</x-ui.button>
-                                        @if($studentUsers->isEmpty())<p class="mt-2 text-sm text-warning-800">No available Student login account matches this profile.</p>@endif
+                                        <p class="text-xs text-muted">
+                                            All available parent/guardian records are shown.
+                                            Parents marked “No Account Yet” need portal access first;
+                                            “Already Linked” parents do not need to be linked again.
+                                            Verify the parent's identity and relationship in person.
+                                        </p>
+                                        <label class="jca-label">
+                                            Relationship to {{ $learner->first_name }}
+                                            <select name="relationship_type"
+                                                    class="jca-input"
+                                                    required>
+                                                <option value="">
+                                                    Select Relationship
+                                                </option>
+                                                @foreach ($relationships as $value => $label)
+                                                    <option value="{{ $value }}"
+                                                        @selected(
+                                                            old('link_for') === $learner->public_id
+                                                            && old('relationship_type') === $value
+                                                        )
+                                                    >
+                                                        {{ $label }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </label>
+                                        <label class="jca-check text-sm">
+                                            <input type="checkbox"
+                                                   name="confirmed_in_person"
+                                                   value="1"
+                                                   required>
+                                            I verified the parent's identity and
+                                            relationship to this learner in person.
+                                        </label>
+                                        @if ($parentLinkErrors)
+                                            @foreach ($errors->getBag('default')->all() as $message)
+                                                <p class="text-sm text-red-700">
+                                                    {{ $message }}
+                                                </p>
+                                            @endforeach
+                                        @endif
+                                        <x-ui.button type="submit">
+                                            Confirm Parent Link
+                                        </x-ui.button>
                                     </form>
-                                @else
-                                    <div class="rounded-xl border border-dashed border-border p-4 text-sm text-muted">Account connection is unavailable until this profile has an approved or enrolled record.</div>
+                                </details>
+                            @endif
+                            {{-- 4. Repair Tools - Always last --}}
+                            @if (auth()->user()->hasRole('admin'))
+                                @php
+                                    $canRemove = $learner->status === 'active'
+                                        && ! $learner->user
+                                        && $learner->enrollments->isEmpty()
+                                        && $learner->guardian_links_count === 0;
+                                    $logins = $loginOptions[$learner->id] ?? collect();
+                                @endphp
+                                @if ($learner->user || $canRemove || $logins->isNotEmpty())
+                                    <details class="rounded-xl border border-red-200">
+                                        <summary class="cursor-pointer list-none px-4 py-3 text-sm font-bold text-brand-red-600 hover:bg-red-50">
+                                            Repair tools (Admin)
+                                        </summary>
+                                        <div class="space-y-4 border-t border-red-200 p-4">
+                                            @if ($learner->user)
+                                                <form method="POST"
+                                                      action="{{ route('people.admin.students.account.disconnect', $learner) }}"
+                                                      class="space-y-2">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <p class="text-sm font-bold text-brand-navy-900">
+                                                        Disconnect the Student account
+                                                    </p>
+                                                    <label class="jca-label">
+                                                        Reason
+                                                        <textarea name="reason"
+                                                                  required
+                                                                  minlength="10"
+                                                                  maxlength="2000"
+                                                                  rows="2"
+                                                                  class="jca-input"></textarea>
+                                                    </label>
+                                                    <p class="text-xs text-muted">
+                                                        The login is signed out.
+                                                        Learner records and history remain.
+                                                    </p>
+                                                    <x-ui.button type="submit" variant="danger">
+                                                        Disconnect
+                                                    </x-ui.button>
+                                                </form>
+                                            @endif
+                                            @if (! $learner->user && $logins->isNotEmpty())
+                                                <form method="POST"
+                                                      action="{{ route('people.admin.students.account', $learner) }}"
+                                                      class="space-y-2">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <p class="text-sm font-bold text-brand-navy-900">
+                                                        Connect an existing Student login
+                                                    </p>
+                                                    <p class="text-xs text-muted">
+                                                        Only for a Student login created
+                                                        outside the normal walk-in process.
+                                                    </p>
+                                                    <label class="jca-label">
+                                                        Login
+                                                        <select name="user_public_id"
+                                                                required
+                                                                class="jca-input">
+                                                            <option value="">Select</option>
+                                                            @foreach ($logins as $login)
+                                                                <option value="{{ $login->public_id }}">
+                                                                    {{ $login->name }}
+                                                                </option>
+                                                            @endforeach
+                                                        </select>
+                                                    </label>
+                                                    <label class="jca-label">
+                                                        Elementary exception reason
+                                                        (Nursery–Grade 6 only)
+                                                        <textarea name="exception_reason"
+                                                                  minlength="10"
+                                                                  maxlength="2000"
+                                                                  rows="2"
+                                                                  class="jca-input"></textarea>
+                                                    </label>
+                                                    <label class="jca-check text-sm">
+                                                        <input type="checkbox"
+                                                               name="identity_confirmed"
+                                                               value="1"
+                                                               required>
+                                                        I checked that this login belongs
+                                                        to {{ $learner->full_name }}.
+                                                    </label>
+                                                    <x-ui.button type="submit" variant="secondary">
+                                                        Connect login
+                                                    </x-ui.button>
+                                                </form>
+                                            @endif
+                                            @if ($canRemove)
+                                                <form method="POST"
+                                                      action="{{ route('people.admin.students.destroy', $learner) }}"
+                                                      class="space-y-2">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <p class="text-sm font-bold text-brand-navy-900">
+                                                        Remove this mistaken, unused learner record
+                                                    </p>
+                                                    <label class="jca-label">
+                                                        Reason
+                                                        <textarea name="reason"
+                                                                  required
+                                                                  minlength="10"
+                                                                  maxlength="2000"
+                                                                  rows="2"
+                                                                  class="jca-input"></textarea>
+                                                    </label>
+                                                    <label class="jca-check text-sm">
+                                                        <input type="checkbox"
+                                                               name="deletion_confirmed"
+                                                               value="1"
+                                                               required>
+                                                        I checked that this learner
+                                                        has no enrollment, login,
+                                                        or relationship history.
+                                                    </label>
+                                                    <x-ui.button type="submit" variant="danger">
+                                                        Delete record
+                                                    </x-ui.button>
+                                                </form>
+                                            @endif
+                                        </div>
+                                    </details>
                                 @endif
-                            </div>
+                            @endif
                         </div>
-                    </article>
-                @empty
-                    <x-ui.empty-state icon="users" title="No student profiles" description="Student profiles created through enrollment intake will appear here." />
-                @endforelse
-            </div>
-            @if ($students->hasPages())
-                <div class="border-t border-border p-4 sm:px-6">{{ $students->links() }}</div>
+                    </div>
+                </article>
+            @empty
+                <div class="jca-card p-6">
+                    <x-ui.empty-state
+                        icon="search"
+                        :title="$search !== '' ? 'No learner matches “'.$search.'”' : 'No learners yet'"
+                        description="Learners appear here after the Registrar issues walk-in enrollment access."
+                    />
+                </div>
+            @endforelse
+            @if ($learners->hasPages())
+                <div class="jca-card p-4">
+                    {{ $learners->links() }}
+                </div>
             @endif
         </section>
-
-        <section class="jca-card p-6" aria-labelledby="link-title">
-            <h2 id="link-title" class="text-xl font-black text-brand-navy-900">Link guardian and student</h2>
-            <form method="POST" action="{{ route('people.admin.links.store') }}" class="mt-5 grid gap-4 md:grid-cols-3">
-                @csrf
-                <x-ui.field for="guardian_public_id" label="Guardian"><select id="guardian_public_id" name="guardian_public_id" required class="block w-full rounded-lg border-border px-3 py-3"><option value="">Select guardian</option>@foreach($guardians as $guardian)<option value="{{ $guardian->public_id }}">{{ $guardian->full_name }}</option>@endforeach</select></x-ui.field>
-                <x-ui.field for="student_public_id" label="Student"><select id="student_public_id" name="student_public_id" required class="block w-full rounded-lg border-border px-3 py-3"><option value="">Select student</option>@foreach($studentOptions as $student)<option value="{{ $student->public_id }}">{{ $student->full_name }}</option>@endforeach</select></x-ui.field>
-                <x-ui.field for="relationship_type" label="Relationship"><input id="relationship_type" name="relationship_type" placeholder="Parent, guardian, etc." required class="block w-full rounded-lg border-border px-3 py-3" /></x-ui.field>
-                <div class="md:col-span-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    @foreach (['is_primary_contact' => 'Primary contact', 'may_receive_sms' => 'May receive SMS', 'may_view_financials' => 'May view finance', 'may_manage_enrollment' => 'May manage enrollment', 'has_legal_authority' => 'Legal authority'] as $name => $label)
-                        <label class="flex items-center gap-2 text-sm font-semibold text-ink"><input type="checkbox" name="{{ $name }}" value="1" @checked(in_array($name, ['may_receive_sms', 'may_manage_enrollment'], true)) />{{ $label }}</label>
-                    @endforeach
-                </div>
-                <div class="md:col-span-3"><x-ui.button type="submit">Save relationship</x-ui.button></div>
-            </form>
-        </section>
-
-        <section id="relationship-verification" class="jca-card scroll-mt-24 overflow-hidden" aria-labelledby="links-title">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-border p-6">
-                <h2 id="links-title" class="text-xl font-black text-brand-navy-900">Relationship verification</h2>
-                <span class="shrink-0 rounded-full bg-brand-blue-100 px-3 py-1 text-xs font-bold text-brand-navy-700">{{ $links->total() }} {{ Str::plural('relationship', $links->total()) }}</span>
+        {{-- Relationships --}}
+        <section class="jca-card overflow-hidden" aria-labelledby="links-title">
+            <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-border px-5 py-4 sm:px-6">
+                <h2 id="links-title" class="text-lg font-black text-brand-navy-900">
+                    Relationships
+                </h2>
+                <p class="text-sm font-semibold text-muted">
+                    {{ $links->total() }}
+                    {{ Str::plural('relationship', $links->total()) }}
+                    · unverified first
+                </p>
             </div>
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-border text-left text-sm">
-                    <thead class="bg-canvas text-muted"><tr><th class="px-6 py-3">Guardian</th><th class="px-6 py-3">Student</th><th class="px-6 py-3">Permissions</th><th class="px-6 py-3">Verification</th></tr></thead>
-                    <tbody class="divide-y divide-border bg-white">
+            <div class="relative overflow-x-auto">
+                <table class="w-full min-w-[40rem] text-left text-sm">
+                    <thead class="bg-canvas text-xs font-extrabold uppercase tracking-wider text-muted">
+                        <tr>
+                            <th scope="col" class="px-5 py-2.5 sm:px-6">
+                                Parent/guardian
+                            </th>
+                            <th scope="col" class="px-3 py-2.5">
+                                Learner
+                            </th>
+                            <th scope="col" class="px-3 py-2.5">
+                                Relationship
+                            </th>
+                            <th scope="col" class="px-3 py-2.5">
+                                Account
+                            </th>
+                            <th scope="col" class="px-5 py-2.5 sm:px-6">
+                                Verification
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border">
                         @forelse ($links as $link)
                             <tr>
-                                <td class="px-6 py-4 font-bold text-ink">{{ $link->guardian->full_name }}</td>
-                                <td class="px-6 py-4 font-bold text-ink">{{ $link->student->full_name }}</td>
-                                <td class="px-6 py-4 text-muted">{{ $link->may_manage_enrollment ? 'Enrollment' : 'View only' }}{{ $link->may_view_financials ? ', finance' : '' }}</td>
-                                <td class="px-6 py-4">
-                                    @if ($link->verified_at)
-                                        <x-ui.status-badge tone="ready">Verified</x-ui.status-badge>
+                                <th scope="row" class="px-5 py-2.5 font-bold text-brand-navy-900 sm:px-6">
+                                    {{ $link->guardian->full_name }}
+@if ($isJuniorHigh && filled($link->guardian->parent_login_id))
+    <span class="mt-1 block font-mono text-xs font-bold text-brand-navy-700">
+        Parent Login ID: {{ $link->guardian->parent_login_id }}
+    </span>
+@endif
+                                </th>
+                                <td class="px-3 py-2.5">
+                                    {{ $link->student->full_name }}
+                                    <span class="block font-mono text-xs text-muted">
+                                        {{ $link->student->student_number }}
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2.5">
+                                    {{ $relationships[$link->relationship_type] ?? Str::headline($link->relationship_type) }}
+                                </td>
+                                <td class="px-3 py-2.5">
+                                    @if ($link->guardian->user_id)
+                                        <span class="text-success-700 font-bold">
+                                            Has Account
+                                        </span>
                                     @else
-                                        <form method="POST" action="{{ route('people.admin.links.verify', ['guardian' => $link->guardian, 'student' => $link->student]) }}">@csrf<x-ui.button type="submit" variant="secondary">Verify</x-ui.button></form>
+                                        <span class="text-muted">
+                                            No Account Yet
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="px-5 py-2.5 sm:px-6">
+                                    @if ($link->verified_at)
+                                        <span class="rounded-full bg-success-50 px-2 py-0.5 text-xs font-extrabold text-success-700">
+                                            Verified
+                                        </span>
+                                    @else
+                                        <form method="POST"
+                                              action="{{ route('people.admin.links.verify', ['guardian' => $link->guardian, 'student' => $link->student]) }}">
+                                            @csrf
+                                            <x-ui.button type="submit" variant="secondary">
+                                                Verify
+                                            </x-ui.button>
+                                        </form>
                                     @endif
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="4" class="px-6 py-8 text-center text-muted">No guardian/student relationships yet.</td></tr>
+                            <tr>
+                                <td colspan="5" class="px-5 py-6 text-center text-muted sm:px-6">
+                                    No relationships yet.
+                                </td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
             @if ($links->hasPages())
-                <div class="border-t border-border p-4 sm:px-6">{{ $links->links() }}</div>
+                <div class="border-t border-border p-4">
+                    {{ $links->links() }}
+                </div>
             @endif
         </section>
     </div>

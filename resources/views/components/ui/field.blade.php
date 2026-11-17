@@ -4,7 +4,7 @@
     'hint' => null,
 ])
 
-<div class="space-y-2">
+<div {{ $attributes->class(['space-y-2']) }}>
     <label for="{{ $for }}" class="block text-sm font-bold text-ink">{{ $label }}</label>
 
     {{ $slot }}

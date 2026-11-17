@@ -30,7 +30,7 @@ class ListUsersAction
             'per_page' => (int) ($filters['per_page'] ?? 15),
         ];
 
-        $query = User::query()->with('roles');
+        $query = User::query()->with(['roles', 'staffProfile', 'guardianProfile']);
 
         if ($normalized['search'] !== null) {
             $search = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $normalized['search']);
@@ -38,7 +38,9 @@ class ListUsersAction
             $query->where(function (Builder $query) use ($search): void {
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('mobile', 'like', "%{$search}%");
+                    ->orWhere('mobile', 'like', "%{$search}%")
+                    ->orWhereHas('staffProfile', fn (Builder $staff): Builder => $staff->where('employee_number', 'like', "%{$search}%"))
+                    ->orWhereHas('guardianProfile', fn (Builder $guardian): Builder => $guardian->where('parent_login_id', 'like', "%{$search}%"));
             });
         }
 
@@ -47,7 +49,19 @@ class ListUsersAction
         }
 
         if ($normalized['status'] !== null) {
-            $query->where('status', $normalized['status']);
+            if ($normalized['status'] === AccountStatus::Invited->value) {
+                $query->whereIn('status', [
+                    AccountStatus::Invited->value,
+                    AccountStatus::Active->value,
+                ]);
+
+                $query->whereHas(
+                    'roles',
+                    fn (Builder $role): Builder => $role->where('is_staff', true)
+                );
+            } else {
+                $query->where('status', $normalized['status']);
+            }
         }
 
         $this->applySort($query, $normalized['sort']);
@@ -64,9 +78,17 @@ class ListUsersAction
             'summary' => [
                 'total' => (int) $statusCounts->sum(),
                 'active' => (int) $statusCounts->get(AccountStatus::Active->value, 0),
-                'invited' => (int) $statusCounts->get(AccountStatus::Invited->value, 0),
-                'attention' => (int) $statusCounts->get(AccountStatus::Locked->value, 0)
-                    + (int) $statusCounts->get(AccountStatus::Disabled->value, 0),
+                'invited' => (int) User::query()
+                    ->whereIn('status', [
+                        AccountStatus::Invited->value,
+                        AccountStatus::Active->value,
+                    ])
+                    ->whereHas(
+                        'roles',
+                        fn (Builder $role): Builder => $role->where('is_staff', true)
+                    )
+                    ->count(),
+                'attention' => (int) $statusCounts->get(AccountStatus::Disabled->value, 0),
             ],
         ];
     }

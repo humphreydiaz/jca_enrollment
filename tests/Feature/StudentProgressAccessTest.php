@@ -20,6 +20,7 @@ use App\Modules\Shared\Audit\Models\AuditLog;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -48,9 +49,8 @@ class StudentProgressAccessTest extends TestCase
         $this->actingAs($studentAccount)
             ->get(route('student.enrollment.progress'))
             ->assertOk()
-            ->assertSee('Student account setup is incomplete')
-            ->assertSee('Start enrollment application')
-            ->assertSee(route('enrollment.public.start'), false);
+            ->assertSee('No Registrar-issued application')
+            ->assertDontSee(route('enrollment.public.start'), false);
 
         $this->actingAs($admin)
             ->put(route('people.admin.students.account', $student), [
@@ -58,7 +58,7 @@ class StudentProgressAccessTest extends TestCase
                 'identity_confirmed' => '1',
             ])
             ->assertRedirect()
-            ->assertSessionHas('status', 'Student account connected. The student portal is now available for this profile.');
+            ->assertSessionHas('status', 'Student account connected. The student portal is now available.');
 
         $this->assertDatabaseHas('student_profiles', [
             'id' => $student->id,
@@ -109,7 +109,7 @@ class StudentProgressAccessTest extends TestCase
             'changed_at' => now(),
         ]);
         $birthCertificate = DocumentType::query()->create(['code' => 'PORTAL-BIRTH', 'name' => 'Birth Certificate']);
-        $reportCard = DocumentType::query()->create(['code' => 'PORTAL-CARD', 'name' => 'Form 138 / Report Card']);
+        $reportCard = DocumentType::query()->create(['code' => 'PORTAL-CARD', 'name' => 'School Form 9 (SF9)']);
         EnrollmentRequirement::query()->create([
             'enrollment_id' => $application->id,
             'document_type_id' => $birthCertificate->id,
@@ -132,9 +132,9 @@ class StudentProgressAccessTest extends TestCase
             ->assertSee('Submitted')
             ->assertSee('Application timeline')
             ->assertSee('Birth Certificate')
-            ->assertSee('Not Received')
-            ->assertSee('Form 138 / Report Card')
-            ->assertSee('Hard Copy Received')
+            ->assertSee('Not yet received')
+            ->assertSee('School Form 9 (SF9)')
+            ->assertSee('This requirement has been recorded by the Registrar.')
             ->assertSee('View application status')
             ->assertDontSee('Start enrollment application')
             ->assertDontSee('Resume draft');
@@ -146,7 +146,7 @@ class StudentProgressAccessTest extends TestCase
 
         $this->actingAs($otherStudent)
             ->get(route('enrollment.public.status', $application))
-            ->assertNotFound();
+            ->assertForbidden();
     }
 
     public function test_unlinked_student_can_resume_only_a_draft_owned_by_that_account(): void
@@ -163,16 +163,8 @@ class StudentProgressAccessTest extends TestCase
 
         $this->actingAs($studentAccount)
             ->get(route('enrollment.public.start'))
-            ->assertRedirect(route('enrollment.public.status', $application));
-
-        $this->actingAs($studentAccount)
-            ->put(route('enrollment.public.update', $application), [
-                'guardian_relationship' => 'mother',
-                'student_middle_name' => 'Updated',
-            ])
-            ->assertRedirect(route('enrollment.public.status', $application));
-
-        $this->assertSame('Updated', $application->student->fresh()->middle_name);
+            ->assertOk()
+            ->assertSee('Complete the enrollment application');
     }
 
     public function test_terminal_student_application_allows_a_new_application(): void
@@ -185,13 +177,13 @@ class StudentProgressAccessTest extends TestCase
             ->assertOk()
             ->assertSee($application->application_number)
             ->assertSee('View application status')
-            ->assertSee('Start a new application')
+            ->assertSee('visit the Registrar for an in-person review', false)
             ->assertDontSee('Resume draft');
 
         $this->actingAs($studentAccount)
             ->get(route('enrollment.public.start'))
-            ->assertOk()
-            ->assertSee('Start an enrollment application');
+            ->assertRedirect(route('identity.dashboard'))
+            ->assertSessionHasErrors('application');
     }
 
     public function test_linking_rejects_non_student_and_already_linked_accounts(): void
@@ -346,35 +338,12 @@ class StudentProgressAccessTest extends TestCase
         ]);
     }
 
-    public function test_student_profile_creation_rejects_incompatible_or_already_linked_accounts(): void
+    public function test_manual_profile_and_guardian_creation_forms_are_retired(): void
     {
-        $admin = $this->user(['admin']);
-        $teacher = $this->user(['teacher']);
-        $studentAccount = $this->user(['student']);
-        StudentProfile::query()->create([
-            'user_id' => $studentAccount->id,
-            'first_name' => 'Existing',
-            'last_name' => 'Profile',
-        ]);
-
-        $this->actingAs($admin)
-            ->post(route('people.admin.students.store'), [
-                'user_public_id' => $teacher->public_id,
-                'first_name' => 'Invalid',
-                'last_name' => 'Role',
-            ])
-            ->assertSessionHasErrors('user_public_id');
-
-        $this->actingAs($admin)
-            ->post(route('people.admin.students.store'), [
-                'user_public_id' => $studentAccount->public_id,
-                'first_name' => 'Duplicate',
-                'last_name' => 'Profile',
-            ])
-            ->assertSessionHasErrors('user_public_id');
-
-        $this->assertDatabaseMissing('student_profiles', ['first_name' => 'Invalid', 'last_name' => 'Role']);
-        $this->assertDatabaseMissing('student_profiles', ['first_name' => 'Duplicate', 'last_name' => 'Profile']);
+        // D-048: walk-in access creates learners and guardians; Family links no longer offers blank creation forms.
+        $this->assertFalse(Route::has('people.admin.students.store'));
+        $this->assertFalse(Route::has('people.admin.guardians.store'));
+        $this->assertFalse(Route::has('people.admin.links.store'));
     }
 
     public function test_admin_can_remove_an_unused_mistaken_profile_and_clear_only_its_pending_duplicate_reference(): void
@@ -403,7 +372,7 @@ class StudentProgressAccessTest extends TestCase
         $this->actingAs($admin)
             ->get(route('people.admin.index'))
             ->assertOk()
-            ->assertSee('Remove mistaken unused profile')
+            ->assertSee('Remove this mistaken, unused learner record')
             ->assertSee(route('people.admin.students.destroy', $mistaken), false);
 
         $this->actingAs($admin)
@@ -505,6 +474,7 @@ class StudentProgressAccessTest extends TestCase
             'starts_on' => '2026-06-01',
             'ends_on' => '2027-03-31',
             'status' => 'open',
+            'enrollment_is_open' => true,
         ]);
         $grade = GradeLevel::query()->create([
             'code' => 'PORTAL-G'.$gradeSequence.'-'.$suffix,
@@ -541,6 +511,7 @@ class StudentProgressAccessTest extends TestCase
             'starts_on' => '2026-06-01',
             'ends_on' => '2027-03-31',
             'status' => 'open',
+            'enrollment_is_open' => true,
         ]);
         $grade = GradeLevel::query()->create([
             'code' => 'APPLICATION-G8-'.$suffix,
@@ -569,6 +540,8 @@ class StudentProgressAccessTest extends TestCase
             'grade_level_id' => $grade->id,
             'applicant_guardian_id' => $guardian->id,
             'student_applicant_user_id' => $account->id,
+            'access_issued_to_user_id' => $account->id,
+            'walk_in_verified_at' => now(),
             'student_category' => 'regular',
             'guardian_relationship' => 'mother',
             'status' => $status,

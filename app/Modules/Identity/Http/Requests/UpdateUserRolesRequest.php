@@ -13,14 +13,34 @@ class UpdateUserRolesRequest extends FormRequest
         return $this->user()?->hasRole('admin') ?? false;
     }
 
-    /**
-     * @return array<string, list<\Illuminate\Contracts\Validation\Rule|string>>
-     */
     public function rules(): array
     {
         return [
-            'roles' => ['required', 'array', 'min:1'],
-            'roles.*' => [Rule::in(array_map(static fn (RoleCode $role): string => $role->value, RoleCode::cases()))],
+            'roles' => [
+                'required',
+                'array',
+                'size:1',
+            ],
+            'roles.*' => [
+                'required',
+                'string',
+                'distinct',
+                Rule::in(
+                    array_map(
+                        static fn (RoleCode $role): string => $role->value,
+                        RoleCode::cases()
+                    )
+                ),
+            ],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'roles.required' => 'Please select a user role.',
+            'roles.size' => 'Only one role can be assigned to each account.',
+            'roles.*.in' => 'The selected role is invalid.',
         ];
     }
 }

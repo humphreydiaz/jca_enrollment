@@ -8,11 +8,11 @@ class UpdateSmsConsentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->hasRole('guardian') ?? false;
+        return $this->user() !== null;
     }
 
     public function rules(): array
     {
-        return ['transactional' => ['required', 'boolean'], 'announcement' => ['required', 'boolean']];
+        return ['announcement' => ['nullable', 'array'], 'announcement.*' => ['boolean']];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Modules\Enrollment\Actions;
 
 use App\Modules\Communications\Contracts\SmsGateway;
 use App\Modules\Communications\Contracts\SmsGatewayResult;
+use App\Modules\Communications\Enums\SmsDeliveryRoute;
 use App\Modules\Enrollment\Models\Enrollment;
 use App\Modules\Identity\Actions\ContactNormalizer;
 use App\Modules\Shared\Audit\AuditRecorder;
@@ -29,19 +30,28 @@ class SendContactVerificationSmsAction
             return false;
         }
 
-        $school = trim((string) config('app.name')) ?: 'Enrollment';
-        $body = "{$school}: your enrollment contact verification code is {$code}. It expires in 15 minutes. Do not share this code.";
+        $body = 'JCSGOCA verification code: {otp}. Expires in 15 minutes. Do not share.';
 
         try {
-            $result = $this->gateway->send($normalized, $body, 'enrollment-verify:'.$enrollment->id);
+            $result = $this->gateway->send(
+                $normalized,
+                $body,
+                'enrollment-verify:'.$enrollment->id,
+                SmsDeliveryRoute::Otp,
+                $code,
+            );
         } catch (Throwable $e) {
             $result = new SmsGatewayResult('failed', null, 'gateway_exception');
         }
 
-        $status = $result->accepted() ? 'sent' : ($result->status === 'disabled' ? 'disabled' : 'failed');
+        $status = $result->accepted() ? 'accepted' : ($result->status === 'disabled' ? 'disabled' : 'failed');
         $this->audit->record(null, 'enrollment.contact.verification.sms.'.$status, $enrollment, [
             'channel' => 'mobile',
             'provider' => (string) config('communications.sms.driver'),
+            'route' => SmsDeliveryRoute::Otp->value,
+            'provider_reference' => $result->providerReference,
+            'provider_status' => $result->providerStatus,
+            'message_length' => strlen(str_replace('{otp}', $code, $body)),
             'recipient_last_four' => substr(preg_replace('/\D/', '', $normalized) ?: '', -4),
             'failure_code' => $result->failureCode,
         ]);

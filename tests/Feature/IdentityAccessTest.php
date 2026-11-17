@@ -3,12 +3,17 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Communications\Contracts\SmsGateway;
+use App\Modules\Communications\Enums\SmsDeliveryRoute;
+use App\Modules\Communications\Gateways\FakeSmsGateway;
 use App\Modules\Identity\Actions\AssignRolesAction;
 use App\Modules\Identity\Actions\CreateAccountInvitationAction;
 use App\Modules\Identity\Enums\AccountStatus;
 use App\Modules\Identity\Models\AccountInvitation;
 use App\Modules\People\Actions\LinkGuardianStudentAction;
 use App\Modules\People\Models\GuardianProfile;
+use App\Modules\People\Models\GuardianStudent;
+use App\Modules\People\Models\StaffProfile;
 use App\Modules\People\Models\StudentProfile;
 use Database\Seeders\Identity\RoleSeeder;
 use Illuminate\Database\QueryException;
@@ -23,6 +28,8 @@ use Tests\TestCase;
 class IdentityAccessTest extends TestCase
 {
     use RefreshDatabase;
+
+    private int $loginIdentifierSequence = 700;
 
     protected function setUp(): void
     {
@@ -44,114 +51,170 @@ class IdentityAccessTest extends TestCase
     public function test_active_user_can_sign_in_and_sign_out(): void
     {
         $user = $this->activeUser(['guardian']);
+        $identifier = $this->schoolIdentifier($user, 'guardian');
+        $this->get(route('identity.login'));
+        $sessionIdBeforeLogin = session()->getId();
 
         $this->post(route('identity.login.store'), [
-            'identifier' => $user->email,
+            'identifier' => $identifier,
             'password' => 'Password12345',
         ])->assertRedirect(route('identity.dashboard'));
 
         $this->assertAuthenticatedAs($user);
+        $this->assertNotSame($sessionIdBeforeLogin, session()->getId());
         $this->assertNotNull($user->fresh()->last_login_at);
+        $this->assertDatabaseHas('audit_logs', [
+            'actor_user_id' => $user->id,
+            'action' => 'identity.login.succeeded',
+        ]);
 
         $this->post(route('identity.logout'))->assertRedirect(route('identity.login'));
 
         $this->assertGuest();
     }
 
-    public function test_portal_and_staff_login_pages_are_distinct_and_explain_their_audiences(): void
+    public function test_one_login_page_explains_every_supported_identifier_without_asking_for_a_role(): void
     {
         $this->get(route('identity.login'))
             ->assertOk()
-            ->assertSee('Parent &amp; student portal', false)
+            ->assertSee('JCA secure portal')
             ->assertSee('JCA-Parent-Student-Login-Image.png')
             ->assertSee(route('identity.login.store'), false)
-            ->assertSee(route('identity.staff.login'), false);
+            ->assertSee('<label for="identifier"', false)
+            ->assertSee('Username')
+            ->assertDontSee('Student ID or Staff ID')
+            ->assertSee('JCA-26-693 or 26-JCA-783')
+            ->assertDontSee('email address or mobile number')
+            ->assertDontSee('Staff sign in')
+            ->assertDontSee('name="role"', false);
 
-        $this->get(route('identity.staff.login'))
-            ->assertOk()
-            ->assertSee('JCA staff workspace')
-            ->assertSee('school administrators, registrars, accounting staff, and teachers')
-            ->assertSee(route('identity.staff.login.store'), false)
-            ->assertSee(route('identity.login'), false);
+        $this->get('/staff/login')->assertRedirect('/login');
+        $this->post('/staff/login')->assertStatus(405);
     }
 
-    public function test_each_staff_role_can_sign_in_only_through_the_staff_login(): void
+    public function test_every_role_signs_in_and_out_through_the_unified_endpoint(): void
     {
-        foreach (['admin', 'registrar', 'accounting', 'teacher'] as $role) {
+        $dashboardLabelByRole = [
+            'admin' => 'Enrollment review',
+            'registrar' => 'Enrollment pipeline',
+            'accounting' => 'Collections summary',
+            // Zero-count cards are hidden, so roles without work yet are recognised by their sidebar group.
+            'teacher' => 'My teaching',
+            'guardian' => 'My children',
+            'student' => 'My school records',
+        ];
+
+        foreach ($dashboardLabelByRole as $role => $dashboardLabel) {
             $user = $this->activeUser([$role]);
-
-            $this->post(route('identity.staff.login.store'), [
-                'identifier' => $user->email,
-                'password' => 'Password12345',
-            ])->assertRedirect(route('identity.dashboard'));
-
-            $this->assertAuthenticatedAs($user);
-            $this->post(route('identity.logout'))->assertRedirect(route('identity.staff.login'));
-            $this->assertGuest();
-        }
-    }
-
-    public function test_each_portal_role_can_sign_in_only_through_the_parent_and_student_login(): void
-    {
-        foreach (['guardian', 'student'] as $role) {
-            $user = $this->activeUser([$role]);
+            $identifier = $this->schoolIdentifier($user, $role);
 
             $this->post(route('identity.login.store'), [
-                'identifier' => $user->email,
+                'identifier' => $identifier,
                 'password' => 'Password12345',
             ])->assertRedirect(route('identity.dashboard'));
 
             $this->assertAuthenticatedAs($user);
+            $this->get(route('identity.dashboard'))->assertOk()->assertSee($dashboardLabel);
             $this->post(route('identity.logout'))->assertRedirect(route('identity.login'));
             $this->assertGuest();
         }
     }
 
-    public function test_login_surfaces_reject_the_wrong_account_group_without_revealing_its_role(): void
+    public function test_staff_can_sign_in_with_their_staff_id(): void
     {
-        $guardian = $this->activeUser(['guardian']);
+        $teacher = $this->activeUser(['teacher']);
+        StaffProfile::query()->create([
+            'user_id' => $teacher->id,
+            'employee_number' => '26-JCA-783',
+            'active_from' => '2026-06-01',
+        ]);
+
+        $this->post(route('identity.login.store'), [
+            'identifier' => '26-jca-783',
+            'password' => 'Password12345',
+        ])->assertRedirect(route('identity.dashboard'));
+
+        $this->assertAuthenticatedAs($teacher);
+    }
+
+    public function test_login_failure_is_identical_for_an_existing_and_unknown_identifier(): void
+    {
         $admin = $this->activeUser(['admin']);
+        $identifier = $this->schoolIdentifier($admin, 'admin');
 
-        $this->from(route('identity.staff.login'))
-            ->post(route('identity.staff.login.store'), [
-                'identifier' => $guardian->email,
-                'password' => 'Password12345',
-            ])
-            ->assertRedirect(route('identity.staff.login'))
-            ->assertSessionHasErrors([
-                'identifier' => 'The provided credentials are not valid.',
-            ]);
-
-        $this->assertGuest();
-        $this->assertNull($guardian->fresh()->last_login_at);
-
-        $this->from(route('identity.login'))
+        $existing = $this->from(route('identity.login'))
             ->post(route('identity.login.store'), [
-                'identifier' => $admin->email,
-                'password' => 'Password12345',
+                'identifier' => $identifier,
+                'password' => 'WrongPassword123',
             ])
             ->assertRedirect(route('identity.login'))
             ->assertSessionHasErrors([
                 'identifier' => 'The provided credentials are not valid.',
             ]);
 
+        $unknown = $this->from(route('identity.login'))
+            ->post(route('identity.login.store'), [
+                'identifier' => '26-JCA-999',
+                'password' => 'WrongPassword123',
+            ])
+            ->assertRedirect(route('identity.login'))
+            ->assertSessionHasErrors([
+                'identifier' => 'The provided credentials are not valid.',
+            ]);
+
+        $this->assertSame(
+            $existing->getSession()->get('errors')->first('identifier'),
+            $unknown->getSession()->get('errors')->first('identifier'),
+        );
         $this->assertGuest();
         $this->assertNull($admin->fresh()->last_login_at);
+    }
+
+    public function test_disabled_and_locked_accounts_receive_the_same_neutral_failure(): void
+    {
+        $disabled = $this->activeUser(['guardian'], [
+            'status' => AccountStatus::Disabled,
+            'disabled_at' => now(),
+        ]);
+        $locked = $this->activeUser(['teacher'], [
+            'status' => AccountStatus::Active,
+            'locked_at' => now(),
+        ]);
+        $accounts = [
+            [$disabled, $this->schoolIdentifier($disabled, 'guardian')],
+            [$locked, $this->schoolIdentifier($locked, 'teacher')],
+        ];
+
+        foreach ($accounts as [$account, $identifier]) {
+            $this->from(route('identity.login'))
+                ->post(route('identity.login.store'), [
+                    'identifier' => $identifier,
+                    'password' => 'Password12345',
+                ])
+                ->assertRedirect(route('identity.login'))
+                ->assertSessionHasErrors([
+                    'identifier' => 'The provided credentials are not valid.',
+                ]);
+
+            $this->assertGuest();
+            $this->assertNull($account->fresh()->last_login_at);
+        }
     }
 
     public function test_login_is_rate_limited_without_revealing_account_state(): void
     {
         $user = $this->activeUser(['guardian']);
+        $identifier = $this->schoolIdentifier($user, 'guardian');
 
         for ($attempt = 0; $attempt < 5; $attempt++) {
             $this->from(route('identity.login'))->post(route('identity.login.store'), [
-                'identifier' => $user->email,
+                'identifier' => $identifier,
                 'password' => 'incorrect-password',
             ])->assertSessionHasErrors('identifier');
         }
 
         $this->from(route('identity.login'))->post(route('identity.login.store'), [
-            'identifier' => $user->email,
+            'identifier' => $identifier,
             'password' => 'incorrect-password',
         ])->assertSessionHasErrors('identifier');
     }
@@ -159,9 +222,10 @@ class IdentityAccessTest extends TestCase
     public function test_forced_password_change_blocks_dashboard_until_completed(): void
     {
         $user = $this->activeUser(['guardian'], ['must_change_password' => true]);
+        $identifier = $this->schoolIdentifier($user, 'guardian');
 
         $this->post(route('identity.login.store'), [
-            'identifier' => $user->email,
+            'identifier' => $identifier,
             'password' => 'Password12345',
         ])->assertRedirect(route('identity.password.edit'));
 
@@ -188,11 +252,14 @@ class IdentityAccessTest extends TestCase
         $this->assignRoles($invitedUser, ['guardian'], $admin);
 
         $created = app(CreateAccountInvitationAction::class)->execute($invitedUser, 'email', $invitedUser->email, $admin);
+        $this->assertMatchesRegularExpression('/^[A-HJ-NP-Z2-9]{4}(?:-[A-HJ-NP-Z2-9]{4}){3}$/', $created->token);
+        $shortUrl = route('identity.invitations.short', ['token' => $created->token]);
         $url = route('identity.invitations.show', [
             'invitation' => $created->invitation->public_id,
             'token' => $created->token,
         ]);
 
+        $this->get($shortUrl)->assertOk()->assertSee('Set your private password');
         $this->get($url)->assertOk()->assertSee('Set your private password');
         $this->post($url, [
             'password' => 'InvitationPassword123',
@@ -205,6 +272,37 @@ class IdentityAccessTest extends TestCase
 
         $this->post(route('identity.logout'));
         $this->get($url)->assertStatus(410)->assertSee('This setup link cannot be used.');
+    }
+
+    public function test_invited_user_can_open_password_setup_with_the_sms_account_code(): void
+    {
+        $admin = $this->activeUser(['admin']);
+        $invitedUser = User::query()->create([
+            'name' => 'Code Recipient',
+            'mobile' => '+639171234590',
+            'status' => AccountStatus::Invited,
+        ]);
+        $this->assignRoles($invitedUser, ['guardian'], $admin);
+        $created = app(CreateAccountInvitationAction::class)->execute($invitedUser, 'mobile', $invitedUser->mobile, $admin);
+
+        $this->get(route('identity.invitations.activate'))
+            ->assertOk()
+            ->assertSee('Enter your account code')
+            ->assertSee('Staff account setup')
+            ->assertSee('Parents, guardians, and students don’t need a code.');
+        // The login page offers code entry only as a small staff link.
+        $this->get(route('identity.login'))->assertOk()
+            ->assertSee('School staff with a one-time account code?')
+            ->assertSee('Set up your staff account')
+            ->assertSee(route('identity.invitations.activate'), false)
+            ->assertDontSee('>Activate account<', false);
+
+        $typedWithoutDashes = strtolower(str_replace('-', ' ', $created->token));
+        $this->post(route('identity.invitations.activate.store'), ['code' => $typedWithoutDashes])
+            ->assertRedirect(route('identity.invitations.short', ['token' => $created->token]));
+
+        $this->post(route('identity.invitations.activate.store'), ['code' => 'AAAA-AAAA-AAAA-AAAA'])
+            ->assertSessionHasErrors('code');
     }
 
     public function test_expired_or_invalid_invitation_has_a_neutral_failure_response(): void
@@ -231,6 +329,8 @@ class IdentityAccessTest extends TestCase
     public function test_admin_can_create_an_invited_staff_account_without_open_registration(): void
     {
         $admin = $this->activeUser(['admin']);
+        $fake = new FakeSmsGateway;
+        app()->instance(SmsGateway::class, $fake);
 
         $this->actingAs($admin)
             ->post(route('identity.admin.users.store'), [
@@ -239,14 +339,28 @@ class IdentityAccessTest extends TestCase
                 'email' => 'registrar@example.test',
                 'mobile' => '+639171234589',
                 'roles' => ['registrar'],
+                'employed_on' => '2026-06-01',
             ])
             ->assertRedirect(route('identity.admin.users.index'))
+            ->assertSessionHas('invitation_code')
             ->assertSessionHas('invitation_url');
 
         $user = User::query()->where('email', 'registrar@example.test')->firstOrFail();
         $this->assertSame(AccountStatus::Invited, $user->status);
         $this->assertTrue($user->hasRole('registrar'));
-        $this->assertDatabaseHas('staff_profiles', ['user_id' => $user->id]);
+        $this->assertDatabaseHas('staff_profiles', [
+            'user_id' => $user->id,
+            'active_from' => '2026-06-01',
+        ]);
+        $this->assertMatchesRegularExpression('/^26-JCA-\d{3}$/', $user->staffProfile->employee_number);
+        $this->assertCount(1, $fake->sent);
+        $this->assertSame(SmsDeliveryRoute::Otp, $fake->sent[0]['route']);
+        $this->assertStringContainsString('{otp}', $fake->sent[0]['body']);
+        $this->assertStringNotContainsString('http', $fake->sent[0]['body']);
+        $this->assertSame(
+            AccountInvitation::query()->where('user_id', $user->id)->value('token_hash'),
+            hash('sha256', (string) $fake->sent[0]['one_time_code']),
+        );
     }
 
     public function test_admin_user_creation_temporarily_allows_only_mobile_invitations(): void
@@ -272,6 +386,24 @@ class IdentityAccessTest extends TestCase
             ->assertSessionHasErrors(['channel', 'mobile']);
 
         $this->assertDatabaseMissing('users', ['email' => 'email-channel@example.test']);
+    }
+
+    public function test_staff_invitation_requires_an_employment_start_date(): void
+    {
+        $admin = $this->activeUser(['admin']);
+
+        $this->actingAs($admin)
+            ->from(route('identity.admin.users.index'))
+            ->post(route('identity.admin.users.store'), [
+                'name' => 'Teacher Without Date',
+                'channel' => 'mobile',
+                'mobile' => '+639171234580',
+                'roles' => ['teacher'],
+            ])
+            ->assertRedirect(route('identity.admin.users.index'))
+            ->assertSessionHasErrors('employed_on');
+
+        $this->assertDatabaseMissing('users', ['name' => 'Teacher Without Date']);
     }
 
     public function test_user_management_list_requires_an_admin_account(): void
@@ -354,6 +486,23 @@ class IdentityAccessTest extends TestCase
             ->assertSessionHasErrors(['status', 'role', 'sort', 'per_page']);
     }
 
+    public function test_user_management_offers_no_locked_status_because_nothing_locks_accounts(): void
+    {
+        $admin = $this->activeUser(['admin']);
+
+        $this->actingAs($admin)
+            ->get(route('identity.admin.users.index'))
+            ->assertOk()
+            ->assertSee('<option value="disabled"', false)
+            ->assertDontSee('<option value="locked"', false);
+
+        $this->actingAs($admin)
+            ->from(route('identity.admin.users.index'))
+            ->get(route('identity.admin.users.index', ['status' => 'locked']))
+            ->assertRedirect(route('identity.admin.users.index'))
+            ->assertSessionHasErrors(['status']);
+    }
+
     public function test_first_admin_is_bootstrapped_only_through_the_secure_console_prompt(): void
     {
         $this->artisan('identity:bootstrap-admin', [
@@ -388,7 +537,7 @@ class IdentityAccessTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_reactivate_a_disabled_account_with_reason_and_new_setup_link(): void
+    public function test_admin_can_reactivate_a_disabled_parent_account_with_reason_and_temporary_password(): void
     {
         $admin = $this->activeUser(['admin']);
         $guardian = $this->activeUser(['guardian']);
@@ -413,9 +562,12 @@ class IdentityAccessTest extends TestCase
                 'reason' => $reason,
             ])
             ->assertRedirect()
-            ->assertSessionHas('invitation_url');
+            ->assertSessionMissing('invitation_url');
 
-        $this->assertSame(AccountStatus::Invited, $guardian->fresh()->status);
+        // Parent and student accounts are reactivated with a one-time temporary password
+        // (shown once to the Admin), not a staff-style setup link.
+        $this->assertStringContainsString('Temporary Password:', (string) session('status'));
+        $this->assertSame(AccountStatus::Active, $guardian->fresh()->status);
         $this->assertNull($guardian->fresh()->disabled_at);
         $this->assertNotNull($oldInvitation->invitation->fresh()->revoked_at);
         $this->assertDatabaseHas('audit_logs', [
@@ -430,14 +582,11 @@ class IdentityAccessTest extends TestCase
             ->first();
         $this->assertSame($reason, json_decode($audit->metadata, true)['reason']);
 
-        $invitationUrl = $response->getSession()->get('invitation_url');
-        $this->post(route('identity.logout'));
-        $this->post($invitationUrl, [
-            'password' => 'ReactivatedPassword123',
-            'password_confirmation' => 'ReactivatedPassword123',
-        ])->assertRedirect(route('identity.dashboard'));
-
-        $this->assertSame(AccountStatus::Active, $guardian->fresh()->status);
+        // The one-time password shown to the Admin opens the account and must be replaced at first sign-in.
+        preg_match('/Temporary Password: (\S+) \|/', (string) $response->getSession()->get('status'), $match);
+        $this->assertNotEmpty($match[1] ?? null);
+        $this->assertTrue(Hash::check($match[1], $guardian->fresh()->password));
+        $this->assertTrue((bool) $guardian->fresh()->must_change_password);
     }
 
     public function test_non_admin_cannot_reactivate_a_disabled_account(): void
@@ -553,21 +702,12 @@ class IdentityAccessTest extends TestCase
         $this->assertFalse(Gate::forUser($accounting)->allows('view', $student));
     }
 
-    public function test_admin_can_link_a_guardian_profile_to_an_individual_guardian_account(): void
+    public function test_old_people_page_address_redirects_to_family_links(): void
     {
         $admin = $this->activeUser(['admin']);
-        $guardianUser = $this->activeUser(['guardian']);
 
-        $this->actingAs($admin)
-            ->from(route('people.admin.index'))
-            ->post(route('people.admin.guardians.store'), [
-                'user_public_id' => $guardianUser->public_id,
-                'first_name' => 'Portal',
-                'last_name' => 'Guardian',
-            ])
-            ->assertRedirect(route('people.admin.index'));
-
-        $this->assertDatabaseHas('guardian_profiles', ['user_id' => $guardianUser->id]);
+        $this->actingAs($admin)->get('/admin/people')->assertRedirect('/registrar/family-links');
+        $this->actingAs($admin)->get(route('people.admin.index'))->assertOk()->assertSee('Family links');
     }
 
     public function test_mysql_unique_constraint_prevents_duplicate_normalized_mobile_account(): void
@@ -610,5 +750,45 @@ class IdentityAccessTest extends TestCase
     private function assignRoles(User $user, array $roleCodes, ?User $actor): User
     {
         return app(AssignRolesAction::class)->execute($user, $roleCodes, $actor);
+    }
+
+    private function schoolIdentifier(User $user, string $role): string
+    {
+        $suffix = sprintf('%03d', $this->loginIdentifierSequence++);
+
+        if (in_array($role, ['admin', 'registrar', 'accounting', 'teacher'], true)) {
+            StaffProfile::query()->create([
+                'user_id' => $user->id,
+                'employee_number' => "26-JCA-{$suffix}",
+                'active_from' => '2026-06-01',
+            ]);
+
+            return "26-JCA-{$suffix}";
+        }
+
+        $student = StudentProfile::query()->create([
+            'user_id' => $role === 'student' ? $user->id : null,
+            'first_name' => 'Login',
+            'last_name' => 'Learner',
+            'student_number' => "JCA-26-{$suffix}",
+        ]);
+
+        if ($role === 'guardian') {
+            $guardian = GuardianProfile::query()->create([
+                'user_id' => $user->id,
+                'first_name' => 'Login',
+                'last_name' => 'Guardian',
+            ]);
+            GuardianStudent::query()->create([
+                'guardian_id' => $guardian->id,
+                'student_id' => $student->id,
+                'relationship_type' => 'Parent',
+                'may_manage_enrollment' => true,
+                'verified_at' => now(),
+                'effective_from' => today(),
+            ]);
+        }
+
+        return "JCA-26-{$suffix}";
     }
 }

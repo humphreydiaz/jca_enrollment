@@ -20,18 +20,85 @@ use Illuminate\Support\Str;
 class Enrollment extends Model
 {
     /** @var list<string> */
-    public const TERMINAL_STATUSES = ['rejected', 'withdrawn', 'cancelled'];
+    public const TERMINAL_STATUSES = [
+        'rejected',
+        'withdrawn',
+        'cancelled',
+    ];
 
-    protected $fillable = ['application_number', 'student_id', 'academic_year_id', 'grade_level_id', 'applicant_guardian_id', 'student_applicant_user_id', 'student_category', 'guardian_relationship', 'previous_school_name', 'previous_school_address', 'status', 'active_enrollment_key', 'active_student_application_key', 'resume_token_hash', 'verification_code_hash', 'verification_expires_at', 'verification_attempts', 'duplicate_review_status', 'potential_duplicate_student_id', 'potential_duplicate_guardian_id', 'duplicate_reviewed_by', 'duplicate_reviewed_at', 'duplicate_review_reason', 'contact_verified_at', 'submitted_at', 'approved_at', 'enrolled_at', 'rejected_at', 'withdrawn_at', 'decided_by', 'decision_reason', 'previous_enrollment_id', 'lock_version'];
+    protected $fillable = [
+        'application_number',
+        'student_id',
+        'academic_year_id',
+        'grade_level_id',
+        'applicant_guardian_id',
+        'student_applicant_user_id',
+        'access_issued_to_user_id',
+        'walk_in_verified_by',
+        'walk_in_verified_at',
+        'access_issued_at',
+        'student_category',
+        'guardian_relationship',
+        'previous_school_name',
+        'previous_school_address',
+        'status',
+        'active_enrollment_key',
+        'active_student_application_key',
+        'resume_token_hash',
+        'verification_code_hash',
+        'verification_expires_at',
+        'verification_attempts',
+        'duplicate_review_status',
+        'potential_duplicate_student_id',
+        'potential_duplicate_guardian_id',
+        'duplicate_reviewed_by',
+        'duplicate_reviewed_at',
+        'duplicate_review_reason',
+        'contact_verified_at',
+        'submitted_at',
+        'approved_at',
+        'enrolled_at',
+        'rejected_at',
+        'withdrawn_at',
+        'decided_by',
+        'decision_reason',
+        'previous_enrollment_id',
+        'lock_version',
+
+        // Late enrollment
+        'is_late_enrollment',
+        'late_enrollment_status',
+        'late_enrollment_approved_by',
+        'late_enrollment_approved_at',
+        'late_enrollment_reason',
+    ];
 
     protected static function booted(): void
     {
-        static::creating(fn (self $record) => $record->public_id ??= (string) Str::ulid());
+        static::creating(
+            fn (self $record) =>
+                $record->public_id ??= (string) Str::ulid()
+        );
     }
 
     protected function casts(): array
     {
-        return ['verification_expires_at' => 'datetime', 'duplicate_reviewed_at' => 'datetime', 'contact_verified_at' => 'datetime', 'submitted_at' => 'datetime', 'approved_at' => 'datetime', 'enrolled_at' => 'datetime', 'rejected_at' => 'datetime', 'withdrawn_at' => 'datetime'];
+        return [
+            'verification_expires_at' => 'datetime',
+            'walk_in_verified_at' => 'datetime',
+            'access_issued_at' => 'datetime',
+            'duplicate_reviewed_at' => 'datetime',
+            'contact_verified_at' => 'datetime',
+            'submitted_at' => 'datetime',
+            'approved_at' => 'datetime',
+            'enrolled_at' => 'datetime',
+            'rejected_at' => 'datetime',
+            'withdrawn_at' => 'datetime',
+
+            // Late enrollment
+            'is_late_enrollment' => 'boolean',
+            'late_enrollment_approved_at' => 'datetime',
+        ];
     }
 
     public function student(): BelongsTo
@@ -41,22 +108,42 @@ class Enrollment extends Model
 
     public function guardian(): BelongsTo
     {
-        return $this->belongsTo(GuardianProfile::class, 'applicant_guardian_id');
+        return $this->belongsTo(
+            GuardianProfile::class,
+            'applicant_guardian_id'
+        );
     }
 
     public function studentApplicantUser(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'student_applicant_user_id');
+        return $this->belongsTo(
+            User::class,
+            'student_applicant_user_id'
+        );
+    }
+
+    public function accessOwner(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'access_issued_to_user_id'
+        );
     }
 
     public function potentialDuplicateStudent(): BelongsTo
     {
-        return $this->belongsTo(StudentProfile::class, 'potential_duplicate_student_id');
+        return $this->belongsTo(
+            StudentProfile::class,
+            'potential_duplicate_student_id'
+        );
     }
 
     public function potentialDuplicateGuardian(): BelongsTo
     {
-        return $this->belongsTo(GuardianProfile::class, 'potential_duplicate_guardian_id');
+        return $this->belongsTo(
+            GuardianProfile::class,
+            'potential_duplicate_guardian_id'
+        );
     }
 
     public function academicYear(): BelongsTo
@@ -79,6 +166,11 @@ class Enrollment extends Model
         return $this->hasMany(EnrollmentStatusHistory::class);
     }
 
+    public function corrections(): HasMany
+    {
+        return $this->hasMany(EnrollmentCorrection::class);
+    }
+
     public function sectionAssignments(): HasMany
     {
         return $this->hasMany(SectionAssignment::class);
@@ -86,17 +178,26 @@ class Enrollment extends Model
 
     public function currentSectionAssignment(): HasOne
     {
-        return $this->hasOne(SectionAssignment::class)->where('status', 'confirmed')->whereNull('ended_at')->latestOfMany();
+        return $this->hasOne(SectionAssignment::class)
+            ->where('status', 'confirmed')
+            ->whereNull('ended_at')
+            ->latestOfMany();
     }
 
     public function previousEnrollment(): BelongsTo
     {
-        return $this->belongsTo(self::class, 'previous_enrollment_id');
+        return $this->belongsTo(
+            self::class,
+            'previous_enrollment_id'
+        );
     }
 
     public function promotionRecommendation(): HasOne
     {
-        return $this->hasOne(PromotionRecommendation::class, 'source_enrollment_id');
+        return $this->hasOne(
+            PromotionRecommendation::class,
+            'source_enrollment_id'
+        );
     }
 
     public function discountAwards(): HasMany
@@ -109,6 +210,14 @@ class Enrollment extends Model
         return $this->hasMany(FeeAssessment::class);
     }
 
+    public function lateEnrollmentApprover(): BelongsTo
+    {
+        return $this->belongsTo(
+            User::class,
+            'late_enrollment_approved_by'
+        );
+    }
+
     public function getRouteKeyName(): string
     {
         return 'public_id';
@@ -116,6 +225,28 @@ class Enrollment extends Model
 
     public function isTerminal(): bool
     {
-        return in_array($this->status, self::TERMINAL_STATUSES, true);
+        return in_array(
+            $this->status,
+            self::TERMINAL_STATUSES,
+            true
+        );
+    }
+
+    public function isLateEnrollmentPending(): bool
+    {
+        return (bool) $this->is_late_enrollment
+            && $this->late_enrollment_status === 'pending';
+    }
+
+    public function isLateEnrollmentApproved(): bool
+    {
+        return (bool) $this->is_late_enrollment
+            && $this->late_enrollment_status === 'approved';
+    }
+
+    public function canProceedWithEnrollment(): bool
+    {
+        return ! $this->is_late_enrollment
+            || $this->isLateEnrollmentApproved();
     }
 }

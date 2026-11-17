@@ -19,6 +19,7 @@ class StoreTeachingAssignmentRequest extends AcademicCatalogRequest
             'active_from' => ['nullable', 'date'],
             'active_until' => ['nullable', 'date', 'after_or_equal:active_from'],
             'is_active' => ['required', 'boolean'],
+            'replace_existing' => ['nullable', 'boolean'],
         ];
     }
 
@@ -38,6 +39,8 @@ class StoreTeachingAssignmentRequest extends AcademicCatalogRequest
                 $sectionSubject = SectionSubject::query()->find($this->integer('section_subject_id'));
                 if ($sectionSubject === null || $sectionSubject->section_id !== $this->integer('section_id')) {
                     $validator->errors()->add('section_subject_id', 'Select a subject configured for the selected section.');
+                } elseif ($sectionSubject->isArchived()) {
+                    $validator->errors()->add('section_subject_id', 'Restore this archived subject before assigning a teacher.');
                 }
             }
         });

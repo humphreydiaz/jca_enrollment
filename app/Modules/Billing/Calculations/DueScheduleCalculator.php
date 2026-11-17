@@ -29,20 +29,21 @@ final class DueScheduleCalculator
 
         return match ($planType) {
             'full' => [$this->row(1, 'Full payment', $classStartsOn, $tuition + $oneTime, $criticalTuition + $criticalOneTime, $nonBusinessDays)],
-            'semiannual' => $this->splitByExamDates(2, $tuition, $oneTime, $criticalTuition, $criticalOneTime, [$classStartsOn, $this->examDue($quarterlyExamStarts, 2)], $nonBusinessDays, 'Semiannual'),
-            'quarterly' => $this->splitByExamDates(4, $tuition, $oneTime, $criticalTuition, $criticalOneTime, array_map(fn (int $index) => $this->examDue($quarterlyExamStarts, $index), range(0, 3)), $nonBusinessDays, 'Quarter'),
+            'semiannual' => $this->splitByExamDates(2, $tuition, $oneTime, $criticalTuition, $criticalOneTime, [$classStartsOn, $this->examDue($quarterlyExamStarts, 2)], $nonBusinessDays, 'Semiannual', [false, true]),
+            'quarterly' => $this->splitByExamDates(4, $tuition, $oneTime, $criticalTuition, $criticalOneTime, array_map(fn (int $index) => $this->examDue($quarterlyExamStarts, $index), range(0, 3)), $nonBusinessDays, 'Quarter', [true, true, true, true]),
             'monthly' => $this->monthly($tuition, $oneTime, $criticalTuition, $criticalOneTime, $classStartsOn, $nonBusinessDays),
             default => throw new InvalidArgumentException('Unsupported payment plan.'),
         };
     }
 
-    private function splitByExamDates(int $count, int $tuition, int $oneTime, int $criticalTuition, int $criticalOneTime, array $dates, array $nonBusinessDays, string $label): array
+    /** @param list<bool> $beforeExam  exam-based dues move to the previous business day, so they never pass the permit cutoff */
+    private function splitByExamDates(int $count, int $tuition, int $oneTime, int $criticalTuition, int $criticalOneTime, array $dates, array $nonBusinessDays, string $label, array $beforeExam): array
     {
         $tuitionParts = $this->split($tuition, $count);
         $criticalParts = $this->split($criticalTuition, $count);
         $rows = [];
         foreach ($tuitionParts as $index => $amount) {
-            $rows[] = $this->row($index + 1, $label.' '.($index + 1), $dates[$index], $amount + ($index === 0 ? $oneTime : 0), $criticalParts[$index] + ($index === 0 ? $criticalOneTime : 0), $nonBusinessDays);
+            $rows[] = $this->row($index + 1, $label.' '.($index + 1), $dates[$index], $amount + ($index === 0 ? $oneTime : 0), $criticalParts[$index] + ($index === 0 ? $criticalOneTime : 0), $nonBusinessDays, $beforeExam[$index]);
         }
 
         return $rows;
@@ -81,11 +82,16 @@ final class DueScheduleCalculator
         return CarbonImmutable::parse($dates[$index])->subDays(10)->toDateString();
     }
 
-    private function row(int $number, string $label, string $date, int $amount, int $critical, array $nonBusinessDays): array
+    /**
+     * A due date on a weekend or school non-business day moves to the next business day, except an
+     * examination installment, which moves to the previous one: it falls on the permit eligibility cutoff
+     * (10 days before the exam), and moving it later would leave it out of that exam's permit check (D-053).
+     */
+    private function row(int $number, string $label, string $date, int $amount, int $critical, array $nonBusinessDays, bool $beforeExam = false): array
     {
         $due = CarbonImmutable::parse($date);
         while ($due->isWeekend() || in_array($due->toDateString(), $nonBusinessDays, true)) {
-            $due = $due->addDay();
+            $due = $beforeExam ? $due->subDay() : $due->addDay();
         }
 
         return ['number' => $number, 'label' => $label, 'due_on' => $due->toDateString(), 'amount' => Money::decimal($amount), 'permit_critical_amount' => Money::decimal($critical)];
