@@ -72,7 +72,7 @@ The second command drains queued work and exits because shared hosting does not 
 
 ## Backups and restore (D-060)
 
-Backups are made by hand only: the Admin clicks Back up now in Admin > Backups (newest 14 kept in `storage/app/backups`); nothing runs on a schedule. Make one before every hotfix and at least weekly. Before relying on it, check from SSH in `public_html`:
+Backups: the Admin clicks Back up now in Admin > Backups, and one automatic backup runs daily at 02:00 Manila from the cron job above (D-062); the newest 14 are kept in `storage/app/backups`. Make one before every hotfix and at least weekly. Before relying on it, check from SSH in `public_html`:
 
 ```text
 php -m | grep -Ei '^(sodium|zip)$'

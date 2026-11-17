@@ -1,5 +1,9 @@
 param(
-    [string] $OutputDirectory
+    [string] $OutputDirectory,
+    # Bundle production-only Composer packages (no dev tools) and Laravel's package manifest, so the
+    # server never needs Composer. Hostinger shared hosting disables proc_open, which stops Composer's
+    # post-install scripts part-way.
+    [switch] $IncludeVendor
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,6 +63,21 @@ foreach ($file in $sourceFiles) {
 }
 
 Copy-Item -LiteralPath (Join-Path $repositoryRoot 'deploy\hostinger\.htaccess') -Destination (Join-Path $staging '.htaccess')
+
+if ($IncludeVendor) {
+    Push-Location $staging
+    try {
+        & composer install --no-dev --optimize-autoloader --classmap-authoritative --no-interaction --no-progress --no-scripts
+        if ($LASTEXITCODE -ne 0) { throw 'composer install --no-dev failed.' }
+        & php artisan package:discover --ansi
+        if ($LASTEXITCODE -ne 0) { throw 'php artisan package:discover failed.' }
+    } finally {
+        Pop-Location
+    }
+    # Only the provider/package manifests belong in the archive; never config/route/view caches built here.
+    Get-ChildItem -LiteralPath (Join-Path $staging 'bootstrap\cache') -File | Where-Object { $_.Name -notin @('packages.php', 'services.php') } | Remove-Item -Force
+    Remove-Item -LiteralPath (Join-Path $staging '.env') -Force -ErrorAction SilentlyContinue
+}
 
 # Windows PowerShell 5.1's Compress-Archive stores "app\Models\User.php"; Linux unzip on Hostinger needs
 # "app/Models/User.php". Write every entry with forward slashes, plus entries for empty folders.
